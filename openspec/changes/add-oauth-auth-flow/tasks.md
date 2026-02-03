@@ -15,4 +15,4 @@
 
 - [x] `src/main.rs` の `auth login` が `SLACKCLI_CLIENT_ID`/`SLACKCLI_CLIENT_SECRET` を必須として読み込み、未設定時にエラーで終了するよう修正する（現在は `SLACK_CLIENT_*` かつデフォルト値で継続してしまう）。
 - [x] `src/main.rs` の `auth login` で `redirect_uri` と `scopes` をハードコードせず、OAuth 設定として読み込むようにする。
-- [ ] 作業ツリーをクリーンにする（未コミット: `openspec/changes/add-oauth-auth-flow/tasks.md`）。
+- [x] 作業ツリーをクリーンにする（未コミット: `openspec/changes/add-oauth-auth-flow/tasks.md`）。
