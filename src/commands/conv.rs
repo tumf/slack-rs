@@ -29,7 +29,9 @@ pub async fn conv_list(
         params.insert("limit".to_string(), json!(limit));
     }
 
-    client.call_method(ApiMethod::ConversationsList, params).await
+    client
+        .call_method(ApiMethod::ConversationsList, params)
+        .await
 }
 
 /// Get conversation history
@@ -66,7 +68,9 @@ pub async fn conv_history(
         params.insert("latest".to_string(), json!(latest));
     }
 
-    client.call_method(ApiMethod::ConversationsHistory, params).await
+    client
+        .call_method(ApiMethod::ConversationsHistory, params)
+        .await
 }
 
 #[cfg(test)]
