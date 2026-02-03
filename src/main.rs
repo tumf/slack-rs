@@ -158,7 +158,9 @@ fn print_auth_usage() {
     println!("  auth import [options]               - Import profiles from encrypted file");
     println!();
     println!("Export options:");
-    println!("  --profile <name>                    - Export specific profile (default: 'default')");
+    println!(
+        "  --profile <name>                    - Export specific profile (default: 'default')"
+    );
     println!("  --all                               - Export all profiles");
     println!("  --out <file>                        - Output file path (required)");
     println!("  --passphrase-env <var>              - Environment variable containing passphrase");
@@ -178,7 +180,6 @@ async fn handle_export_command(args: &[String]) {
     let mut all = false;
     let mut output_path: Option<String> = None;
     let mut passphrase_env: Option<String> = None;
-    let mut passphrase_prompt = false;
     let mut yes = false;
     let mut lang: Option<String> = None;
 
@@ -207,7 +208,7 @@ async fn handle_export_command(args: &[String]) {
                 }
             }
             "--passphrase-prompt" => {
-                passphrase_prompt = true;
+                // Ignore this flag - we always prompt if --passphrase-env is not set
             }
             "--yes" => {
                 yes = true;
@@ -237,10 +238,11 @@ async fn handle_export_command(args: &[String]) {
         auth::Messages::default()
     };
 
-    // Show warning
-    if yes {
+    // Show warning and validate --yes
+    if !yes {
         eprintln!("{}", messages.get("warn.export_sensitive"));
-        eprintln!();
+        eprintln!("Error: --yes flag is required to confirm this dangerous operation");
+        std::process::exit(1);
     }
 
     // Validate required options
@@ -252,7 +254,7 @@ async fn handle_export_command(args: &[String]) {
         }
     };
 
-    // Get passphrase
+    // Get passphrase (fallback to prompt if env not specified)
     let passphrase = if let Some(env_var) = passphrase_env {
         match std::env::var(&env_var) {
             Ok(val) => val,
@@ -261,7 +263,8 @@ async fn handle_export_command(args: &[String]) {
                 std::process::exit(1);
             }
         }
-    } else if passphrase_prompt {
+    } else {
+        // Fallback to prompt mode
         match rpassword::prompt_password(messages.get("prompt.passphrase")) {
             Ok(pass) => pass,
             Err(e) => {
@@ -269,9 +272,6 @@ async fn handle_export_command(args: &[String]) {
                 std::process::exit(1);
             }
         }
-    } else {
-        eprintln!("Error: Either --passphrase-env or --passphrase-prompt is required");
-        std::process::exit(1);
     };
 
     let options = auth::ExportOptions {
@@ -297,7 +297,6 @@ async fn handle_export_command(args: &[String]) {
 async fn handle_import_command(args: &[String]) {
     let mut input_path: Option<String> = None;
     let mut passphrase_env: Option<String> = None;
-    let mut passphrase_prompt = false;
     let mut yes = false;
     let mut force = false;
     let mut lang: Option<String> = None;
@@ -318,7 +317,7 @@ async fn handle_import_command(args: &[String]) {
                 }
             }
             "--passphrase-prompt" => {
-                passphrase_prompt = true;
+                // Ignore this flag - we always prompt if --passphrase-env is not set
             }
             "--yes" => {
                 yes = true;
@@ -360,7 +359,7 @@ async fn handle_import_command(args: &[String]) {
         }
     };
 
-    // Get passphrase
+    // Get passphrase (fallback to prompt if env not specified)
     let passphrase = if let Some(env_var) = passphrase_env {
         match std::env::var(&env_var) {
             Ok(val) => val,
@@ -369,7 +368,8 @@ async fn handle_import_command(args: &[String]) {
                 std::process::exit(1);
             }
         }
-    } else if passphrase_prompt {
+    } else {
+        // Fallback to prompt mode
         match rpassword::prompt_password(messages.get("prompt.passphrase")) {
             Ok(pass) => pass,
             Err(e) => {
@@ -377,9 +377,6 @@ async fn handle_import_command(args: &[String]) {
                 std::process::exit(1);
             }
         }
-    } else {
-        eprintln!("Error: Either --passphrase-env or --passphrase-prompt is required");
-        std::process::exit(1);
     };
 
     let options = auth::ImportOptions {

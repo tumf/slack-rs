@@ -37,3 +37,10 @@
 - [x] 9. 全体結合テスト
   - export → import の round-trip で同一 profile が復元される
   - 検証: `cargo test` が成功すること
+
+## Acceptance #1 Failure Follow-up
+
+- [x] `src/main.rs` の `handle_export_command` / `handle_import_command` で `--passphrase-env` が未設定のときに `--passphrase-prompt` へフォールバックする挙動を実装する
+- [x] `src/auth/export_import.rs` の `import_profiles` で `--force` の上書きには `--yes` を必須にし、両方指定時のみ競合を許可する
+- [x] `src/auth/export_import.rs` の `import_profiles` で team_id 競合検知を user_id 依存にせず、同一 team_id なら競合として扱う
+- [x] `src/main.rs` の `handle_export_command` で `--yes` 未指定時にも危険操作の警告を表示して中止する

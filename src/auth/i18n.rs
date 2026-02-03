@@ -156,11 +156,11 @@ impl Default for Messages {
         // Default to Japanese based on locale, or English if not detected
         let lang = std::env::var("LANG")
             .ok()
-            .and_then(|lang| {
+            .map(|lang| {
                 if lang.starts_with("ja") {
-                    Some(Language::Japanese)
+                    Language::Japanese
                 } else {
-                    Some(Language::English)
+                    Language::English
                 }
             })
             .unwrap_or(Language::English);

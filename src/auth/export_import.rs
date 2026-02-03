@@ -123,8 +123,10 @@ pub fn export_profiles<T: TokenStore>(token_store: &T, options: &ExportOptions) 
     }
 
     // Encrypt payload
-    let mut kdf_params = KdfParams::default();
-    kdf_params.salt = crypto::generate_salt();
+    let kdf_params = KdfParams {
+        salt: crypto::generate_salt(),
+        ..Default::default()
+    };
 
     let key = crypto::derive_key(&options.passphrase, &kdf_params)?;
     let payload_json = serde_json::to_vec(&payload)
@@ -175,6 +177,13 @@ pub fn import_profiles<T: TokenStore>(token_store: &T, options: &ImportOptions) 
         load_config(&config_path).map_err(|e| ExportImportError::Storage(e.to_string()))?;
 
     // Check for conflicts
+    // Force requires --yes
+    if options.force && !options.yes {
+        return Err(ExportImportError::Storage(
+            "--force requires --yes to confirm overwrite".to_string(),
+        ));
+    }
+
     if !options.force {
         for (name, export_profile) in &payload.profiles {
             // Check if profile name exists
@@ -185,15 +194,10 @@ pub fn import_profiles<T: TokenStore>(token_store: &T, options: &ImportOptions) 
                 }
             }
 
-            // Check if team_id exists under different name
+            // Check if team_id exists under different name (conflict detection based on team_id only)
             for (existing_name, existing_profile) in &config.profiles {
-                if existing_name != name
-                    && existing_profile.team_id == export_profile.team_id
-                    && existing_profile.user_id == export_profile.user_id
-                {
-                    if !options.yes {
-                        return Err(ExportImportError::ProfileExists(existing_name.clone()));
-                    }
+                if existing_name != name && existing_profile.team_id == export_profile.team_id {
+                    return Err(ExportImportError::ProfileExists(existing_name.clone()));
                 }
             }
         }
