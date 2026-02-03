@@ -22,6 +22,10 @@ async fn main() {
     }
 
     match args[1].as_str() {
+        "--version" | "-v" => {
+            print_version();
+            return;
+        }
         "api" => {
             if args.len() > 2 && args[2] == "call" {
                 // Run api call command
@@ -263,6 +267,13 @@ async fn main() {
     }
 }
 
+/// Print version information
+fn print_version() {
+    const VERSION: &str = env!("CARGO_PKG_VERSION");
+    const NAME: &str = env!("CARGO_PKG_NAME");
+    println!("{} {}", NAME, VERSION);
+}
+
 /// Print CLI help information
 fn print_help() {
     println!("Slack CLI");
@@ -321,6 +332,7 @@ fn print_usage() {
     println!("  react remove <channel> <ts> <emoji> - Remove a reaction (requires --allow-write)");
     println!("  demo                           - Run demonstration");
     println!("  --help, -h                     - Show help");
+    println!("  --version, -v                  - Show version");
 }
 
 fn print_api_usage() {
