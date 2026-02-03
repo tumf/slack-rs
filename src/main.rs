@@ -102,6 +102,12 @@ async fn main() {
                         std::process::exit(1);
                     }
                 }
+                "export" => {
+                    handle_export_command(&args[3..]).await;
+                }
+                "import" => {
+                    handle_import_command(&args[3..]).await;
+                }
                 _ => {
                     print_auth_usage();
                 }
@@ -131,21 +137,268 @@ async fn main() {
 
 fn print_usage() {
     println!("Slack CLI - Usage:");
-    println!("  auth login [profile_name]    - Authenticate with Slack");
-    println!("  auth status [profile_name]   - Show profile status");
-    println!("  auth list                    - List all profiles");
-    println!("  auth rename <old> <new>      - Rename a profile");
-    println!("  auth logout [profile_name]   - Remove authentication");
-    println!("  demo                         - Run demonstration");
+    println!("  auth login [profile_name]       - Authenticate with Slack");
+    println!("  auth status [profile_name]      - Show profile status");
+    println!("  auth list                       - List all profiles");
+    println!("  auth rename <old> <new>         - Rename a profile");
+    println!("  auth logout [profile_name]      - Remove authentication");
+    println!("  auth export [options]           - Export profiles to encrypted file");
+    println!("  auth import [options]           - Import profiles from encrypted file");
+    println!("  demo                            - Run demonstration");
 }
 
 fn print_auth_usage() {
     println!("Auth command usage:");
-    println!("  auth login [profile_name]    - Authenticate with Slack");
-    println!("  auth status [profile_name]   - Show profile status");
-    println!("  auth list                    - List all profiles");
-    println!("  auth rename <old> <new>      - Rename a profile");
-    println!("  auth logout [profile_name]   - Remove authentication");
+    println!("  auth login [profile_name]           - Authenticate with Slack");
+    println!("  auth status [profile_name]          - Show profile status");
+    println!("  auth list                           - List all profiles");
+    println!("  auth rename <old> <new>             - Rename a profile");
+    println!("  auth logout [profile_name]          - Remove authentication");
+    println!("  auth export [options]               - Export profiles to encrypted file");
+    println!("  auth import [options]               - Import profiles from encrypted file");
+    println!();
+    println!("Export options:");
+    println!("  --profile <name>                    - Export specific profile (default: 'default')");
+    println!("  --all                               - Export all profiles");
+    println!("  --out <file>                        - Output file path (required)");
+    println!("  --passphrase-env <var>              - Environment variable containing passphrase");
+    println!("  --passphrase-prompt                 - Prompt for passphrase");
+    println!("  --yes                               - Confirm dangerous operation (required)");
+    println!();
+    println!("Import options:");
+    println!("  --in <file>                         - Input file path (required)");
+    println!("  --passphrase-env <var>              - Environment variable containing passphrase");
+    println!("  --passphrase-prompt                 - Prompt for passphrase");
+    println!("  --yes                               - Automatically accept conflicts");
+    println!("  --force                             - Overwrite existing profiles");
+}
+
+async fn handle_export_command(args: &[String]) {
+    let mut profile_name: Option<String> = None;
+    let mut all = false;
+    let mut output_path: Option<String> = None;
+    let mut passphrase_env: Option<String> = None;
+    let mut passphrase_prompt = false;
+    let mut yes = false;
+    let mut lang: Option<String> = None;
+
+    let mut i = 0;
+    while i < args.len() {
+        match args[i].as_str() {
+            "--profile" => {
+                i += 1;
+                if i < args.len() {
+                    profile_name = Some(args[i].clone());
+                }
+            }
+            "--all" => {
+                all = true;
+            }
+            "--out" => {
+                i += 1;
+                if i < args.len() {
+                    output_path = Some(args[i].clone());
+                }
+            }
+            "--passphrase-env" => {
+                i += 1;
+                if i < args.len() {
+                    passphrase_env = Some(args[i].clone());
+                }
+            }
+            "--passphrase-prompt" => {
+                passphrase_prompt = true;
+            }
+            "--yes" => {
+                yes = true;
+            }
+            "--lang" => {
+                i += 1;
+                if i < args.len() {
+                    lang = Some(args[i].clone());
+                }
+            }
+            _ => {
+                eprintln!("Unknown option: {}", args[i]);
+                std::process::exit(1);
+            }
+        }
+        i += 1;
+    }
+
+    // Set up i18n messages
+    let messages = if let Some(lang_code) = lang {
+        if let Some(language) = auth::Language::from_code(&lang_code) {
+            auth::Messages::new(language)
+        } else {
+            auth::Messages::default()
+        }
+    } else {
+        auth::Messages::default()
+    };
+
+    // Show warning
+    if yes {
+        eprintln!("{}", messages.get("warn.export_sensitive"));
+        eprintln!();
+    }
+
+    // Validate required options
+    let output = match output_path {
+        Some(path) => path,
+        None => {
+            eprintln!("Error: --out <file> is required");
+            std::process::exit(1);
+        }
+    };
+
+    // Get passphrase
+    let passphrase = if let Some(env_var) = passphrase_env {
+        match std::env::var(&env_var) {
+            Ok(val) => val,
+            Err(_) => {
+                eprintln!("Error: Environment variable {} not found", env_var);
+                std::process::exit(1);
+            }
+        }
+    } else if passphrase_prompt {
+        match rpassword::prompt_password(messages.get("prompt.passphrase")) {
+            Ok(pass) => pass,
+            Err(e) => {
+                eprintln!("Error reading passphrase: {}", e);
+                std::process::exit(1);
+            }
+        }
+    } else {
+        eprintln!("Error: Either --passphrase-env or --passphrase-prompt is required");
+        std::process::exit(1);
+    };
+
+    let options = auth::ExportOptions {
+        profile_name,
+        all,
+        output_path: output,
+        passphrase,
+        yes,
+    };
+
+    let token_store = KeyringTokenStore::default_service();
+    match auth::export_profiles(&token_store, &options) {
+        Ok(_) => {
+            println!("{}", messages.get("success.export"));
+        }
+        Err(e) => {
+            eprintln!("Export failed: {}", e);
+            std::process::exit(1);
+        }
+    }
+}
+
+async fn handle_import_command(args: &[String]) {
+    let mut input_path: Option<String> = None;
+    let mut passphrase_env: Option<String> = None;
+    let mut passphrase_prompt = false;
+    let mut yes = false;
+    let mut force = false;
+    let mut lang: Option<String> = None;
+
+    let mut i = 0;
+    while i < args.len() {
+        match args[i].as_str() {
+            "--in" => {
+                i += 1;
+                if i < args.len() {
+                    input_path = Some(args[i].clone());
+                }
+            }
+            "--passphrase-env" => {
+                i += 1;
+                if i < args.len() {
+                    passphrase_env = Some(args[i].clone());
+                }
+            }
+            "--passphrase-prompt" => {
+                passphrase_prompt = true;
+            }
+            "--yes" => {
+                yes = true;
+            }
+            "--force" => {
+                force = true;
+            }
+            "--lang" => {
+                i += 1;
+                if i < args.len() {
+                    lang = Some(args[i].clone());
+                }
+            }
+            _ => {
+                eprintln!("Unknown option: {}", args[i]);
+                std::process::exit(1);
+            }
+        }
+        i += 1;
+    }
+
+    // Set up i18n messages
+    let messages = if let Some(lang_code) = lang {
+        if let Some(language) = auth::Language::from_code(&lang_code) {
+            auth::Messages::new(language)
+        } else {
+            auth::Messages::default()
+        }
+    } else {
+        auth::Messages::default()
+    };
+
+    // Validate required options
+    let input = match input_path {
+        Some(path) => path,
+        None => {
+            eprintln!("Error: --in <file> is required");
+            std::process::exit(1);
+        }
+    };
+
+    // Get passphrase
+    let passphrase = if let Some(env_var) = passphrase_env {
+        match std::env::var(&env_var) {
+            Ok(val) => val,
+            Err(_) => {
+                eprintln!("Error: Environment variable {} not found", env_var);
+                std::process::exit(1);
+            }
+        }
+    } else if passphrase_prompt {
+        match rpassword::prompt_password(messages.get("prompt.passphrase")) {
+            Ok(pass) => pass,
+            Err(e) => {
+                eprintln!("Error reading passphrase: {}", e);
+                std::process::exit(1);
+            }
+        }
+    } else {
+        eprintln!("Error: Either --passphrase-env or --passphrase-prompt is required");
+        std::process::exit(1);
+    };
+
+    let options = auth::ImportOptions {
+        input_path: input,
+        passphrase,
+        yes,
+        force,
+    };
+
+    let token_store = KeyringTokenStore::default_service();
+    match auth::import_profiles(&token_store, &options) {
+        Ok(_) => {
+            println!("{}", messages.get("success.import"));
+        }
+        Err(e) => {
+            eprintln!("Import failed: {}", e);
+            std::process::exit(1);
+        }
+    }
 }
 
 /// Demonstrates the profile storage functionality
