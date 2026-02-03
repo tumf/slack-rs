@@ -22,4 +22,4 @@ pub use storage::{default_config_path, load_config, save_config, StorageError};
 pub use token_store::{
     make_token_key, InMemoryTokenStore, KeyringTokenStore, TokenStore, TokenStoreError,
 };
-pub use types::{Profile, ProfilesConfig};
+pub use types::{Profile, ProfileError, ProfilesConfig};

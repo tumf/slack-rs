@@ -84,9 +84,19 @@ pub struct KeyringTokenStore {
 }
 
 impl KeyringTokenStore {
+    /// Create a new KeyringTokenStore with a custom service name
+    /// For production use, prefer `default()` which uses the standard service name
     pub fn new(service: impl Into<String>) -> Self {
         Self {
             service: service.into(),
+        }
+    }
+
+    /// Create a KeyringTokenStore with the default service name "slackcli"
+    /// This is the recommended way to create a KeyringTokenStore for production use
+    pub fn default_service() -> Self {
+        Self {
+            service: "slackcli".to_string(),
         }
     }
 }
@@ -196,5 +206,11 @@ mod tests {
 
         assert_eq!(store.get("T1:U1").unwrap(), "token1");
         assert_eq!(store.get("T2:U2").unwrap(), "token2");
+    }
+
+    #[test]
+    fn test_keyring_token_store_default_service() {
+        let store = KeyringTokenStore::default_service();
+        assert_eq!(store.service, "slackcli");
     }
 }
