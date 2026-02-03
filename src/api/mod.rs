@@ -4,6 +4,7 @@
 //! - HTTP client with retry logic
 //! - Argument parsing
 //! - API call execution with metadata
+//! - Wrapper commands for common operations
 
 #![allow(dead_code)]
 #![allow(unused_imports)]
@@ -11,8 +12,12 @@
 pub mod args;
 pub mod call;
 pub mod client;
+pub mod types;
 
-// Re-export commonly used types
+// Re-export commonly used types for generic API calls
 pub use args::{ApiCallArgs, ArgsError};
 pub use call::{execute_api_call, ApiCallContext, ApiCallError, ApiCallResponse};
-pub use client::{ApiClient, ApiClientConfig, ApiClientError, RequestBody};
+pub use client::{ApiClient, ApiClientConfig, ApiClientError, ApiError, RequestBody};
+
+// Re-export types for wrapper commands
+pub use types::{ApiMethod, ApiResponse};

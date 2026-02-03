@@ -1,9 +1,12 @@
 mod api;
 mod auth;
+mod cli;
+mod commands;
 mod oauth;
 mod profile;
 
 use api::{execute_api_call, ApiCallArgs, ApiCallContext, ApiClient};
+use cli::*;
 use profile::{
     default_config_path, load_config, make_token_key, resolve_profile, resolve_profile_full,
     save_config, InMemoryTokenStore, KeyringTokenStore, Profile, ProfilesConfig, TokenStore,
@@ -127,6 +130,114 @@ async fn main() {
                 }
             }
         }
+        "search" => {
+            if args.len() < 3 {
+                eprintln!(
+                    "Usage: {} search <query> [--count=N] [--page=N] [--sort=TYPE] [--sort_dir=DIR] [--profile=NAME]",
+                    args[0]
+                );
+                std::process::exit(1);
+            }
+            if let Err(e) = run_search(&args).await {
+                eprintln!("Search failed: {}", e);
+                std::process::exit(1);
+            }
+        }
+        "conv" => {
+            if args.len() < 3 {
+                print_conv_usage(&args[0]);
+                std::process::exit(1);
+            }
+            match args[2].as_str() {
+                "list" => {
+                    if let Err(e) = run_conv_list(&args).await {
+                        eprintln!("Conv list failed: {}", e);
+                        std::process::exit(1);
+                    }
+                }
+                "history" => {
+                    if args.len() < 4 {
+                        eprintln!(
+                            "Usage: {} conv history <channel> [--limit=N] [--profile=NAME]",
+                            args[0]
+                        );
+                        std::process::exit(1);
+                    }
+                    if let Err(e) = run_conv_history(&args).await {
+                        eprintln!("Conv history failed: {}", e);
+                        std::process::exit(1);
+                    }
+                }
+                _ => print_conv_usage(&args[0]),
+            }
+        }
+        "users" => {
+            if args.len() < 3 {
+                print_users_usage(&args[0]);
+                std::process::exit(1);
+            }
+            match args[2].as_str() {
+                "info" => {
+                    if args.len() < 4 {
+                        eprintln!("Usage: {} users info <user_id> [--profile=NAME]", args[0]);
+                        std::process::exit(1);
+                    }
+                    if let Err(e) = run_users_info(&args).await {
+                        eprintln!("Users info failed: {}", e);
+                        std::process::exit(1);
+                    }
+                }
+                _ => print_users_usage(&args[0]),
+            }
+        }
+        "msg" => {
+            if args.len() < 3 {
+                print_msg_usage(&args[0]);
+                std::process::exit(1);
+            }
+            match args[2].as_str() {
+                "post" => {
+                    if let Err(e) = run_msg_post(&args).await {
+                        eprintln!("Msg post failed: {}", e);
+                        std::process::exit(1);
+                    }
+                }
+                "update" => {
+                    if let Err(e) = run_msg_update(&args).await {
+                        eprintln!("Msg update failed: {}", e);
+                        std::process::exit(1);
+                    }
+                }
+                "delete" => {
+                    if let Err(e) = run_msg_delete(&args).await {
+                        eprintln!("Msg delete failed: {}", e);
+                        std::process::exit(1);
+                    }
+                }
+                _ => print_msg_usage(&args[0]),
+            }
+        }
+        "react" => {
+            if args.len() < 3 {
+                print_react_usage(&args[0]);
+                std::process::exit(1);
+            }
+            match args[2].as_str() {
+                "add" => {
+                    if let Err(e) = run_react_add(&args).await {
+                        eprintln!("React add failed: {}", e);
+                        std::process::exit(1);
+                    }
+                }
+                "remove" => {
+                    if let Err(e) = run_react_remove(&args).await {
+                        eprintln!("React remove failed: {}", e);
+                        std::process::exit(1);
+                    }
+                }
+                _ => print_react_usage(&args[0]),
+            }
+        }
         "demo" => {
             println!("Slack CLI - OAuth authentication flow");
             println!();
@@ -166,6 +277,15 @@ fn print_help() {
     println!("    auth list                        List all profiles");
     println!("    auth rename <old> <new>          Rename a profile");
     println!("    auth logout [profile_name]       Remove authentication");
+    println!("    search <query>                   Search messages");
+    println!("    conv list                        List conversations");
+    println!("    conv history <channel>           Get conversation history");
+    println!("    users info <user_id>             Get user information");
+    println!("    msg post <channel> <text>        Post a message");
+    println!("    msg update <channel> <ts> <text> Update a message");
+    println!("    msg delete <channel> <ts>        Delete a message");
+    println!("    react add <channel> <ts> <emoji> Add a reaction");
+    println!("    react remove <channel> <ts> <emoji> Remove a reaction");
     println!("    demo                             Run demonstration");
     println!();
     println!("API CALL OPTIONS:");
@@ -190,6 +310,15 @@ fn print_usage() {
     println!("  auth logout [profile_name]     - Remove authentication");
     println!("  auth export [options]          - Export profiles to encrypted file");
     println!("  auth import [options]          - Import profiles from encrypted file");
+    println!("  search <query>                 - Search messages (supports --count, --page, --sort, --sort_dir)");
+    println!("  conv list                      - List conversations");
+    println!("  conv history <channel>         - Get conversation history");
+    println!("  users info <user_id>           - Get user information");
+    println!("  msg post <channel> <text>      - Post a message (requires --allow-write)");
+    println!("  msg update <channel> <ts> <text> - Update a message (requires --allow-write)");
+    println!("  msg delete <channel> <ts>      - Delete a message (requires --allow-write)");
+    println!("  react add <channel> <ts> <emoji> - Add a reaction (requires --allow-write)");
+    println!("  react remove <channel> <ts> <emoji> - Remove a reaction (requires --allow-write)");
     println!("  demo                           - Run demonstration");
     println!("  --help, -h                     - Show help");
 }

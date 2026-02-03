@@ -4,12 +4,40 @@
 //! - Configurable base URL (for testing with mock servers)
 //! - Retry logic with exponential backoff
 //! - Rate limit handling (429 + Retry-After)
+//! - Support for both wrapper commands and generic API calls
 
 use reqwest::{Client, Method, Response, StatusCode};
 use serde_json::Value;
+use std::collections::HashMap;
 use std::time::Duration;
 use thiserror::Error;
 
+use super::types::{ApiMethod, ApiResponse};
+
+/// API client errors (for wrapper commands)
+#[derive(Error, Debug)]
+pub enum ApiError {
+    #[error("HTTP request failed: {0}")]
+    RequestFailed(#[from] reqwest::Error),
+
+    #[error("JSON serialization failed: {0}")]
+    JsonError(#[from] serde_json::Error),
+
+    #[error("Slack API error: {0}")]
+    SlackError(String),
+
+    #[allow(dead_code)]
+    #[error("Missing required parameter: {0}")]
+    MissingParameter(String),
+
+    #[error("Write operation requires --allow-write flag")]
+    WriteNotAllowed,
+
+    #[error("Destructive operation cancelled")]
+    OperationCancelled,
+}
+
+/// API client errors (for generic API calls)
 #[derive(Debug, Error)]
 pub enum ApiClientError {
     #[error("HTTP request failed: {0}")]
@@ -54,16 +82,33 @@ impl Default for ApiClientConfig {
     }
 }
 
-/// HTTP client for Slack API
+/// Slack API client
+///
+/// Supports both:
+/// - Wrapper commands via `call_method()` with `ApiMethod` enum
+/// - Generic API calls via `call()` with arbitrary endpoints
 pub struct ApiClient {
     client: Client,
+    token: Option<String>,
     config: ApiClientConfig,
 }
 
 impl ApiClient {
-    /// Create a new API client with default configuration
+    /// Create a new API client with default configuration (for generic API calls)
     pub fn new() -> Self {
         Self::with_config(ApiClientConfig::default())
+    }
+
+    /// Create a new API client with a token (for wrapper commands)
+    pub fn with_token(token: String) -> Self {
+        Self {
+            client: Client::builder()
+                .timeout(Duration::from_secs(30))
+                .build()
+                .expect("Failed to create HTTP client"),
+            token: Some(token),
+            config: ApiClientConfig::default(),
+        }
     }
 
     /// Create a new API client with custom configuration
@@ -73,7 +118,25 @@ impl ApiClient {
             .build()
             .expect("Failed to create HTTP client");
 
-        Self { client, config }
+        Self {
+            client,
+            token: None,
+            config,
+        }
+    }
+
+    /// Create a new API client with custom base URL (for testing)
+    #[doc(hidden)]
+    #[allow(dead_code)]
+    pub fn new_with_base_url(token: String, base_url: String) -> Self {
+        Self {
+            client: Client::new(),
+            token: Some(token),
+            config: ApiClientConfig {
+                base_url,
+                ..Default::default()
+            },
+        }
     }
 
     /// Get the base URL
@@ -81,7 +144,41 @@ impl ApiClient {
         &self.config.base_url
     }
 
-    /// Make an API call with automatic retry logic
+    /// Call a Slack API method using the ApiMethod enum (for wrapper commands)
+    pub async fn call_method(
+        &self,
+        method: ApiMethod,
+        params: HashMap<String, Value>,
+    ) -> std::result::Result<ApiResponse, ApiError> {
+        let token = self
+            .token
+            .as_ref()
+            .ok_or_else(|| ApiError::SlackError("No token configured".to_string()))?;
+
+        let url = format!("{}/{}", self.config.base_url, method.as_str());
+
+        let response = self
+            .client
+            .post(&url)
+            .bearer_auth(token)
+            .json(&params)
+            .send()
+            .await?;
+
+        let response_json: ApiResponse = response.json().await?;
+
+        if !response_json.ok {
+            return Err(ApiError::SlackError(
+                response_json
+                    .error
+                    .unwrap_or_else(|| "Unknown error".to_string()),
+            ));
+        }
+
+        Ok(response_json)
+    }
+
+    /// Make an API call with automatic retry logic (for generic API calls)
     pub async fn call(
         &self,
         method: Method,
@@ -201,6 +298,48 @@ pub enum RequestBody {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_api_method_as_str() {
+        assert_eq!(ApiMethod::SearchMessages.as_str(), "search.messages");
+        assert_eq!(ApiMethod::ConversationsList.as_str(), "conversations.list");
+        assert_eq!(
+            ApiMethod::ConversationsHistory.as_str(),
+            "conversations.history"
+        );
+        assert_eq!(ApiMethod::UsersInfo.as_str(), "users.info");
+        assert_eq!(ApiMethod::ChatPostMessage.as_str(), "chat.postMessage");
+        assert_eq!(ApiMethod::ChatUpdate.as_str(), "chat.update");
+        assert_eq!(ApiMethod::ChatDelete.as_str(), "chat.delete");
+        assert_eq!(ApiMethod::ReactionsAdd.as_str(), "reactions.add");
+        assert_eq!(ApiMethod::ReactionsRemove.as_str(), "reactions.remove");
+    }
+
+    #[test]
+    fn test_api_method_is_write() {
+        assert!(!ApiMethod::SearchMessages.is_write());
+        assert!(!ApiMethod::ConversationsList.is_write());
+        assert!(!ApiMethod::ConversationsHistory.is_write());
+        assert!(!ApiMethod::UsersInfo.is_write());
+        assert!(ApiMethod::ChatPostMessage.is_write());
+        assert!(ApiMethod::ChatUpdate.is_write());
+        assert!(ApiMethod::ChatDelete.is_write());
+        assert!(ApiMethod::ReactionsAdd.is_write());
+        assert!(ApiMethod::ReactionsRemove.is_write());
+    }
+
+    #[test]
+    fn test_api_method_is_destructive() {
+        assert!(!ApiMethod::SearchMessages.is_destructive());
+        assert!(!ApiMethod::ConversationsList.is_destructive());
+        assert!(!ApiMethod::ConversationsHistory.is_destructive());
+        assert!(!ApiMethod::UsersInfo.is_destructive());
+        assert!(!ApiMethod::ChatPostMessage.is_destructive());
+        assert!(ApiMethod::ChatUpdate.is_destructive());
+        assert!(ApiMethod::ChatDelete.is_destructive());
+        assert!(!ApiMethod::ReactionsAdd.is_destructive());
+        assert!(ApiMethod::ReactionsRemove.is_destructive());
+    }
 
     #[test]
     fn test_api_client_config_default() {
