@@ -1,12 +1,18 @@
 # Makefile for slack-rs
 
-.PHONY: help install build release test clean fmt lint check setup pre-commit-hooks bump-patch bump-minor bump-major
+.PHONY: build help install release test clean fmt lint check setup pre-commit-hooks bump-patch bump-minor bump-major
 
-# Default target
+# Default target - build debug version
+build:
+	@echo "Building debug version..."
+	cargo build
+
+# Help message
 help:
 	@echo "Available targets:"
-	@echo "  make install           - Install the binary to ~/.cargo/bin"
+	@echo "  make (default)         - Build debug version"
 	@echo "  make build             - Build debug version"
+	@echo "  make install           - Install the binary to ~/.cargo/bin"
 	@echo "  make release           - Build optimized release version"
 	@echo "  make test              - Run all tests"
 	@echo "  make clean             - Clean build artifacts"
@@ -24,11 +30,6 @@ install:
 	@echo "Installing slack-rs..."
 	cargo install --path .
 	@echo "Installation complete. Binary installed to ~/.cargo/bin/slack-rs"
-
-# Build debug version
-build:
-	@echo "Building debug version..."
-	cargo build
 
 # Build release version
 release:
