@@ -10,3 +10,9 @@
 ## Future Work
 
 - 実運用の Slack OAuth での疎通検証（外部アカウント/資格情報が必要）
+
+## Acceptance #1 Failure Follow-up
+
+- [x] `src/main.rs` の `auth login` が `SLACKCLI_CLIENT_ID`/`SLACKCLI_CLIENT_SECRET` を必須として読み込み、未設定時にエラーで終了するよう修正する（現在は `SLACK_CLIENT_*` かつデフォルト値で継続してしまう）。
+- [x] `src/main.rs` の `auth login` で `redirect_uri` と `scopes` をハードコードせず、OAuth 設定として読み込むようにする。
+- [ ] 作業ツリーをクリーンにする（未コミット: `openspec/changes/add-oauth-auth-flow/tasks.md`）。

@@ -24,15 +24,41 @@ async fn main() {
             }
             match args[2].as_str() {
                 "login" => {
-                    // For demonstration, use mock OAuth config
-                    // In production, this would be loaded from config file or env vars
+                    // Load OAuth config from environment variables
+                    let client_id = match std::env::var("SLACKCLI_CLIENT_ID") {
+                        Ok(val) => val,
+                        Err(_) => {
+                            eprintln!("Error: SLACKCLI_CLIENT_ID environment variable is required");
+                            eprintln!("Please set it with your Slack OAuth client ID");
+                            std::process::exit(1);
+                        }
+                    };
+
+                    let client_secret = match std::env::var("SLACKCLI_CLIENT_SECRET") {
+                        Ok(val) => val,
+                        Err(_) => {
+                            eprintln!(
+                                "Error: SLACKCLI_CLIENT_SECRET environment variable is required"
+                            );
+                            eprintln!("Please set it with your Slack OAuth client secret");
+                            std::process::exit(1);
+                        }
+                    };
+
+                    let redirect_uri = std::env::var("SLACKCLI_REDIRECT_URI")
+                        .unwrap_or_else(|_| "http://127.0.0.1:3000/callback".to_string());
+
+                    let scopes = std::env::var("SLACKCLI_SCOPES")
+                        .unwrap_or_else(|_| "chat:write,users:read".to_string())
+                        .split(',')
+                        .map(|s| s.trim().to_string())
+                        .collect();
+
                     let config = oauth::OAuthConfig {
-                        client_id: std::env::var("SLACK_CLIENT_ID")
-                            .unwrap_or_else(|_| "test_client_id".to_string()),
-                        client_secret: std::env::var("SLACK_CLIENT_SECRET")
-                            .unwrap_or_else(|_| "test_client_secret".to_string()),
-                        redirect_uri: "http://127.0.0.1:3000/callback".to_string(),
-                        scopes: vec!["chat:write".to_string(), "users:read".to_string()],
+                        client_id,
+                        client_secret,
+                        redirect_uri,
+                        scopes,
                     };
 
                     let profile_name = args.get(3).cloned();
