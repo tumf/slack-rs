@@ -114,7 +114,7 @@ async fn main() {
         "search" => {
             if args.len() < 3 {
                 eprintln!(
-                    "Usage: {} search <query> [--count=N] [--page=N] [--profile=NAME]",
+                    "Usage: {} search <query> [--count=N] [--page=N] [--sort=TYPE] [--sort_dir=DIR] [--profile=NAME]",
                     args[0]
                 );
                 std::process::exit(1);
@@ -248,7 +248,7 @@ fn print_usage() {
     println!("  auth list                    - List all profiles");
     println!("  auth rename <old> <new>      - Rename a profile");
     println!("  auth logout [profile_name]   - Remove authentication");
-    println!("  search <query>               - Search messages");
+    println!("  search <query>               - Search messages (supports --count, --page, --sort, --sort_dir)");
     println!("  conv list                    - List conversations");
     println!("  conv history <channel>       - Get conversation history");
     println!("  users info <user_id>         - Get user information");

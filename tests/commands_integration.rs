@@ -2,10 +2,10 @@
 //!
 //! Tests that each command calls the correct Slack API methods with proper parameters
 
-use slack_rs::api::{ApiClient, ApiMethod};
+use slack_rs::api::ApiClient;
 use slack_rs::commands;
 use std::collections::HashMap;
-use wiremock::matchers::{body_json, header, method, path};
+use wiremock::matchers::{header, method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
 #[tokio::test]
@@ -33,29 +33,45 @@ async fn test_search_calls_correct_api() {
     let client = ApiClient::new_with_base_url("test_token".to_string(), mock_server.uri());
 
     // Call search command
-    let result = commands::search(&client, "test query".to_string(), None, None).await;
+    let result = commands::search(&client, "test query".to_string(), None, None, None, None).await;
 
     assert!(result.is_ok());
 }
 
 #[tokio::test]
-async fn test_conv_list_calls_correct_api() {
+async fn test_search_with_sort_parameters() {
+    // Start a mock server
     let mock_server = MockServer::start().await;
 
+    // Setup mock response
     let mut response_data = HashMap::new();
     response_data.insert("ok".to_string(), serde_json::json!(true));
-    response_data.insert("channels".to_string(), serde_json::json!([]));
+    response_data.insert(
+        "messages".to_string(),
+        serde_json::json!({"total": 1, "matches": []}),
+    );
 
     Mock::given(method("POST"))
-        .and(path("/conversations.list"))
+        .and(path("/search.messages"))
         .and(header("authorization", "Bearer test_token"))
         .respond_with(ResponseTemplate::new(200).set_body_json(&response_data))
         .expect(1)
         .mount(&mock_server)
         .await;
 
+    // Create API client
     let client = ApiClient::new_with_base_url("test_token".to_string(), mock_server.uri());
-    let result = commands::conv_list(&client, None, None).await;
+
+    // Call search command with sort parameters
+    let result = commands::search(
+        &client,
+        "test query".to_string(),
+        Some(20),
+        Some(1),
+        Some("timestamp".to_string()),
+        Some("desc".to_string()),
+    )
+    .await;
 
     assert!(result.is_ok());
 }

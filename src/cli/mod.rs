@@ -42,10 +42,12 @@ pub async fn run_search(args: &[String]) -> Result<(), String> {
     let query = args[2].clone();
     let count = get_option(args, "--count=").and_then(|s| s.parse().ok());
     let page = get_option(args, "--page=").and_then(|s| s.parse().ok());
+    let sort = get_option(args, "--sort=");
+    let sort_dir = get_option(args, "--sort_dir=");
     let profile = get_option(args, "--profile=");
 
     let client = get_api_client(profile).await?;
-    let response = commands::search(&client, query, count, page)
+    let response = commands::search(&client, query, count, page, sort, sort_dir)
         .await
         .map_err(|e| e.to_string())?;
 
