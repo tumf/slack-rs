@@ -3,8 +3,8 @@ mod profile;
 
 use api::{execute_api_call, ApiCallArgs, ApiCallContext, ApiClient};
 use profile::{
-    default_config_path, load_config, make_token_key, resolve_profile, save_config,
-    InMemoryTokenStore, KeyringTokenStore, Profile, ProfilesConfig, TokenStore,
+    default_config_path, load_config, make_token_key, resolve_profile, resolve_profile_full,
+    save_config, InMemoryTokenStore, KeyringTokenStore, Profile, ProfilesConfig, TokenStore,
 };
 
 #[tokio::main]
@@ -77,22 +77,51 @@ async fn run_api_call(args: Vec<String>) -> Result<(), Box<dyn std::error::Error
     // Parse arguments
     let api_args = ApiCallArgs::parse(&args)?;
 
-    // For demonstration, use a mock context
-    // In production, this would come from profile resolution
+    // Determine profile name (from environment or default to "default")
+    let profile_name = std::env::var("SLACK_PROFILE").unwrap_or_else(|_| "default".to_string());
+
+    // Get config path
+    let config_path = default_config_path()?;
+
+    // Resolve profile to get full profile details
+    let profile = resolve_profile_full(&config_path, &profile_name)
+        .map_err(|e| format!("Failed to resolve profile '{}': {}", profile_name, e))?;
+
+    // Create context from resolved profile
     let context = ApiCallContext {
-        profile_name: Some("default".to_string()),
-        team_id: "T123ABC".to_string(),
-        user_id: "U456DEF".to_string(),
+        profile_name: Some(profile_name.clone()),
+        team_id: profile.team_id.clone(),
+        user_id: profile.user_id.clone(),
     };
 
-    // Mock token (in production, retrieve from token store)
-    let token = "xoxb-mock-token";
+    // Create token key from team_id and user_id
+    let token_key = make_token_key(&profile.team_id, &profile.user_id);
+
+    // Retrieve token from token store
+    // Try keyring first, fall back to environment variable
+    let token = {
+        let keyring_store = KeyringTokenStore::default_service();
+        match keyring_store.get(&token_key) {
+            Ok(t) => t,
+            Err(_) => {
+                // If keyring fails, check if there's a token in environment
+                if let Ok(env_token) = std::env::var("SLACK_TOKEN") {
+                    env_token
+                } else {
+                    return Err(format!(
+                        "No token found for profile '{}' ({}:{}). Set SLACK_TOKEN environment variable or store token in keyring.",
+                        profile_name, profile.team_id, profile.user_id
+                    ).into());
+                }
+            }
+        }
+    };
 
     // Create API client
     let client = ApiClient::new();
 
     // Execute API call
-    let response = execute_api_call(&client, &api_args, token, &context).await?;
+    let response = execute_api_call(&client, &api_args, &token, &context).await?;
 
     // Print response as JSON
     let json = serde_json::to_string_pretty(&response)?;
