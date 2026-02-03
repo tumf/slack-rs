@@ -1,0 +1,39 @@
+# タスク
+
+1. CLI コマンド設計（auth export/import の引数追加）
+   - `--profile/--all`、`--out/--in`、`--passphrase-env`、`--passphrase-prompt`、`--yes`、`--force` を定義
+   - 検証: `cargo test` の CLI 引数パーステストで各フラグが認識されること
+
+2. Export/Import データ構造と JSON 形式の実装
+   - `format_version` と `profiles` を持つ payload を定義
+   - unknown field を無視できる `serde` 設定にする
+   - 検証: JSON round-trip テストで unknown field が無視されること
+
+3. 暗号化レイヤー（Argon2id + AES-256-GCM）実装
+   - KDF params を保持し、nonce + ciphertext の format を確定
+   - 検証: 固定 salt/nonce を使った round-trip テストが通ること
+
+4. ファイル権限チェックと安全な書き込み
+   - export 作成時に 0600 を設定し、既存ファイルが 0600 以外ならエラー
+   - 検証: 権限チェックのユニットテスト（unix のみ条件付き）
+
+5. Keyring ストレージの抽象化と mock 実装
+   - 実 Keyring と in-memory mock を切り替えられる設計
+   - 検証: mock を使った export/import の統合テストが通ること
+
+6. export コマンド実装
+   - `--yes` が無い場合は中止
+   - `--all`/`--profile` の挙動を分岐
+   - 検証: CLI 統合テストで安全装置が有効なこと
+
+7. import コマンド実装
+   - `team_id` 競合時はデフォルトで失敗し、`--yes` + `--force` で上書き
+   - 検証: mock ストレージの競合ケーステストが通ること
+
+8. i18n メッセージの追加
+   - ja/en の警告・プロンプト・エラーメッセージを追加
+   - 検証: `--lang` 切り替えで該当文言が変化するテストが通ること
+
+9. 全体結合テスト
+   - export → import の round-trip で同一 profile が復元される
+   - 検証: `cargo test` が成功すること
