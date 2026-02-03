@@ -1,3 +1,5 @@
+mod auth;
+mod oauth;
 mod profile;
 
 use profile::{
@@ -5,21 +7,119 @@ use profile::{
     InMemoryTokenStore, KeyringTokenStore, Profile, ProfilesConfig, TokenStore,
 };
 
-fn main() {
-    println!("Slack CLI - Profile storage foundation established");
-    println!();
+#[tokio::main]
+async fn main() {
+    let args: Vec<String> = std::env::args().collect();
 
-    // Demonstrate profile storage integration
-    demonstrate_profile_storage();
+    if args.len() < 2 {
+        print_usage();
+        return;
+    }
 
-    // Demonstrate token storage integration
-    demonstrate_token_storage();
+    match args[1].as_str() {
+        "auth" => {
+            if args.len() < 3 {
+                print_auth_usage();
+                return;
+            }
+            match args[2].as_str() {
+                "login" => {
+                    // For demonstration, use mock OAuth config
+                    // In production, this would be loaded from config file or env vars
+                    let config = oauth::OAuthConfig {
+                        client_id: std::env::var("SLACK_CLIENT_ID")
+                            .unwrap_or_else(|_| "test_client_id".to_string()),
+                        client_secret: std::env::var("SLACK_CLIENT_SECRET")
+                            .unwrap_or_else(|_| "test_client_secret".to_string()),
+                        redirect_uri: "http://127.0.0.1:3000/callback".to_string(),
+                        scopes: vec!["chat:write".to_string(), "users:read".to_string()],
+                    };
 
-    // Demonstrate profile persistence (save and reload)
-    demonstrate_profile_persistence();
+                    let profile_name = args.get(3).cloned();
+                    let base_url = std::env::var("SLACK_OAUTH_BASE_URL").ok();
 
-    // Demonstrate keyring token storage
-    demonstrate_keyring_token_storage();
+                    match auth::login(config, profile_name, base_url).await {
+                        Ok(_) => {}
+                        Err(e) => {
+                            eprintln!("Login failed: {}", e);
+                            std::process::exit(1);
+                        }
+                    }
+                }
+                "status" => {
+                    let profile_name = args.get(3).cloned();
+                    if let Err(e) = auth::status(profile_name) {
+                        eprintln!("Status command failed: {}", e);
+                        std::process::exit(1);
+                    }
+                }
+                "list" => {
+                    if let Err(e) = auth::list() {
+                        eprintln!("List command failed: {}", e);
+                        std::process::exit(1);
+                    }
+                }
+                "rename" => {
+                    if args.len() < 5 {
+                        eprintln!("Usage: {} auth rename <old_name> <new_name>", args[0]);
+                        std::process::exit(1);
+                    }
+                    if let Err(e) = auth::rename(args[3].clone(), args[4].clone()) {
+                        eprintln!("Rename command failed: {}", e);
+                        std::process::exit(1);
+                    }
+                }
+                "logout" => {
+                    let profile_name = args.get(3).cloned();
+                    if let Err(e) = auth::logout(profile_name) {
+                        eprintln!("Logout command failed: {}", e);
+                        std::process::exit(1);
+                    }
+                }
+                _ => {
+                    print_auth_usage();
+                }
+            }
+        }
+        "demo" => {
+            println!("Slack CLI - OAuth authentication flow");
+            println!();
+
+            // Demonstrate profile storage integration
+            demonstrate_profile_storage();
+
+            // Demonstrate token storage integration
+            demonstrate_token_storage();
+
+            // Demonstrate profile persistence (save and reload)
+            demonstrate_profile_persistence();
+
+            // Demonstrate keyring token storage
+            demonstrate_keyring_token_storage();
+        }
+        _ => {
+            print_usage();
+        }
+    }
+}
+
+fn print_usage() {
+    println!("Slack CLI - Usage:");
+    println!("  auth login [profile_name]    - Authenticate with Slack");
+    println!("  auth status [profile_name]   - Show profile status");
+    println!("  auth list                    - List all profiles");
+    println!("  auth rename <old> <new>      - Rename a profile");
+    println!("  auth logout [profile_name]   - Remove authentication");
+    println!("  demo                         - Run demonstration");
+}
+
+fn print_auth_usage() {
+    println!("Auth command usage:");
+    println!("  auth login [profile_name]    - Authenticate with Slack");
+    println!("  auth status [profile_name]   - Show profile status");
+    println!("  auth list                    - List all profiles");
+    println!("  auth rename <old> <new>      - Rename a profile");
+    println!("  auth logout [profile_name]   - Remove authentication");
 }
 
 /// Demonstrates the profile storage functionality

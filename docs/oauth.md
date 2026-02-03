@@ -1,7 +1,7 @@
-# OAuth Implementation Specification
+# OAuth Implementation
 
 ## Overview
-This CLI uses OAuth 2.0 with PKCE (Proof Key for Code Exchange) to obtain user tokens from Slack.
+This CLI uses OAuth 2.0 with PKCE (Proof Key for Code Exchange) to obtain user tokens from Slack. This document describes the implemented OAuth flow.
 
 ## OAuth Flow
 
@@ -14,9 +14,9 @@ User runs: `slackcli auth login --profile myworkspace`
 - **state**: Random 32-character string (CSRF protection)
 
 ### 3. Start Localhost Callback Server
-- Bind to `127.0.0.1` on an ephemeral port (OS-assigned)
+- Bind to `127.0.0.1:3000` (fixed port)
 - Store `state` in server context for validation
-- Endpoint: `GET /auth/callback`
+- Accept any GET request with query parameters
 
 ### 4. Build Authorization URL
 ```
@@ -138,7 +138,33 @@ admin.users:read
 - **Token storage**: Never log or print tokens; store only in keyring
 
 ## Implementation Notes
-- Use `oauth2` crate for PKCE generation and token exchange
-- Use `axum` or `tiny_http` for callback server
-- Use `webbrowser` crate for cross-platform browser opening
-- Timeout callback server after 5 minutes (configurable)
+- Custom PKCE implementation using `sha2` and `base64` crates
+- Token exchange using `reqwest` HTTP client
+- Custom callback server using `tokio::net::TcpListener`
+- Browser opening via platform-specific commands (`open`, `xdg-open`, `cmd /C start`)
+- Callback server times out after 5 minutes (300 seconds, configurable)
+
+## Module Structure
+
+- **oauth/mod.rs**: Main OAuth coordination and token exchange
+- **oauth/pkce.rs**: PKCE code verifier/challenge generation
+- **oauth/types.rs**: OAuth types, configuration, and error handling
+- **oauth/server.rs**: Local callback server implementation
+- **auth/commands.rs**: CLI command implementations (login, status, list, rename, logout)
+
+## Testing
+
+The implementation includes comprehensive unit and integration tests:
+
+- Unit tests for PKCE generation and validation
+- Unit tests for OAuth configuration validation
+- Unit tests for callback server query string parsing
+- Integration tests with mock OAuth server using `wiremock`
+- Integration tests for auth commands with profile and token storage
+
+Run tests with:
+```bash
+cargo test
+cargo test --test oauth_integration
+cargo test --test auth_integration
+```
