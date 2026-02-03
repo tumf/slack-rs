@@ -2,7 +2,9 @@
 //!
 //! Provides core functionality for the Slack CLI:
 //! - API client and call handling
-//! - Profile and token management
+//! - OAuth authentication and profile management
 
 pub mod api;
+pub mod auth;
+pub mod oauth;
 pub mod profile;
