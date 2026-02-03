@@ -1,11 +1,37 @@
+mod api;
 mod profile;
 
+use api::{execute_api_call, ApiCallArgs, ApiCallContext, ApiClient};
 use profile::{
     default_config_path, load_config, make_token_key, resolve_profile, save_config,
     InMemoryTokenStore, KeyringTokenStore, Profile, ProfilesConfig, TokenStore,
 };
 
-fn main() {
+#[tokio::main]
+async fn main() {
+    let args: Vec<String> = std::env::args().collect();
+
+    // Check for CLI commands
+    if args.len() > 1 {
+        match args[1].as_str() {
+            "api" if args.len() > 2 && args[2] == "call" => {
+                // Run api call command
+                let api_args: Vec<String> = args[3..].to_vec();
+                if let Err(e) = run_api_call(api_args).await {
+                    eprintln!("Error: {}", e);
+                    std::process::exit(1);
+                }
+                return;
+            }
+            "--help" | "-h" => {
+                print_help();
+                return;
+            }
+            _ => {}
+        }
+    }
+
+    // Default behavior: run demonstrations
     println!("Slack CLI - Profile storage foundation established");
     println!();
 
@@ -20,6 +46,59 @@ fn main() {
 
     // Demonstrate keyring token storage
     demonstrate_keyring_token_storage();
+
+    println!("\nRun with --help to see available commands");
+}
+
+/// Print CLI help information
+fn print_help() {
+    println!("Slack CLI");
+    println!();
+    println!("USAGE:");
+    println!("    slack-rs [COMMAND] [OPTIONS]");
+    println!();
+    println!("COMMANDS:");
+    println!("    api call <method> [params...]    Call a Slack API method");
+    println!();
+    println!("API CALL OPTIONS:");
+    println!("    <method>                         Slack API method (e.g., chat.postMessage)");
+    println!("    key=value                        Request parameters");
+    println!("    --json                           Send as JSON body (default: form-urlencoded)");
+    println!("    --get                            Use GET method (default: POST)");
+    println!();
+    println!("EXAMPLES:");
+    println!("    slack-rs api call users.info user=U123456 --get");
+    println!("    slack-rs api call chat.postMessage channel=C123 text=Hello");
+    println!("    slack-rs api call chat.postMessage --json channel=C123 text=Hello");
+}
+
+/// Run the api call command
+async fn run_api_call(args: Vec<String>) -> Result<(), Box<dyn std::error::Error>> {
+    // Parse arguments
+    let api_args = ApiCallArgs::parse(&args)?;
+
+    // For demonstration, use a mock context
+    // In production, this would come from profile resolution
+    let context = ApiCallContext {
+        profile_name: Some("default".to_string()),
+        team_id: "T123ABC".to_string(),
+        user_id: "U456DEF".to_string(),
+    };
+
+    // Mock token (in production, retrieve from token store)
+    let token = "xoxb-mock-token";
+
+    // Create API client
+    let client = ApiClient::new();
+
+    // Execute API call
+    let response = execute_api_call(&client, &api_args, token, &context).await?;
+
+    // Print response as JSON
+    let json = serde_json::to_string_pretty(&response)?;
+    println!("{}", json);
+
+    Ok(())
 }
 
 /// Demonstrates the profile storage functionality
