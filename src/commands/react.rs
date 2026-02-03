@@ -31,7 +31,7 @@ pub async fn react_add(
     params.insert("timestamp".to_string(), json!(timestamp));
     params.insert("name".to_string(), json!(name));
 
-    client.call(ApiMethod::ReactionsAdd, params).await
+    client.call_method(ApiMethod::ReactionsAdd, params).await
 }
 
 /// Remove a reaction from a message
@@ -63,7 +63,7 @@ pub async fn react_remove(
     params.insert("timestamp".to_string(), json!(timestamp));
     params.insert("name".to_string(), json!(name));
 
-    client.call(ApiMethod::ReactionsRemove, params).await
+    client.call_method(ApiMethod::ReactionsRemove, params).await
 }
 
 #[cfg(test)]
@@ -72,7 +72,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_react_add_without_write_flag() {
-        let client = ApiClient::new("test_token".to_string());
+        let client = ApiClient::with_token("test_token".to_string());
         let result = react_add(
             &client,
             "C123456".to_string(),
@@ -87,7 +87,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_react_remove_without_write_flag() {
-        let client = ApiClient::new("test_token".to_string());
+        let client = ApiClient::with_token("test_token".to_string());
         let result = react_remove(
             &client,
             "C123456".to_string(),

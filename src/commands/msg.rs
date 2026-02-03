@@ -28,7 +28,7 @@ pub async fn msg_post(
     params.insert("channel".to_string(), json!(channel));
     params.insert("text".to_string(), json!(text));
 
-    client.call(ApiMethod::ChatPostMessage, params).await
+    client.call_method(ApiMethod::ChatPostMessage, params).await
 }
 
 /// Update a message
@@ -60,7 +60,7 @@ pub async fn msg_update(
     params.insert("ts".to_string(), json!(ts));
     params.insert("text".to_string(), json!(text));
 
-    client.call(ApiMethod::ChatUpdate, params).await
+    client.call_method(ApiMethod::ChatUpdate, params).await
 }
 
 /// Delete a message
@@ -89,7 +89,7 @@ pub async fn msg_delete(
     params.insert("channel".to_string(), json!(channel));
     params.insert("ts".to_string(), json!(ts));
 
-    client.call(ApiMethod::ChatDelete, params).await
+    client.call_method(ApiMethod::ChatDelete, params).await
 }
 
 #[cfg(test)]
@@ -98,7 +98,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_msg_post_without_write_flag() {
-        let client = ApiClient::new("test_token".to_string());
+        let client = ApiClient::with_token("test_token".to_string());
         let result = msg_post(
             &client,
             "C123456".to_string(),
@@ -112,7 +112,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_msg_update_without_write_flag() {
-        let client = ApiClient::new("test_token".to_string());
+        let client = ApiClient::with_token("test_token".to_string());
         let result = msg_update(
             &client,
             "C123456".to_string(),
@@ -128,7 +128,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_msg_delete_without_write_flag() {
-        let client = ApiClient::new("test_token".to_string());
+        let client = ApiClient::with_token("test_token".to_string());
         let result = msg_delete(
             &client,
             "C123456".to_string(),

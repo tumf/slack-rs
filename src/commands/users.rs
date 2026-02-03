@@ -17,7 +17,7 @@ pub async fn users_info(client: &ApiClient, user: String) -> Result<ApiResponse,
     let mut params = HashMap::new();
     params.insert("user".to_string(), json!(user));
 
-    client.call(ApiMethod::UsersInfo, params).await
+    client.call_method(ApiMethod::UsersInfo, params).await
 }
 
 #[cfg(test)]
@@ -26,7 +26,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_users_info_basic() {
-        let client = ApiClient::new("test_token".to_string());
+        let client = ApiClient::with_token("test_token".to_string());
         let result = users_info(&client, "U123456".to_string()).await;
         // Result will fail because there's no mock server, but that's expected
         assert!(result.is_err());

@@ -44,7 +44,7 @@ pub async fn search(
         params.insert("sort_dir".to_string(), json!(sort_dir));
     }
 
-    client.call(ApiMethod::SearchMessages, params).await
+    client.call_method(ApiMethod::SearchMessages, params).await
 }
 
 #[cfg(test)]
@@ -55,7 +55,7 @@ mod tests {
     async fn test_search_basic() {
         // This test requires a mock server to be implemented
         // For now, we just verify the function compiles
-        let client = ApiClient::new("test_token".to_string());
+        let client = ApiClient::with_token("test_token".to_string());
         let result = search(&client, "test query".to_string(), None, None, None, None).await;
         // Result will fail because there's no mock server, but that's expected
         assert!(result.is_err());

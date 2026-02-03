@@ -22,7 +22,7 @@ pub async fn get_api_client(profile_name: Option<String>) -> Result<ApiClient, S
         .get(&token_key)
         .map_err(|e| format!("Failed to get token: {}", e))?;
 
-    Ok(ApiClient::new(token))
+    Ok(ApiClient::with_token(token))
 }
 
 /// Check if a flag exists in args

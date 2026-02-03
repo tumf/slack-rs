@@ -1,6 +1,9 @@
 //! Slack CLI library
 //!
-//! Provides OAuth authentication, profile management, and API functionality
+//! Provides core functionality for the Slack CLI:
+//! - API client and call handling
+//! - OAuth authentication and profile management
+//! - Wrapper commands for common operations
 
 pub mod api;
 pub mod auth;

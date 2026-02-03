@@ -6,10 +6,10 @@ change-id: add-auth-export-import
 
 # 変更提案: 認証情報 Export/Import（Keyring 互換）
 
-## 背景 / 目的
+## Why
 SlackCLI の profile（ワークスペースごとの OAuth 認証情報）を端末間で移行・バックアップできるようにしつつ、通常運用は OS の secure store（Keychain/Secret Service 等）に保持する。gog の keyring export/import に相当する暗号化エクスポートを提供し、漏洩リスクを最小化する。
 
-## 変更概要
+## What Changes
 - `slackcli auth export` / `slackcli auth import` を追加する
 - export は必ず暗号化し、平文出力を禁止する
 - passphrase は env または prompt で取得する

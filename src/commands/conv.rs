@@ -29,7 +29,7 @@ pub async fn conv_list(
         params.insert("limit".to_string(), json!(limit));
     }
 
-    client.call(ApiMethod::ConversationsList, params).await
+    client.call_method(ApiMethod::ConversationsList, params).await
 }
 
 /// Get conversation history
@@ -66,7 +66,7 @@ pub async fn conv_history(
         params.insert("latest".to_string(), json!(latest));
     }
 
-    client.call(ApiMethod::ConversationsHistory, params).await
+    client.call_method(ApiMethod::ConversationsHistory, params).await
 }
 
 #[cfg(test)]
@@ -75,7 +75,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_conv_list_basic() {
-        let client = ApiClient::new("test_token".to_string());
+        let client = ApiClient::with_token("test_token".to_string());
         let result = conv_list(&client, None, None).await;
         // Result will fail because there's no mock server, but that's expected
         assert!(result.is_err());
@@ -83,7 +83,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_conv_history_basic() {
-        let client = ApiClient::new("test_token".to_string());
+        let client = ApiClient::with_token("test_token".to_string());
         let result = conv_history(&client, "C123456".to_string(), None, None, None).await;
         // Result will fail because there's no mock server, but that's expected
         assert!(result.is_err());
