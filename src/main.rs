@@ -1,3 +1,5 @@
+mod profile;
+
 fn main() {
-    println!("Hello, world!");
+    println!("Slack CLI - Profile storage foundation established");
 }
