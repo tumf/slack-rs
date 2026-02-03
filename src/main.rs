@@ -254,13 +254,23 @@ async fn handle_export_command(args: &[String]) {
         }
     };
 
-    // Get passphrase (fallback to prompt if env not specified)
+    // Get passphrase (fallback to prompt if env not specified or not set)
     let passphrase = if let Some(env_var) = passphrase_env {
         match std::env::var(&env_var) {
             Ok(val) => val,
             Err(_) => {
-                eprintln!("Error: Environment variable {} not found", env_var);
-                std::process::exit(1);
+                // Fallback to prompt if environment variable is not set
+                eprintln!(
+                    "Warning: Environment variable {} not found, prompting for passphrase",
+                    env_var
+                );
+                match rpassword::prompt_password(messages.get("prompt.passphrase")) {
+                    Ok(pass) => pass,
+                    Err(e) => {
+                        eprintln!("Error reading passphrase: {}", e);
+                        std::process::exit(1);
+                    }
+                }
             }
         }
     } else {
@@ -359,13 +369,23 @@ async fn handle_import_command(args: &[String]) {
         }
     };
 
-    // Get passphrase (fallback to prompt if env not specified)
+    // Get passphrase (fallback to prompt if env not specified or not set)
     let passphrase = if let Some(env_var) = passphrase_env {
         match std::env::var(&env_var) {
             Ok(val) => val,
             Err(_) => {
-                eprintln!("Error: Environment variable {} not found", env_var);
-                std::process::exit(1);
+                // Fallback to prompt if environment variable is not set
+                eprintln!(
+                    "Warning: Environment variable {} not found, prompting for passphrase",
+                    env_var
+                );
+                match rpassword::prompt_password(messages.get("prompt.passphrase")) {
+                    Ok(pass) => pass,
+                    Err(e) => {
+                        eprintln!("Error reading passphrase: {}", e);
+                        std::process::exit(1);
+                    }
+                }
             }
         }
     } else {

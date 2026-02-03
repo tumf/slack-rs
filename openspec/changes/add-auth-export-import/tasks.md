@@ -44,3 +44,7 @@
 - [x] `src/auth/export_import.rs` の `import_profiles` で `--force` の上書きには `--yes` を必須にし、両方指定時のみ競合を許可する
 - [x] `src/auth/export_import.rs` の `import_profiles` で team_id 競合検知を user_id 依存にせず、同一 team_id なら競合として扱う
 - [x] `src/main.rs` の `handle_export_command` で `--yes` 未指定時にも危険操作の警告を表示して中止する
+
+## Acceptance #2 Failure Follow-up
+
+- [x] `src/main.rs` の `handle_export_command` / `handle_import_command` で `--passphrase-env` を指定して環境変数が未設定の場合に `--passphrase-prompt` にフォールバックして対話入力できるようにする

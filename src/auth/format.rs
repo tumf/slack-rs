@@ -286,8 +286,10 @@ mod tests {
         let passphrase = "test_password";
 
         // Create KDF params
-        let mut kdf_params = KdfParams::default();
-        kdf_params.salt = crypto::generate_salt();
+        let kdf_params = KdfParams {
+            salt: crypto::generate_salt(),
+            ..Default::default()
+        };
 
         // Encrypt payload
         let payload_json = serde_json::to_vec(&payload).unwrap();

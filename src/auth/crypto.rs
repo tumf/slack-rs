@@ -172,8 +172,10 @@ mod tests {
         let passphrase = "test_password";
         let plaintext = b"Hello, World!";
 
-        let mut params = KdfParams::default();
-        params.salt = generate_salt();
+        let params = KdfParams {
+            salt: generate_salt(),
+            ..Default::default()
+        };
 
         let key = derive_key(passphrase, &params).unwrap();
 
@@ -187,12 +189,16 @@ mod tests {
     fn test_decrypt_wrong_key() {
         let plaintext = b"Hello, World!";
 
-        let mut params1 = KdfParams::default();
-        params1.salt = generate_salt();
+        let params1 = KdfParams {
+            salt: generate_salt(),
+            ..Default::default()
+        };
         let key1 = derive_key("password1", &params1).unwrap();
 
-        let mut params2 = KdfParams::default();
-        params2.salt = generate_salt();
+        let params2 = KdfParams {
+            salt: generate_salt(),
+            ..Default::default()
+        };
         let key2 = derive_key("password2", &params2).unwrap();
 
         let encrypted = encrypt(plaintext, &key1).unwrap();
