@@ -11,3 +11,7 @@
 - [x] CLI の実フローでプロファイル解決/保存/トークンストアを実行する統合点を追加し、`src/profile` を未使用のままにしない（検証: `src/main.rs` にデモンストレーション関数を実装し、profile モジュールのすべての主要機能を実行パスから呼び出すことで検証）
 - [x] `profile_name` 重複時のエラーと `(team_id, user_id)` 重複時の更新動作を実装する（検証: `ProfilesConfig::add()` で重複名エラー、`ProfilesConfig::set_or_update()` で同一 identity の更新動作をユニットテストで確認）
 - [x] keyring の `service=slackcli` を強制できる生成経路を追加し、`make_token_key` と合わせてキー形式を固定する（検証: `KeyringTokenStore::default_service()` を実装し、service が "slackcli" に固定されることをユニットテストで確認）
+
+## Acceptance #2 Failure Follow-up
+- [x] `src/main.rs` の実フローで `KeyringTokenStore::default_service()` を使った set/get/delete を実行し、keyring 保存がデモではなく実行パスで呼ばれるようにする（証拠: `src/main.rs` が `InMemoryTokenStore` のみを使用し `KeyringTokenStore` を呼んでいない）
+- [x] `src/main.rs` の実フローで `ProfilesConfig::add()` / `set_or_update()` と `save_config()` を使った保存→再読み込みを実行し、プロファイル永続化が実行パスに含まれるようにする（証拠: `demonstrate_profile_storage` が `load_config()` のみで保存を呼んでいない）

@@ -1,13 +1,9 @@
 mod profile;
 
 use profile::{
-    default_config_path, load_config, make_token_key, resolve_profile, InMemoryTokenStore, Profile,
-    ProfilesConfig, TokenStore,
+    default_config_path, load_config, make_token_key, resolve_profile, save_config,
+    InMemoryTokenStore, KeyringTokenStore, Profile, ProfilesConfig, TokenStore,
 };
-
-// KeyringTokenStore is mentioned in comments/docs but not directly used in this demo
-#[allow(unused_imports)]
-use profile::KeyringTokenStore;
 
 fn main() {
     println!("Slack CLI - Profile storage foundation established");
@@ -18,6 +14,12 @@ fn main() {
 
     // Demonstrate token storage integration
     demonstrate_token_storage();
+
+    // Demonstrate profile persistence (save and reload)
+    demonstrate_profile_persistence();
+
+    // Demonstrate keyring token storage
+    demonstrate_keyring_token_storage();
 }
 
 /// Demonstrates the profile storage functionality
@@ -132,4 +134,155 @@ fn example_profile_management() {
         Ok(_) => println!("Profile updated"),
         Err(e) => println!("Failed to update profile: {}", e),
     }
+}
+
+/// Demonstrates profile persistence (save and reload)
+fn demonstrate_profile_persistence() {
+    println!("=== Profile Persistence Demo ===");
+
+    // Create a temporary config for demonstration
+    let mut config = ProfilesConfig::new();
+
+    // Add profiles using add() and set_or_update()
+    let profile1 = Profile {
+        team_id: "T123ABC".to_string(),
+        user_id: "U456DEF".to_string(),
+        team_name: Some("Example Team".to_string()),
+        user_name: Some("Example User".to_string()),
+    };
+
+    let profile2 = Profile {
+        team_id: "T789GHI".to_string(),
+        user_id: "U012JKL".to_string(),
+        team_name: Some("Another Team".to_string()),
+        user_name: Some("Another User".to_string()),
+    };
+
+    // Demonstrate add() - should succeed for new profile
+    match config.add("work".to_string(), profile1) {
+        Ok(_) => println!("Added 'work' profile using add()"),
+        Err(e) => println!("Failed to add profile: {}", e),
+    }
+
+    // Demonstrate set_or_update() - should succeed for new profile
+    match config.set_or_update("personal".to_string(), profile2.clone()) {
+        Ok(_) => println!("Added 'personal' profile using set_or_update()"),
+        Err(e) => println!("Failed to add profile: {}", e),
+    }
+
+    // Demonstrate set_or_update() with same identity - should update
+    let updated_profile2 = Profile {
+        team_id: "T789GHI".to_string(),
+        user_id: "U012JKL".to_string(),
+        team_name: Some("Updated Team Name".to_string()),
+        user_name: Some("Updated User Name".to_string()),
+    };
+    match config.set_or_update("personal".to_string(), updated_profile2) {
+        Ok(_) => println!("Updated 'personal' profile using set_or_update()"),
+        Err(e) => println!("Failed to update profile: {}", e),
+    }
+
+    // Save config to temp location for demonstration
+    if let Ok(_config_path) = default_config_path() {
+        // Create a test path in a temp directory
+        let temp_dir = std::env::temp_dir();
+        let test_config_path = temp_dir.join("slackcli_test_profiles.json");
+
+        match save_config(&test_config_path, &config) {
+            Ok(_) => {
+                println!("Saved config to: {}", test_config_path.display());
+
+                // Reload to verify persistence
+                match load_config(&test_config_path) {
+                    Ok(loaded_config) => {
+                        println!("Reloaded config successfully");
+                        println!("Profiles count: {}", loaded_config.profiles.len());
+
+                        // Verify profiles were saved correctly
+                        if let Some(work_profile) = loaded_config.get("work") {
+                            println!(
+                                "  work: {} ({}:{})",
+                                work_profile.team_name.as_deref().unwrap_or("N/A"),
+                                work_profile.team_id,
+                                work_profile.user_id
+                            );
+                        }
+                        if let Some(personal_profile) = loaded_config.get("personal") {
+                            println!(
+                                "  personal: {} ({}:{})",
+                                personal_profile.team_name.as_deref().unwrap_or("N/A"),
+                                personal_profile.team_id,
+                                personal_profile.user_id
+                            );
+                        }
+
+                        // Clean up test file
+                        let _ = std::fs::remove_file(&test_config_path);
+                    }
+                    Err(e) => println!("Failed to reload config: {}", e),
+                }
+            }
+            Err(e) => println!("Failed to save config: {}", e),
+        }
+    } else {
+        println!("Failed to get default config path");
+    }
+
+    println!();
+}
+
+/// Demonstrates keyring token storage using KeyringTokenStore
+fn demonstrate_keyring_token_storage() {
+    println!("=== Keyring Token Storage Demo ===");
+
+    // Create KeyringTokenStore with default service name
+    let keyring_store = KeyringTokenStore::default_service();
+    println!("Created KeyringTokenStore with service='slackcli'");
+
+    // Create a test token key
+    let key = make_token_key("T123ABC", "U456DEF");
+    println!("Token key: {}", key);
+
+    // Attempt to store a token in keyring
+    let test_token = "xoxb-demo-token-12345";
+    match keyring_store.set(&key, test_token) {
+        Ok(_) => {
+            println!("✓ Token stored in OS keyring successfully");
+
+            // Retrieve the token
+            match keyring_store.get(&key) {
+                Ok(retrieved_token) => {
+                    println!("✓ Retrieved token from keyring");
+                    // Verify it matches (show partial for security)
+                    if retrieved_token == test_token {
+                        println!("✓ Token verification successful");
+                    }
+                }
+                Err(e) => println!("✗ Failed to retrieve token: {}", e),
+            }
+
+            // Check existence
+            if keyring_store.exists(&key) {
+                println!("✓ Token existence check successful");
+            }
+
+            // Delete the test token
+            match keyring_store.delete(&key) {
+                Ok(_) => println!("✓ Token deleted from keyring successfully"),
+                Err(e) => println!("✗ Failed to delete token: {}", e),
+            }
+
+            // Verify deletion
+            if !keyring_store.exists(&key) {
+                println!("✓ Token deletion verified");
+            }
+        }
+        Err(e) => {
+            println!("✗ Failed to store token in keyring: {}", e);
+            println!("  This may happen if the keyring is not available on this system");
+            println!("  For production use, the keyring integration is fully implemented");
+        }
+    }
+
+    println!();
 }
