@@ -2,7 +2,6 @@
 
 ## Purpose
 Defines the OAuth 2.0 PKCE authentication flow for slack-rs, enabling secure login to Slack workspaces without exposing client secrets.
-
 ## Requirements
 ### Requirement: Generate authentication URL with PKCE and state
 The OAuth authorization URL MUST include `client_id`, `redirect_uri`, `state`, `code_challenge`, and `code_challenge_method=S256`. (MUST)
@@ -12,11 +11,12 @@ The OAuth authorization URL MUST include `client_id`, `redirect_uri`, `state`, `
 - Then all required parameters are included
 
 ### Requirement: Do not start if required configuration is missing
-OAuth flow MUST NOT start if `SLACKRS_CLIENT_ID` or `SLACKRS_CLIENT_SECRET` is not set. (MUST NOT)
-#### Scenario: Required environment variables are missing
-- Given `SLACKRS_CLIENT_ID` is not set
-- When executing `auth login`
-- Then it exits with an error
+
+ログイン開始時にOAuthクライアント情報が不足している場合、対話入力で補完できることがMUST。
+
+#### Scenario: Required configuration is missing
+- `--client-id` が未指定かつプロファイルに `client_id` が無い場合は対話入力で補完する
+- `client_secret` は常に対話入力で取得する
 
 ### Requirement: Validate state in localhost callback
 The authorization code MUST NOT be accepted if the callback `state` does not match. (MUST NOT)
@@ -52,3 +52,4 @@ When the same `(team_id, user_id)` exists, existing token/metadata MUST be updat
 - Given multiple profiles are saved
 - When executing `auth list`
 - Then a list of profiles is returned
+

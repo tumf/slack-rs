@@ -1,5 +1,8 @@
-## MODIFIED Requirements
+# profile-oauth-credentials Specification
 
+## Purpose
+TBD - created by archiving change add-per-profile-oauth-credentials. Update Purpose after archive.
+## Requirements
 ### Requirement: ログイン時のOAuthクレデンシャル取得は対話入力を優先する
 
 ログイン時のクライアント情報は対話入力を前提とし、ユーザー操作で安全に入力できることがMUST。
@@ -9,8 +12,6 @@
 - 既存プロファイルに `client_id` が保存されている場合は入力を省略する
 - `client_secret` は常に非表示入力で取得する
 - `client_secret` をコマンドライン引数として受け付けない
-
-## ADDED Requirements
 
 ### Requirement: プロファイルに `client_id` を保存し、`client_secret` はKeyringに保存する
 
@@ -26,3 +27,4 @@
 
 #### Scenario: 旧形式の `profiles.json` を読み込んでもエラーにならない
 - `client_id` が欠落していても読み込みが成功する
+
