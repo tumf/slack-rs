@@ -493,8 +493,10 @@ async fn run_auth_login(args: &[String]) -> Result<(), String> {
                 "--bot-scopes" => {
                     i += 1;
                     if i < args.len() {
-                        bot_scopes =
-                            Some(args[i].split(',').map(|s| s.trim().to_string()).collect());
+                        let scopes_input: Vec<String> =
+                            args[i].split(',').map(|s| s.trim().to_string()).collect();
+                        // Expand 'all' presets with bot context (true)
+                        bot_scopes = Some(oauth::expand_scopes_with_context(&scopes_input, true));
                     } else {
                         return Err("--bot-scopes requires a value".to_string());
                     }
@@ -502,8 +504,10 @@ async fn run_auth_login(args: &[String]) -> Result<(), String> {
                 "--user-scopes" => {
                     i += 1;
                     if i < args.len() {
-                        user_scopes =
-                            Some(args[i].split(',').map(|s| s.trim().to_string()).collect());
+                        let scopes_input: Vec<String> =
+                            args[i].split(',').map(|s| s.trim().to_string()).collect();
+                        // Expand 'all' presets with user context (false)
+                        user_scopes = Some(oauth::expand_scopes_with_context(&scopes_input, false));
                     } else {
                         return Err("--user-scopes requires a value".to_string());
                     }

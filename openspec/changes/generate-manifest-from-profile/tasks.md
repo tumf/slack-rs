@@ -58,3 +58,8 @@
    - cloudflared tunnel の使用方法と Slack App 設定要件（`https://*.trycloudflare.com/callback`）を記載
    - Manifest ファイルの保存先と使用方法を説明
    - 検証: `--help` 出力に該当説明が含まれることを確認する。
+
+## Acceptance #1 Failure Follow-up
+- [x] `--bot-scopes` / `--user-scopes` の CLI 入力でも `all` / `bot:all` / `user:all` をコンテキストに応じて展開する（`src/main.rs` の解析結果が `src/auth/commands.rs` に渡る前に展開）。
+- [x] OAuth 応答の bot トークンと user トークンを別キーで保存できるようにし、`authed_user.access_token` がある場合は両方を永続化する（`src/auth/commands.rs` の OAuth フローと保存処理を更新）。
+- [x] `--cloudflared` 未指定時は、保存済み `redirect_uri` があっても必ずプロンプトで取得する（`src/auth/commands.rs` の redirect_uri 解決を修正）。

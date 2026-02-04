@@ -144,7 +144,7 @@ pub async fn login_with_credentials(
     };
 
     // Perform login flow (existing implementation)
-    let (team_id, team_name, user_id, token) =
+    let (team_id, team_name, user_id, bot_token, user_token) =
         perform_oauth_flow(&config, base_url.as_deref()).await?;
 
     // Save profile with OAuth config and client_secret to Keyring
@@ -154,7 +154,8 @@ pub async fn login_with_credentials(
         team_id: &team_id,
         team_name: &team_name,
         user_id: &user_id,
-        token: &token,
+        bot_token: bot_token.as_deref(),
+        user_token: user_token.as_deref(),
         client_id: &final_client_id,
         client_secret: &final_client_secret,
         redirect_uri: &final_redirect_uri,
@@ -274,11 +275,20 @@ fn prompt_for_user_scopes() -> Result<Vec<String>, OAuthError> {
     ))
 }
 
-/// Perform OAuth flow and return user/team info and token
+/// Perform OAuth flow and return user/team info and tokens (bot and user)
 async fn perform_oauth_flow(
     config: &OAuthConfig,
     base_url: Option<&str>,
-) -> Result<(String, Option<String>, String, String), OAuthError> {
+) -> Result<
+    (
+        String,
+        Option<String>,
+        String,
+        Option<String>,
+        Option<String>,
+    ),
+    OAuthError,
+> {
     // Validate config
     config.validate()?;
 
@@ -326,14 +336,23 @@ async fn perform_oauth_flow(
         .map(|u| u.id.clone())
         .ok_or_else(|| OAuthError::SlackError("Missing user information".to_string()))?;
 
-    let token = oauth_response
+    // Extract bot token (from access_token field)
+    let bot_token = oauth_response.access_token.clone();
+
+    // Extract user token (from authed_user.access_token field)
+    let user_token = oauth_response
         .authed_user
         .as_ref()
-        .and_then(|u| u.access_token.clone())
-        .or(oauth_response.access_token.clone())
-        .ok_or_else(|| OAuthError::SlackError("Missing access token".to_string()))?;
+        .and_then(|u| u.access_token.clone());
 
-    Ok((team_id, team_name, user_id, token))
+    // Ensure at least one token is present
+    if bot_token.is_none() && user_token.is_none() {
+        return Err(OAuthError::SlackError(
+            "No access tokens received".to_string(),
+        ));
+    }
+
+    Ok((team_id, team_name, user_id, bot_token, user_token))
 }
 
 /// Credentials to save after OAuth authentication
@@ -343,7 +362,8 @@ struct SaveCredentials<'a> {
     team_id: &'a str,
     team_name: &'a Option<String>,
     user_id: &'a str,
-    token: &'a str,
+    bot_token: Option<&'a str>,  // Bot token (optional)
+    user_token: Option<&'a str>, // User token (optional)
     client_id: &'a str,
     client_secret: &'a str,
     redirect_uri: &'a str,
@@ -378,12 +398,34 @@ fn save_profile_and_credentials(creds: SaveCredentials) -> Result<(), OAuthError
     save_config(creds.config_path, &profiles_config)
         .map_err(|e| OAuthError::ConfigError(format!("Failed to save config: {}", e)))?;
 
-    // Save token to keyring
+    // Save tokens to keyring
     let token_store = KeyringTokenStore::default_service();
-    let token_key = make_token_key(creds.team_id, creds.user_id);
-    token_store
-        .set(&token_key, creds.token)
-        .map_err(|e| OAuthError::ConfigError(format!("Failed to save token: {}", e)))?;
+
+    // Save bot token if present
+    if let Some(bot_token) = creds.bot_token {
+        let bot_token_key = format!("{}:{}:bot", creds.team_id, creds.user_id);
+        token_store
+            .set(&bot_token_key, bot_token)
+            .map_err(|e| OAuthError::ConfigError(format!("Failed to save bot token: {}", e)))?;
+    }
+
+    // Save user token if present
+    if let Some(user_token) = creds.user_token {
+        let user_token_key = format!("{}:{}:user", creds.team_id, creds.user_id);
+        token_store
+            .set(&user_token_key, user_token)
+            .map_err(|e| OAuthError::ConfigError(format!("Failed to save user token: {}", e)))?;
+    }
+
+    // For backward compatibility, save the preferred token to the legacy key
+    // Priority: user_token > bot_token
+    let legacy_token_key = make_token_key(creds.team_id, creds.user_id);
+    let legacy_token = creds.user_token.or(creds.bot_token);
+    if let Some(token) = legacy_token {
+        token_store
+            .set(&legacy_token_key, token)
+            .map_err(|e| OAuthError::ConfigError(format!("Failed to save legacy token: {}", e)))?;
+    }
 
     // Save client_secret to keyring (per design: service=slack-rs, username=oauth-client-secret:<profile_name>)
     let client_secret_key = format!("oauth-client-secret:{}", creds.profile_name);
@@ -695,7 +737,8 @@ mod tests {
             team_id: "T123",
             team_name: &Some("Test Team".to_string()),
             user_id: "U456",
-            token: "xoxb-test-token",
+            bot_token: Some("xoxb-test-bot-token"),
+            user_token: Some("xoxp-test-user-token"),
             client_id: "test-client-id",
             client_secret: "test-client-secret",
             redirect_uri: "http://127.0.0.1:8765/callback",
@@ -898,16 +941,8 @@ pub async fn login_with_credentials_extended(
             }
         }
     } else {
-        // Prompt for redirect_uri if not from profile
-        if existing_config.is_none()
-            || existing_config
-                .as_ref()
-                .and_then(|c| c.get(&profile_name))
-                .and_then(|p| p.redirect_uri.as_ref())
-                .is_none()
-        {
-            final_redirect_uri = prompt_for_redirect_uri(&final_redirect_uri)?;
-        }
+        // Always prompt for redirect_uri when cloudflared is not used
+        final_redirect_uri = prompt_for_redirect_uri(&final_redirect_uri)?;
     }
 
     // Client secret resolution: Keyring > prompt
@@ -934,7 +969,7 @@ pub async fn login_with_credentials_extended(
     };
 
     // Perform login flow (existing implementation)
-    let (team_id, team_name, user_id, token) =
+    let (team_id, team_name, user_id, bot_token, user_token) =
         perform_oauth_flow(&config, base_url.as_deref()).await?;
 
     // Stop cloudflared tunnel if running
@@ -952,7 +987,8 @@ pub async fn login_with_credentials_extended(
         team_id: &team_id,
         team_name: &team_name,
         user_id: &user_id,
-        token: &token,
+        bot_token: bot_token.as_deref(),
+        user_token: user_token.as_deref(),
         client_id: &final_client_id,
         client_secret: &final_client_secret,
         redirect_uri: &final_redirect_uri,
