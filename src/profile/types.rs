@@ -65,10 +65,28 @@ impl ProfilesConfig {
     /// Update or create a profile for a given (team_id, user_id) pair
     /// If a profile with the same (team_id, user_id) exists, it will be updated
     /// If the profile name already exists but points to a different (team_id, user_id), returns an error
+    /// PLACEHOLDER values are treated specially: they are always replaced by real values
     pub fn set_or_update(&mut self, name: String, profile: Profile) -> Result<(), ProfileError> {
         // Check if profile name already exists
         if let Some(existing) = self.profiles.get(&name) {
-            // If the name exists and points to a different identity, error
+            // Special case: if existing has PLACEHOLDER values, allow replacement with real values
+            let existing_is_placeholder =
+                existing.team_id == "PLACEHOLDER" || existing.user_id == "PLACEHOLDER";
+            let profile_is_placeholder =
+                profile.team_id == "PLACEHOLDER" || profile.user_id == "PLACEHOLDER";
+
+            // If existing is placeholder, always allow update with real or placeholder values
+            if existing_is_placeholder {
+                self.profiles.insert(name, profile);
+                return Ok(());
+            }
+
+            // If new profile is placeholder but existing is real, keep existing (don't downgrade)
+            if profile_is_placeholder {
+                return Ok(());
+            }
+
+            // Both are real values - check if they match
             if existing.team_id != profile.team_id || existing.user_id != profile.user_id {
                 return Err(ProfileError::DuplicateName(name));
             }
@@ -78,15 +96,19 @@ impl ProfilesConfig {
         }
 
         // Check if another profile with the same (team_id, user_id) exists
-        if let Some((existing_name, _)) = self
-            .profiles
-            .iter()
-            .find(|(_, p)| p.team_id == profile.team_id && p.user_id == profile.user_id)
-        {
-            // Update the existing profile
-            let existing_name = existing_name.clone();
-            self.profiles.insert(existing_name, profile);
-            return Ok(());
+        // Skip this check for PLACEHOLDER values
+        if profile.team_id != "PLACEHOLDER" && profile.user_id != "PLACEHOLDER" {
+            if let Some((existing_name, _)) = self.profiles.iter().find(|(_, p)| {
+                p.team_id != "PLACEHOLDER"
+                    && p.user_id != "PLACEHOLDER"
+                    && p.team_id == profile.team_id
+                    && p.user_id == profile.user_id
+            }) {
+                // Update the existing profile
+                let existing_name = existing_name.clone();
+                self.profiles.insert(existing_name, profile);
+                return Ok(());
+            }
         }
 
         // No conflicts - add new profile
@@ -498,5 +520,129 @@ mod tests {
         assert!(!json.contains("client_id"));
         assert!(!json.contains("redirect_uri"));
         assert!(!json.contains("scopes"));
+    }
+
+    #[test]
+    fn test_set_or_update_placeholder_to_real() {
+        // Test that a profile with PLACEHOLDER values can be updated with real values
+        let mut config = ProfilesConfig::new();
+
+        // First, set a profile with PLACEHOLDER (e.g., from oauth config set)
+        let placeholder_profile = Profile {
+            team_id: "PLACEHOLDER".to_string(),
+            user_id: "PLACEHOLDER".to_string(),
+            team_name: None,
+            user_name: None,
+            client_id: Some("client-123".to_string()),
+            redirect_uri: Some("http://localhost:3000/callback".to_string()),
+            scopes: Some(vec!["chat:write".to_string()]),
+        };
+
+        config
+            .set_or_update("work".to_string(), placeholder_profile)
+            .unwrap();
+
+        // Then, update with real values (e.g., from login)
+        let real_profile = Profile {
+            team_id: "T123".to_string(),
+            user_id: "U456".to_string(),
+            team_name: Some("Real Team".to_string()),
+            user_name: Some("Real User".to_string()),
+            client_id: Some("client-123".to_string()),
+            redirect_uri: Some("http://localhost:3000/callback".to_string()),
+            scopes: Some(vec!["chat:write".to_string()]),
+        };
+
+        // This should succeed and update the profile
+        assert!(config
+            .set_or_update("work".to_string(), real_profile.clone())
+            .is_ok());
+
+        // Verify the profile was updated with real values
+        let updated = config.get("work").unwrap();
+        assert_eq!(updated.team_id, "T123");
+        assert_eq!(updated.user_id, "U456");
+    }
+
+    #[test]
+    fn test_set_or_update_real_to_placeholder_keeps_real() {
+        // Test that trying to update a real profile with PLACEHOLDER doesn't downgrade it
+        let mut config = ProfilesConfig::new();
+
+        // First, set a real profile
+        let real_profile = Profile {
+            team_id: "T123".to_string(),
+            user_id: "U456".to_string(),
+            team_name: Some("Real Team".to_string()),
+            user_name: Some("Real User".to_string()),
+            client_id: Some("client-123".to_string()),
+            redirect_uri: Some("http://localhost:3000/callback".to_string()),
+            scopes: Some(vec!["chat:write".to_string()]),
+        };
+
+        config
+            .set_or_update("work".to_string(), real_profile.clone())
+            .unwrap();
+
+        // Then, try to update with PLACEHOLDER values
+        let placeholder_profile = Profile {
+            team_id: "PLACEHOLDER".to_string(),
+            user_id: "PLACEHOLDER".to_string(),
+            team_name: None,
+            user_name: None,
+            client_id: Some("client-456".to_string()),
+            redirect_uri: None,
+            scopes: None,
+        };
+
+        // This should succeed but keep the real values
+        assert!(config
+            .set_or_update("work".to_string(), placeholder_profile)
+            .is_ok());
+
+        // Verify the profile still has real values
+        let updated = config.get("work").unwrap();
+        assert_eq!(updated.team_id, "T123");
+        assert_eq!(updated.user_id, "U456");
+    }
+
+    #[test]
+    fn test_set_or_update_placeholder_no_conflict_with_other_profiles() {
+        // Test that PLACEHOLDER profiles don't conflict with other real profiles
+        let mut config = ProfilesConfig::new();
+
+        // Add a real profile
+        let real_profile = Profile {
+            team_id: "T123".to_string(),
+            user_id: "U456".to_string(),
+            team_name: Some("Real Team".to_string()),
+            user_name: None,
+            client_id: None,
+            redirect_uri: None,
+            scopes: None,
+        };
+        config
+            .set_or_update("existing".to_string(), real_profile)
+            .unwrap();
+
+        // Add a PLACEHOLDER profile with different name
+        let placeholder_profile = Profile {
+            team_id: "PLACEHOLDER".to_string(),
+            user_id: "PLACEHOLDER".to_string(),
+            team_name: None,
+            user_name: None,
+            client_id: Some("client-789".to_string()),
+            redirect_uri: None,
+            scopes: None,
+        };
+
+        // This should succeed without conflicts
+        assert!(config
+            .set_or_update("new".to_string(), placeholder_profile)
+            .is_ok());
+
+        // Both profiles should exist
+        assert!(config.get("existing").is_some());
+        assert!(config.get("new").is_some());
     }
 }

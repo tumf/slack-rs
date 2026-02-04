@@ -268,8 +268,8 @@ async fn main() {
         }
         "demo" => {
             println!("Slack CLI - OAuth authentication flow");
-    println!();
-}
+            println!();
+        }
 
         "--help" | "-h" => {
             print_help();
@@ -408,14 +408,20 @@ fn print_auth_usage() {
 
 fn print_config_usage(prog: &str) {
     println!("Config command usage:");
-    println!("  {} config oauth set <profile> --client-id <id> --redirect-uri <uri> --scopes <scopes>", prog);
+    println!(
+        "  {} config oauth set <profile> --client-id <id> --redirect-uri <uri> --scopes <scopes>",
+        prog
+    );
     println!("  {} config oauth show <profile>", prog);
     println!("  {} config oauth delete <profile>", prog);
 }
 
 fn print_config_oauth_usage(prog: &str) {
     println!("OAuth config command usage:");
-    println!("  {} config oauth set <profile> --client-id <id> --redirect-uri <uri> --scopes <scopes>", prog);
+    println!(
+        "  {} config oauth set <profile> --client-id <id> --redirect-uri <uri> --scopes <scopes>",
+        prog
+    );
     println!("      Set OAuth configuration for a profile");
     println!("      Will prompt for client secret (not stored in config file)");
     println!();
@@ -854,6 +860,7 @@ async fn run_api_call(args: Vec<String>) -> Result<(), Box<dyn std::error::Error
 }
 
 /// Demonstrates the profile storage functionality
+#[allow(dead_code)]
 fn demonstrate_profile_storage() {
     println!("=== Profile Storage Demo ===");
 
@@ -908,6 +915,7 @@ fn demonstrate_profile_storage() {
 }
 
 /// Demonstrates the token storage functionality
+#[allow(dead_code)]
 fn demonstrate_token_storage() {
     println!("=== Token Storage Demo ===");
 
@@ -971,6 +979,7 @@ fn example_profile_management() {
 }
 
 /// Demonstrates profile persistence (save and reload)
+#[allow(dead_code)]
 fn demonstrate_profile_persistence() {
     println!("=== Profile Persistence Demo ===");
 
@@ -1075,6 +1084,7 @@ fn demonstrate_profile_persistence() {
 }
 
 /// Demonstrates keyring token storage using KeyringTokenStore
+#[allow(dead_code)]
 fn demonstrate_keyring_token_storage() {
     println!("=== Keyring Token Storage Demo ===");
 

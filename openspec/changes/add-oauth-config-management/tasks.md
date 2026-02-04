@@ -24,3 +24,15 @@
    - 参照: CLIヘルプ/ドキュメント
    - 完了条件: ヘルプに環境変数の案内が存在しない
    - 検証: `slackrs --help` または該当ドキュメントの確認
+
+## Acceptance #1 Failure Follow-up
+
+- [x] OAuthログイン時に `redirect_uri` と `scopes` が未設定の場合、対話入力を行わず既定値で補完しているため、仕様の「不足時のみ対話入力」に反する。`src/auth/commands.rs` の `login_with_credentials` を要修正
+   - 完了: `prompt_for_redirect_uri` と `prompt_for_scopes` 関数を追加し、設定ファイルに値がない場合は対話入力を行うように変更
+   - 検証: 設定値がない場合、デフォルト値を提示しつつユーザーに確認を求める実装を追加
+- [x] `config oauth set` で未ログインのプロファイルを作ると `team_id`/`user_id` が `PLACEHOLDER` になり、ログイン後の `save_profile_and_credentials` が `set_or_update` で `DuplicateName` となる。`src/commands/config.rs` と `src/profile/types.rs` の整合性を修正
+   - 完了: `set_or_update` に PLACEHOLDER 値の特別処理を追加
+   - PLACEHOLDER から実際の値への更新を許可
+   - 実際の値から PLACEHOLDER への降格を防止
+   - PLACEHOLDER 値は他のプロファイルとの重複チェックから除外
+   - 検証: 3つの新しいテストケースを追加して動作確認

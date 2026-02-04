@@ -188,7 +188,6 @@ pub fn oauth_delete(profile_name: String) -> Result<(), OAuthError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::TempDir;
 
     #[test]
     fn test_oauth_show_profile_not_found() {

@@ -33,52 +33,65 @@ pub async fn login_with_credentials(
         .map_err(|e| OAuthError::ConfigError(format!("Failed to get config path: {}", e)))?;
     let existing_config = load_config(&config_path).ok();
 
-    // Resolve OAuth config with priority: CLI arg > saved in profile > fallback/prompt
-    let (final_client_id, final_redirect_uri, final_scopes) = 
-        if let Some(config) = &existing_config {
-            if let Some(profile) = config.get(&profile_name) {
-                // Client ID: CLI arg > profile > prompt
-                let resolved_client_id = match client_id {
-                    Some(id) => id,
-                    None => {
-                        if let Some(saved_id) = &profile.client_id {
-                            saved_id.clone()
-                        } else {
-                            prompt_for_client_id()?
-                        }
+    // Resolve OAuth config with priority: CLI arg > saved in profile > prompt (not fallback)
+    let (final_client_id, final_redirect_uri, final_scopes) = if let Some(config) = &existing_config
+    {
+        if let Some(profile) = config.get(&profile_name) {
+            // Client ID: CLI arg > profile > prompt
+            let resolved_client_id = match client_id {
+                Some(id) => id,
+                None => {
+                    if let Some(saved_id) = &profile.client_id {
+                        saved_id.clone()
+                    } else {
+                        prompt_for_client_id()?
                     }
-                };
+                }
+            };
 
-                // Redirect URI: profile > fallback parameter
-                let resolved_redirect_uri = profile.redirect_uri.clone().unwrap_or(redirect_uri.clone());
-
-                // Scopes: profile > fallback parameter
-                let resolved_scopes = profile.scopes.clone().unwrap_or(scopes.clone());
-
-                (resolved_client_id, resolved_redirect_uri, resolved_scopes)
+            // Redirect URI: profile > prompt (not fallback)
+            let resolved_redirect_uri = if let Some(saved_uri) = &profile.redirect_uri {
+                saved_uri.clone()
             } else {
-                // Profile doesn't exist, use CLI arg or prompt for client_id, and use fallback for others
-                let resolved_client_id = client_id.unwrap_or_else(|| prompt_for_client_id().unwrap());
-                (resolved_client_id, redirect_uri.clone(), scopes.clone())
-            }
+                prompt_for_redirect_uri(&redirect_uri)?
+            };
+
+            // Scopes: profile > prompt (not fallback)
+            let resolved_scopes = if let Some(saved_scopes) = &profile.scopes {
+                saved_scopes.clone()
+            } else {
+                prompt_for_scopes(&scopes)?
+            };
+
+            (resolved_client_id, resolved_redirect_uri, resolved_scopes)
         } else {
-            // No config file exists, use CLI arg or prompt for client_id, and use fallback for others
+            // Profile doesn't exist, prompt for all OAuth config
             let resolved_client_id = client_id.unwrap_or_else(|| prompt_for_client_id().unwrap());
-            (resolved_client_id, redirect_uri.clone(), scopes.clone())
-        };
+            let resolved_redirect_uri = prompt_for_redirect_uri(&redirect_uri)?;
+            let resolved_scopes = prompt_for_scopes(&scopes)?;
+            (resolved_client_id, resolved_redirect_uri, resolved_scopes)
+        }
+    } else {
+        // No config file exists, prompt for all OAuth config
+        let resolved_client_id = client_id.unwrap_or_else(|| prompt_for_client_id().unwrap());
+        let resolved_redirect_uri = prompt_for_redirect_uri(&redirect_uri)?;
+        let resolved_scopes = prompt_for_scopes(&scopes)?;
+        (resolved_client_id, resolved_redirect_uri, resolved_scopes)
+    };
 
     // Client secret resolution: Keyring > prompt
     let token_store = KeyringTokenStore::default_service();
-    let final_client_secret = match crate::profile::get_oauth_client_secret(&token_store, &profile_name) {
-        Ok(secret) => {
-            println!("Using saved client secret from keyring.");
-            secret
-        }
-        Err(_) => {
-            // Not found in keyring, prompt for it
-            prompt_for_client_secret()?
-        }
-    };
+    let final_client_secret =
+        match crate::profile::get_oauth_client_secret(&token_store, &profile_name) {
+            Ok(secret) => {
+                println!("Using saved client secret from keyring.");
+                secret
+            }
+            Err(_) => {
+                // Not found in keyring, prompt for it
+                prompt_for_client_secret()?
+            }
+        };
 
     // Create OAuth config
     let config = OAuthConfig {
@@ -144,6 +157,47 @@ fn prompt_for_client_secret() -> Result<String, OAuthError> {
             return Ok(trimmed.to_string());
         }
         eprintln!("Client secret cannot be empty. Please try again.");
+    }
+}
+
+/// Prompt user for OAuth redirect URI with default option
+fn prompt_for_redirect_uri(default: &str) -> Result<String, OAuthError> {
+    print!("Enter OAuth redirect URI [{}]: ", default);
+    io::stdout()
+        .flush()
+        .map_err(|e| OAuthError::ConfigError(format!("Failed to flush stdout: {}", e)))?;
+
+    let mut input = String::new();
+    io::stdin()
+        .read_line(&mut input)
+        .map_err(|e| OAuthError::ConfigError(format!("Failed to read input: {}", e)))?;
+
+    let trimmed = input.trim();
+    if trimmed.is_empty() {
+        Ok(default.to_string())
+    } else {
+        Ok(trimmed.to_string())
+    }
+}
+
+/// Prompt user for OAuth scopes with default option
+fn prompt_for_scopes(default: &[String]) -> Result<Vec<String>, OAuthError> {
+    let default_str = default.join(",");
+    print!("Enter OAuth scopes (comma-separated) [{}]: ", default_str);
+    io::stdout()
+        .flush()
+        .map_err(|e| OAuthError::ConfigError(format!("Failed to flush stdout: {}", e)))?;
+
+    let mut input = String::new();
+    io::stdin()
+        .read_line(&mut input)
+        .map_err(|e| OAuthError::ConfigError(format!("Failed to read input: {}", e)))?;
+
+    let trimmed = input.trim();
+    if trimmed.is_empty() {
+        Ok(default.to_vec())
+    } else {
+        Ok(trimmed.split(',').map(|s| s.trim().to_string()).collect())
     }
 }
 
