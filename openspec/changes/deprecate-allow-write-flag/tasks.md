@@ -8,4 +8,4 @@
 
 ## Acceptance #1 Failure Follow-up
 
-- [ ] 未コミット変更を解消する（コミット/スタッシュ/破棄）: `README.md`, `openspec/changes/deprecate-allow-write-flag/tasks.md`, `src/api/client.rs`, `src/cli/mod.rs`, `src/commands/guards.rs`, `src/commands/msg.rs`, `src/commands/react.rs`, `src/main.rs`, `tests/commands_integration.rs`
+- [x] 未コミット変更を解消する（コミット/スタッシュ/破棄）: `README.md`, `openspec/changes/deprecate-allow-write-flag/tasks.md`, `src/api/client.rs`, `src/cli/mod.rs`, `src/commands/guards.rs`, `src/commands/msg.rs`, `src/commands/react.rs`, `src/main.rs`, `tests/commands_integration.rs`
