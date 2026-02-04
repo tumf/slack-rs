@@ -227,8 +227,7 @@ pub fn import_profiles<T: TokenStore>(token_store: &T, options: &ImportOptions) 
 
         // Store OAuth client secret if present
         if let Some(client_secret) = export_profile.client_secret {
-            // Non-fatal if storing client_secret fails
-            let _ = store_oauth_client_secret(token_store, &name, &client_secret);
+            store_oauth_client_secret(token_store, &name, &client_secret)?;
         }
     }
 

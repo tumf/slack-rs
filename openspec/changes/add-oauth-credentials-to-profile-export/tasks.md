@@ -25,3 +25,6 @@
    - 既存の暗号化/フォーマットテストが通ること
    - 検証: `cargo test auth::`（または該当テスト）で成功すること
    - 結果: すべてのauth::モジュールテスト (40件) が成功
+
+## Acceptance #1 Failure Follow-up
+- [x] Import時の`client_secret`保存失敗を握り潰さず、Keyringへの保存が失敗したらエラーとして扱う（`src/auth/export_import.rs`の`import_profiles`で`store_oauth_client_secret`の結果を無視している）
