@@ -100,8 +100,10 @@ pub async fn msg_delete(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serial_test::serial;
 
     #[tokio::test]
+    #[serial(write_guard)]
     async fn test_msg_post_with_env_false() {
         std::env::set_var("SLACKCLI_ALLOW_WRITE", "false");
         let client = ApiClient::with_token("test_token".to_string());
@@ -119,6 +121,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial(write_guard)]
     async fn test_msg_update_with_env_false() {
         std::env::set_var("SLACKCLI_ALLOW_WRITE", "false");
         let client = ApiClient::with_token("test_token".to_string());
@@ -136,6 +139,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial(write_guard)]
     async fn test_msg_delete_with_env_false() {
         std::env::set_var("SLACKCLI_ALLOW_WRITE", "false");
         let client = ApiClient::with_token("test_token".to_string());

@@ -59,8 +59,10 @@ pub fn confirm_destructive(yes: bool, operation: &str) -> Result<(), ApiError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serial_test::serial;
 
     #[test]
+    #[serial(write_guard)]
     fn test_check_write_allowed_default() {
         // When env var is not set, write should be allowed
         std::env::remove_var("SLACKCLI_ALLOW_WRITE");
@@ -68,6 +70,7 @@ mod tests {
     }
 
     #[test]
+    #[serial(write_guard)]
     fn test_check_write_allowed_when_false() {
         // When env var is "false", write should be denied
         std::env::set_var("SLACKCLI_ALLOW_WRITE", "false");
@@ -78,6 +81,7 @@ mod tests {
     }
 
     #[test]
+    #[serial(write_guard)]
     fn test_check_write_allowed_when_zero() {
         // When env var is "0", write should be denied
         std::env::set_var("SLACKCLI_ALLOW_WRITE", "0");
@@ -88,6 +92,7 @@ mod tests {
     }
 
     #[test]
+    #[serial(write_guard)]
     fn test_check_write_allowed_when_true() {
         // When env var is "true", write should be allowed
         std::env::set_var("SLACKCLI_ALLOW_WRITE", "true");
@@ -96,6 +101,7 @@ mod tests {
     }
 
     #[test]
+    #[serial(write_guard)]
     fn test_check_write_allowed_when_one() {
         // When env var is "1", write should be allowed
         std::env::set_var("SLACKCLI_ALLOW_WRITE", "1");

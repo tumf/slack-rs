@@ -68,7 +68,7 @@ mod tests {
     use serial_test::serial;
 
     #[tokio::test]
-    #[serial]
+    #[serial(write_guard)]
     async fn test_react_add_with_env_false() {
         std::env::set_var("SLACKCLI_ALLOW_WRITE", "false");
         let client = ApiClient::with_token("test_token".to_string());
@@ -85,7 +85,7 @@ mod tests {
     }
 
     #[tokio::test]
-    #[serial]
+    #[serial(write_guard)]
     async fn test_react_remove_with_env_false() {
         std::env::set_var("SLACKCLI_ALLOW_WRITE", "false");
         let client = ApiClient::with_token("test_token".to_string());

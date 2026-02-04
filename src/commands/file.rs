@@ -184,7 +184,7 @@ mod tests {
     use serial_test::serial;
 
     #[tokio::test]
-    #[serial]
+    #[serial(write_guard)]
     async fn test_file_upload_write_not_allowed() {
         // Set env var to deny write
         std::env::set_var("SLACKCLI_ALLOW_WRITE", "false");
@@ -196,7 +196,7 @@ mod tests {
     }
 
     #[tokio::test]
-    #[serial]
+    #[serial(write_guard)]
     async fn test_file_upload_nonexistent_file() {
         // Ensure write is allowed
         std::env::remove_var("SLACKCLI_ALLOW_WRITE");
