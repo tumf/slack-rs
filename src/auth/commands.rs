@@ -916,8 +916,25 @@ fn generate_and_save_manifest(
     let manifest_path = config_dir.join(format!("{}_manifest.yml", profile_name));
 
     // Write manifest to file
-    fs::write(&manifest_path, manifest_yaml)
+    fs::write(&manifest_path, &manifest_yaml)
         .map_err(|e| OAuthError::ConfigError(format!("Failed to write manifest file: {}", e)))?;
+
+    // Try to copy manifest to clipboard (non-fatal if it fails)
+    match arboard::Clipboard::new() {
+        Ok(mut clipboard) => match clipboard.set_text(&manifest_yaml) {
+            Ok(_) => {
+                println!("✓ Manifest copied to clipboard!");
+            }
+            Err(e) => {
+                eprintln!("⚠️  Warning: Failed to copy manifest to clipboard: {}", e);
+                eprintln!("   You can still manually copy from the file.");
+            }
+        },
+        Err(e) => {
+            eprintln!("⚠️  Warning: Failed to access clipboard: {}", e);
+            eprintln!("   You can still manually copy from the file.");
+        }
+    }
 
     Ok(manifest_path)
 }
