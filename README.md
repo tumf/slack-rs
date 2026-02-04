@@ -25,17 +25,15 @@ A Slack CLI tool written in Rust that provides comprehensive access to the Slack
 ## TL;DR
 
 ```bash
-# Build / test
+# Install from crates.io
+cargo install slack-rs
+
+# Or build from source
+git clone https://github.com/tumf/slack-rs.git
+cd slack-rs
 make build
 make test
-make check
-
-# (Optional) Build Serena symbol index under .serena/cache
-make index
 ```
-
-Notes:
-- `make index` requires the `serena` CLI (e.g. `uv tool install serena`).
 
 ## Installation
 
@@ -43,6 +41,14 @@ Notes:
 
 - Rust 1.70+ (tested with 1.92.0)
 - A Slack app with OAuth credentials ([create one here](https://api.slack.com/apps))
+
+### Install from crates.io (Recommended)
+
+```bash
+cargo install slack-rs
+```
+
+The binary will be installed to `~/.cargo/bin/slack-rs` (ensure `~/.cargo/bin` is in your PATH).
 
 ### Build from Source
 
@@ -54,9 +60,11 @@ cargo build --release
 
 The binary will be available at `target/release/slack-rs`.
 
-### Install via Cargo
+### Install from Local Source
 
 ```bash
+git clone https://github.com/tumf/slack-rs.git
+cd slack-rs
 cargo install --path .
 ```
 
