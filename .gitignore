@@ -2,3 +2,5 @@
 .tldrignore
 .tldr/
 .cflx.jsonc
+tokens.json
+.config/slack-rs/tokens.json

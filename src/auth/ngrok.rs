@@ -12,6 +12,7 @@ use std::time::Duration;
 
 /// Error type for ngrok operations
 #[derive(Debug)]
+#[allow(dead_code)]
 pub enum NgrokError {
     /// Failed to start ngrok process
     StartError(String),
@@ -36,6 +37,7 @@ impl std::fmt::Display for NgrokError {
 impl std::error::Error for NgrokError {}
 
 /// Ngrok tunnel manager
+#[allow(dead_code)]
 pub struct NgrokTunnel {
     process: Child,
     public_url: String,
@@ -51,6 +53,7 @@ impl NgrokTunnel {
     ///
     /// # Returns
     /// NgrokTunnel instance with running process and extracted public URL
+    #[allow(dead_code)]
     pub fn start(ngrok_path: &str, port: u16, timeout_secs: u64) -> Result<Self, NgrokError> {
         // Start ngrok process
         let mut process = Command::new(ngrok_path)
@@ -118,11 +121,13 @@ impl NgrokTunnel {
     }
 
     /// Get the public URL
+    #[allow(dead_code)]
     pub fn public_url(&self) -> &str {
         &self.public_url
     }
 
     /// Stop the ngrok tunnel
+    #[allow(dead_code)]
     pub fn stop(mut self) -> Result<(), NgrokError> {
         self.process
             .kill()
@@ -138,6 +143,7 @@ impl NgrokTunnel {
 /// Extract public URL from ngrok output line
 ///
 /// Ngrok outputs URLs in the format: https://[random-id].ngrok-free.app
+#[allow(dead_code)]
 fn extract_public_url(line: &str) -> Option<String> {
     let re = Regex::new(r"https://[a-zA-Z0-9-]+\.ngrok-free\.app").ok()?;
     re.find(line).map(|m| m.as_str().to_string())
