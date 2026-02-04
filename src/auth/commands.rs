@@ -183,7 +183,10 @@ fn prompt_for_redirect_uri(default: &str) -> Result<String, OAuthError> {
 /// Prompt user for OAuth scopes with default option
 fn prompt_for_scopes(default: &[String]) -> Result<Vec<String>, OAuthError> {
     let default_str = default.join(",");
-    print!("Enter OAuth scopes (comma-separated) [{}]: ", default_str);
+    print!(
+        "Enter OAuth scopes (comma-separated, or 'all' for comprehensive preset) [{}]: ",
+        default_str
+    );
     io::stdout()
         .flush()
         .map_err(|e| OAuthError::ConfigError(format!("Failed to flush stdout: {}", e)))?;
@@ -197,7 +200,8 @@ fn prompt_for_scopes(default: &[String]) -> Result<Vec<String>, OAuthError> {
     if trimmed.is_empty() {
         Ok(default.to_vec())
     } else {
-        Ok(trimmed.split(',').map(|s| s.trim().to_string()).collect())
+        let scopes: Vec<String> = trimmed.split(',').map(|s| s.trim().to_string()).collect();
+        Ok(crate::oauth::expand_scopes(&scopes))
     }
 }
 

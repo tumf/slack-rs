@@ -12,7 +12,7 @@ use crate::profile::{
 /// * `profile_name` - Profile name
 /// * `client_id` - OAuth client ID
 /// * `redirect_uri` - OAuth redirect URI
-/// * `scopes` - OAuth scopes (comma-separated)
+/// * `scopes` - OAuth scopes (comma-separated, or 'all' for comprehensive preset)
 pub fn oauth_set(
     profile_name: String,
     client_id: String,
@@ -46,6 +46,9 @@ pub fn oauth_set(
             "At least one scope is required".to_string(),
         ));
     }
+
+    // Expand preset scopes (e.g., "all") and deduplicate
+    let scopes_vec = crate::oauth::expand_scopes(&scopes_vec);
 
     // Get or create profile
     let profile = if let Some(existing) = config.get(&profile_name) {

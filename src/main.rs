@@ -1,3 +1,6 @@
+// Allow unused imports - some are used only in lib.rs for public API
+#![allow(unused_imports)]
+
 mod api;
 mod auth;
 mod cli;
@@ -424,6 +427,7 @@ fn print_config_oauth_usage(prog: &str) {
     );
     println!("      Set OAuth configuration for a profile");
     println!("      Will prompt for client secret (not stored in config file)");
+    println!("      Scopes: comma-separated list or 'all' for comprehensive preset");
     println!();
     println!("  {} config oauth show <profile>", prog);
     println!("      Show OAuth configuration for a profile");
@@ -433,6 +437,7 @@ fn print_config_oauth_usage(prog: &str) {
     println!();
     println!("Examples:");
     println!("  {} config oauth set work --client-id 123.456 --redirect-uri http://127.0.0.1:8765/callback --scopes \"chat:write,users:read\"", prog);
+    println!("  {} config oauth set work --client-id 123.456 --redirect-uri http://127.0.0.1:8765/callback --scopes \"all\"", prog);
     println!("  {} config oauth show work", prog);
     println!("  {} config oauth delete work", prog);
 }
