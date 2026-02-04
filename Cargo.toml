@@ -1,6 +1,6 @@
 [package]
 name = "slack-rs"
-version = "0.1.2"
+version = "0.1.3"
 edition = "2021"
 
 [[bin]]
@@ -34,3 +34,17 @@ tempfile = "3.14"
 wiremock = "0.6"
 httpmock = "0.8"
 serial_test = "3.0"
+
+[package.metadata.release]
+# Skip publishing to crates.io by default (set to false if you want to publish)
+publish = false
+# Create and push git tag
+tag = true
+# Push changes to remote
+push = true
+# Sign git tags with GPG
+sign-tag = false
+# Pre-release commit message
+pre-release-commit-message = "chore: release {{version}}"
+# Enable/disable pre-release checks
+verify = true
