@@ -84,6 +84,9 @@ The fastest way to create a Slack app is using an App Manifest. This automatical
    - Paste the following YAML manifest:
 
 ```yaml
+_metadata:
+  major_version: 2
+  minor_version: 1
 display_information:
   name: slack-rs CLI
   description: Command-line tool for Slack API access
@@ -123,7 +126,7 @@ settings:
 
 **💡 Manifest Benefits:**
 - ✅ Automatic redirect URI configuration (`http://127.0.0.1:8765/callback`)
-- ✅ Pre-configured comprehensive OAuth scopes
+- ✅ Example OAuth scopes you can customize
 - ✅ No manual clicking through settings pages
 - ✅ Easy to share and reproduce across workspaces
 
@@ -244,35 +247,9 @@ Profile 'my-workspace' saved.
 
 #### Using Tunneling Services for Remote Authentication
 
-When authenticating from a remote server or environment where `localhost` is not accessible (e.g., SSH, Docker, cloud instances), you can use tunneling services like **ngrok** or **Cloudflare Tunnel (cloudflared)** to expose the local OAuth callback server.
+When authenticating from a remote server or environment where `localhost` is not accessible (e.g., SSH, Docker, cloud instances), you can use tunneling services like **Cloudflare Tunnel (cloudflared)** (built-in) or **ngrok** (manual) to expose the local OAuth callback server.
 
-**Method A: Built-in ngrok Support (Easiest)**
-
-`slack-rs` has built-in ngrok integration that automatically manages the tunnel for you:
-
-1. **Install ngrok**: Download from [ngrok.com](https://ngrok.com/)
-
-2. **Configure Slack App with ngrok redirect URL**:
-   - Go to https://api.slack.com/apps → Your App → OAuth & Permissions
-   - Add redirect URL: `https://your-domain.ngrok.io/callback` (you'll get the exact URL from ngrok)
-   - Click "Save URLs"
-
-3. **Authenticate with --ngrok flag**:
-   ```bash
-   # The tool will automatically start ngrok and handle the tunnel
-   slack-rs auth login my-workspace --ngrok
-   
-   # Or with client ID
-   slack-rs auth login my-workspace --client-id 123456789012.1234567890123 --ngrok
-   ```
-
-The `--ngrok` flag automatically:
-- Starts an ngrok tunnel on port 8765
-- Displays the public URL for your redirect URI
-- Handles the OAuth callback through the tunnel
-- Closes the tunnel after authentication
-
-**Method B: Built-in Cloudflare Tunnel Support (Easiest)**
+**Method A: Built-in Cloudflare Tunnel Support (Easiest)**
 
 `slack-rs` also supports Cloudflare Tunnel with automatic management:
 
@@ -298,36 +275,32 @@ The `--cloudflared` flag automatically:
 - Handles the OAuth callback through the tunnel
 - Closes the tunnel after authentication
 
-**Method C: Manual Tunnel Setup (Advanced)**
+**Method B: Manual Tunnel Setup (Advanced)**
 
 If you prefer to manage the tunnel yourself:
 
-1. **Start ngrok or cloudflared manually**:
+1. **Start cloudflared manually**:
    ```bash
-   # ngrok
-   ngrok http 8765
-   
    # cloudflared
    cloudflared tunnel --url http://localhost:8765
    ```
 
 2. **Configure Slack App with the tunnel URL**:
-   - Add the tunnel URL as redirect URI (e.g., `https://abc123.ngrok.io/callback`)
+   - Add the tunnel URL as redirect URI (e.g., `https://xyz-def-ghi.trycloudflare.com/callback`)
 
 3. **Authenticate with custom redirect URI**:
    ```bash
-   slack-rs config oauth set my-workspace \
-     --client-id 123456789012.1234567890123 \
-     --redirect-uri https://abc123.ngrok.io/callback \
-     --scopes "chat:write,users:read"
-   slack-rs auth login my-workspace
-   ```
+    slack-rs config oauth set my-workspace \
+      --client-id 123456789012.1234567890123 \
+      --redirect-uri https://xyz-def-ghi.trycloudflare.com/callback \
+      --scopes "chat:write,users:read"
+    slack-rs auth login my-workspace
+    ```
 
 **Security Notes:**
 - ⚠️ Tunnel URLs are temporary and change each time you restart the service
 - ⚠️ Anyone with the tunnel URL can access your callback endpoint during authentication
 - ✅ The built-in tunnel support automatically closes the tunnel after authentication
-- ✅ For production scenarios, consider using ngrok's authentication features (`--auth`)
 - ✅ Tunnels are only active during the authentication process
 
 ### 3. Make API Calls
@@ -371,9 +344,6 @@ slack-rs auth login [profile-name]
 # Login with specific client ID
 slack-rs auth login [profile-name] --client-id <client-id>
 
-# Login with ngrok tunnel (for remote/SSH environments)
-slack-rs auth login [profile-name] --ngrok
-
 # Login with Cloudflare Tunnel (for remote/SSH environments)
 slack-rs auth login [profile-name] --cloudflared
 
@@ -381,14 +351,14 @@ slack-rs auth login [profile-name] --cloudflared
 slack-rs auth login                           # Profile named "default"
 slack-rs auth login my-team                   # Profile named "my-team"
 slack-rs auth login dev --client-id 12345.67  # With explicit client ID
-slack-rs auth login remote --ngrok            # Using ngrok tunnel
 slack-rs auth login server --cloudflared      # Using Cloudflare Tunnel
 ```
 
 **Flags:**
 - `--client-id <id>`: Specify OAuth client ID
-- `--ngrok`: Automatically start ngrok tunnel for remote authentication
 - `--cloudflared`: Automatically start Cloudflare Tunnel for remote authentication
+
+Note: `--ngrok` exists in the CLI help, but ngrok tunnel automation is not implemented in v0.1.6.
 
 #### Status
 
