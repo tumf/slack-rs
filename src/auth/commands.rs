@@ -54,22 +54,8 @@ pub async fn login_with_credentials(
         }
     };
 
-    // Try to get client_secret from keyring, otherwise prompt
-    let client_secret_store = KeyringTokenStore::new("slack-rs");
-    let client_secret_key = format!("oauth-client-secret:{}", profile_name);
-    let client_secret = match client_secret_store.get(&client_secret_key) {
-        Ok(secret) => {
-            println!(
-                "Using saved OAuth client secret for profile '{}'",
-                profile_name
-            );
-            secret
-        }
-        Err(_) => {
-            // No saved secret, prompt for it
-            prompt_for_client_secret()?
-        }
-    };
+    // Always prompt for client_secret (security: not saved, always entered)
+    let client_secret = prompt_for_client_secret()?;
 
     // Create OAuth config
     let config = OAuthConfig {
@@ -83,7 +69,7 @@ pub async fn login_with_credentials(
     let (team_id, team_name, user_id, token) =
         perform_oauth_flow(&config, base_url.as_deref()).await?;
 
-    // Save profile with client_id and client_secret
+    // Save profile with client_id (client_secret is not saved for security)
     save_profile_and_credentials(SaveCredentials {
         config_path: &config_path,
         profile_name: &profile_name,
@@ -92,7 +78,6 @@ pub async fn login_with_credentials(
         user_id: &user_id,
         token: &token,
         client_id: &final_client_id,
-        client_secret: &client_secret,
     })?;
 
     println!("✓ Authentication successful!");
@@ -206,7 +191,7 @@ struct SaveCredentials<'a> {
     user_id: &'a str,
     token: &'a str,
     client_id: &'a str,
-    client_secret: &'a str,
+    // Note: client_secret is not saved for security reasons
 }
 
 /// Save profile and credentials (including client_id and client_secret)
@@ -238,13 +223,8 @@ fn save_profile_and_credentials(creds: SaveCredentials) -> Result<(), OAuthError
         .set(&token_key, creds.token)
         .map_err(|e| OAuthError::ConfigError(format!("Failed to save token: {}", e)))?;
 
-    // Save client_secret to keyring with profile-specific key
-    // Service: slack-rs, Username: oauth-client-secret:<profile_name>
-    let client_secret_store = KeyringTokenStore::new("slack-rs");
-    let client_secret_key = format!("oauth-client-secret:{}", creds.profile_name);
-    client_secret_store
-        .set(&client_secret_key, creds.client_secret)
-        .map_err(|e| OAuthError::ConfigError(format!("Failed to save client secret: {}", e)))?;
+    // Note: client_secret is NOT saved to keyring for security reasons
+    // Users must re-enter it on each login
 
     Ok(())
 }
@@ -535,7 +515,7 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let config_path = temp_dir.path().join("profiles.json");
 
-        // Save profile with client_id and client_secret
+        // Save profile with client_id (client_secret is not saved for security)
         save_profile_and_credentials(SaveCredentials {
             config_path: &config_path,
             profile_name: "test",
@@ -544,7 +524,6 @@ mod tests {
             user_id: "U456",
             token: "xoxb-test-token",
             client_id: "test-client-id",
-            client_secret: "test-client-secret",
         })
         .unwrap();
 
@@ -555,21 +534,8 @@ mod tests {
         assert_eq!(profile.team_id, "T123");
         assert_eq!(profile.user_id, "U456");
 
-        // Verify client_secret was saved to keyring
-        // Note: This test actually writes to the system keyring
-        let client_secret_store = KeyringTokenStore::new("slack-rs");
-        let client_secret_key = format!("oauth-client-secret:{}", "test");
-        match client_secret_store.get(&client_secret_key) {
-            Ok(stored_secret) => {
-                assert_eq!(stored_secret, "test-client-secret");
-                // Clean up
-                let _ = client_secret_store.delete(&client_secret_key);
-            }
-            Err(_) => {
-                // Keyring may not be available in test environment
-                // At least verify that the save call didn't fail above
-            }
-        }
+        // Note: client_secret is NOT saved to keyring for security reasons
+        // It must be re-entered on each login
     }
 
     #[test]

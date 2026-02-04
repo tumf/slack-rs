@@ -23,3 +23,6 @@
 
 ## Acceptance #1 Failure Follow-up
 - [x] OAuth成功後に`client_secret`をKeyringに保存する実装を追加する（仕様: `client_secret` は設定ファイルに書き込まずKeyringへ保存）
+
+## Acceptance #2 Failure Follow-up
+- [x] `client_secret` を常に対話入力で取得する仕様に合わせ、Keyringからの自動取得を行わない（`src/auth/commands.rs` の `login_with_credentials`）
