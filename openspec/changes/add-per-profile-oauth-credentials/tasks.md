@@ -30,3 +30,6 @@
 ## Acceptance #3 Failure Follow-up
 - [x] 仕様ではログイン成功後に `client_secret` をKeyringへ保存する必要があるが、`save_profile_and_credentials` が保存していない（`src/auth/commands.rs:197-229`）
   - 検証: `save_profile_and_credentials` が `client_secret` をKeyringに保存することを確認（キー: `oauth-client-secret:<profile_name>`）
+
+## Acceptance #4 Failure Follow-up
+- [x] Keyring の service 名が仕様の `slack-rs` ではなく `slackcli` になっているため、`client_secret` の保存先が仕様と一致しない（`src/profile/token_store.rs:95-100`、`src/auth/commands.rs:221-231`、仕様: `openspec/changes/add-per-profile-oauth-credentials/specs/profile-oauth-credentials/spec.md:15-21`）。実フローは `src/main.rs:run_auth_login` → `src/auth/commands.rs:login_with_credentials` → `save_profile_and_credentials` で実行される。
