@@ -44,12 +44,9 @@ tag = true
 push = true
 # Sign git tags with GPG
 sign-tag = false
-# Pre-release replacements and checks
+# Pre-release commit message
 pre-release-commit-message = "chore: release {{version}}"
-post-release-commit-message = "chore: bump version to {{next_version}}-dev"
 # Enable/disable pre-release checks
 verify = true
 # Enable/disable pre-release hook execution
 pre-release-hook = []
-# Enable/disable post-release hook execution
-post-release-hook = []
