@@ -483,7 +483,7 @@ mod tests {
             team_name: Some("Test Team".to_string()),
             user_name: Some("Test User".to_string()),
             client_id: Some("client-123".to_string()),
-            redirect_uri: Some("http://127.0.0.1:3000/callback".to_string()),
+            redirect_uri: Some("http://127.0.0.1:8765/callback".to_string()),
             scopes: Some(vec!["chat:write".to_string(), "users:read".to_string()]),
         };
 
@@ -494,7 +494,7 @@ mod tests {
         assert_eq!(deserialized.client_id, Some("client-123".to_string()));
         assert_eq!(
             deserialized.redirect_uri,
-            Some("http://127.0.0.1:3000/callback".to_string())
+            Some("http://127.0.0.1:8765/callback".to_string())
         );
         assert_eq!(
             deserialized.scopes,
@@ -534,7 +534,7 @@ mod tests {
             team_name: None,
             user_name: None,
             client_id: Some("client-123".to_string()),
-            redirect_uri: Some("http://localhost:3000/callback".to_string()),
+            redirect_uri: Some("http://localhost:8765/callback".to_string()),
             scopes: Some(vec!["chat:write".to_string()]),
         };
 
@@ -549,7 +549,7 @@ mod tests {
             team_name: Some("Real Team".to_string()),
             user_name: Some("Real User".to_string()),
             client_id: Some("client-123".to_string()),
-            redirect_uri: Some("http://localhost:3000/callback".to_string()),
+            redirect_uri: Some("http://localhost:8765/callback".to_string()),
             scopes: Some(vec!["chat:write".to_string()]),
         };
 
@@ -576,7 +576,7 @@ mod tests {
             team_name: Some("Real Team".to_string()),
             user_name: Some("Real User".to_string()),
             client_id: Some("client-123".to_string()),
-            redirect_uri: Some("http://localhost:3000/callback".to_string()),
+            redirect_uri: Some("http://localhost:8765/callback".to_string()),
             scopes: Some(vec!["chat:write".to_string()]),
         };
 

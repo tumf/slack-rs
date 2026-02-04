@@ -100,7 +100,7 @@ mod tests {
         let config = OAuthConfig {
             client_id: "test_client_id".to_string(),
             client_secret: "test_secret".to_string(),
-            redirect_uri: "http://localhost:3000/callback".to_string(),
+            redirect_uri: "http://localhost:8765/callback".to_string(),
             scopes: vec!["chat:write".to_string()],
         };
 
@@ -112,7 +112,7 @@ mod tests {
         let config = OAuthConfig {
             client_id: "".to_string(),
             client_secret: "test_secret".to_string(),
-            redirect_uri: "http://localhost:3000/callback".to_string(),
+            redirect_uri: "http://localhost:8765/callback".to_string(),
             scopes: vec!["chat:write".to_string()],
         };
 
@@ -129,7 +129,7 @@ mod tests {
         let config = OAuthConfig {
             client_id: "test_client_id".to_string(),
             client_secret: "".to_string(),
-            redirect_uri: "http://localhost:3000/callback".to_string(),
+            redirect_uri: "http://localhost:8765/callback".to_string(),
             scopes: vec!["chat:write".to_string()],
         };
 
@@ -163,7 +163,7 @@ mod tests {
         let config = OAuthConfig {
             client_id: "test_client_id".to_string(),
             client_secret: "test_secret".to_string(),
-            redirect_uri: "http://localhost:3000/callback".to_string(),
+            redirect_uri: "http://localhost:8765/callback".to_string(),
             scopes: vec![],
         };
 

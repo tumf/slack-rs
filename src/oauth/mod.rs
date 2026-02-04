@@ -6,12 +6,15 @@
 //! - Authorization URL generation
 //! - Token exchange with oauth.v2.access
 //! - Local callback server for receiving authorization codes
+//! - Callback port resolution from environment variables
 
 pub mod pkce;
+pub mod port;
 pub mod server;
 pub mod types;
 
 pub use pkce::{generate_pkce, generate_state};
+pub use port::{resolve_callback_port, DEFAULT_OAUTH_PORT, OAUTH_PORT_ENV};
 pub use server::run_callback_server;
 pub use types::{OAuthConfig, OAuthError, OAuthResponse};
 
@@ -109,7 +112,7 @@ mod tests {
         let config = OAuthConfig {
             client_id: "test_client_id".to_string(),
             client_secret: "test_secret".to_string(),
-            redirect_uri: "http://localhost:3000/callback".to_string(),
+            redirect_uri: "http://localhost:8765/callback".to_string(),
             scopes: vec!["chat:write".to_string(), "users:read".to_string()],
         };
 
@@ -120,7 +123,7 @@ mod tests {
 
         assert!(url.contains("client_id=test_client_id"));
         assert!(url.contains("scope=chat%3Awrite%2Cusers%3Aread"));
-        assert!(url.contains("redirect_uri=http%3A%2F%2Flocalhost%3A3000%2Fcallback"));
+        assert!(url.contains("redirect_uri=http%3A%2F%2Flocalhost%3A8765%2Fcallback"));
         assert!(url.contains("code_challenge=test_challenge"));
         assert!(url.contains("code_challenge_method=S256"));
         assert!(url.contains("state=test_state"));
@@ -131,7 +134,7 @@ mod tests {
         let config = OAuthConfig {
             client_id: "test_client_id".to_string(),
             client_secret: "test_secret".to_string(),
-            redirect_uri: "http://localhost:3000/callback".to_string(),
+            redirect_uri: "http://localhost:8765/callback".to_string(),
             scopes: vec!["chat:write".to_string()],
         };
 
