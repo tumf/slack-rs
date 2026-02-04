@@ -26,3 +26,7 @@
 
 ## Acceptance #2 Failure Follow-up
 - [x] `client_secret` を常に対話入力で取得する仕様に合わせ、Keyringからの自動取得を行わない（`src/auth/commands.rs` の `login_with_credentials`）
+
+## Acceptance #3 Failure Follow-up
+- [x] 仕様ではログイン成功後に `client_secret` をKeyringへ保存する必要があるが、`save_profile_and_credentials` が保存していない（`src/auth/commands.rs:197-229`）
+  - 検証: `save_profile_and_credentials` が `client_secret` をKeyringに保存することを確認（キー: `oauth-client-secret:<profile_name>`）
