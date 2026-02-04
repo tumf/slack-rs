@@ -71,6 +71,7 @@ async fn test_msg_post_with_thread_ts() {
 }
 
 #[tokio::test]
+#[serial]
 async fn test_msg_post_with_thread_ts_and_reply_broadcast() {
     let mock_server = MockServer::start().await;
 
@@ -103,6 +104,7 @@ async fn test_msg_post_with_thread_ts_and_reply_broadcast() {
 }
 
 #[tokio::test]
+#[serial]
 async fn test_msg_post_without_thread_ts_ignores_reply_broadcast() {
     let mock_server = MockServer::start().await;
 
