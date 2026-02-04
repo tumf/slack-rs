@@ -23,13 +23,14 @@ fn legacy_config_path() -> Result<PathBuf> {
         .ok_or(StorageError::ConfigDirNotFound)
 }
 
-/// Get the default config file path using ~/.config/slack-rs/
+/// Get the default config file path using the OS config directory
 pub fn default_config_path() -> Result<PathBuf> {
-    let home = std::env::var("HOME").map_err(|_| StorageError::ConfigDirNotFound)?;
-    let config_dir = PathBuf::from(home).join(".config/slack-rs");
+    let dirs = directories::ProjectDirs::from("", "", "slack-rs")
+        .ok_or(StorageError::ConfigDirNotFound)?;
+    let config_dir = dirs.config_dir();
 
     // Create directory if it doesn't exist
-    fs::create_dir_all(&config_dir)?;
+    fs::create_dir_all(config_dir)?;
 
     Ok(config_dir.join("profiles.json"))
 }
