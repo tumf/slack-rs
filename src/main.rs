@@ -394,6 +394,10 @@ fn print_auth_usage() {
     println!("  --user-scopes <scopes>              - User scopes (comma-separated or 'all')");
     println!("  --cloudflared [path]                - Use cloudflared tunnel for redirect URI");
     println!("                                        (path optional, defaults to 'cloudflared' in PATH)");
+    println!("  --ngrok [path]                      - Use ngrok tunnel for redirect URI");
+    println!(
+        "                                        (path optional, defaults to 'ngrok' in PATH)"
+    );
     println!();
     println!("Cloudflared tunnel usage:");
     println!(
@@ -401,6 +405,15 @@ fn print_auth_usage() {
     );
     println!("  The generated manifest will include https://*.trycloudflare.com/callback in redirect_urls.");
     println!("  Make sure your Slack App is configured with this wildcard URL.");
+    println!();
+    println!("Ngrok tunnel usage:");
+    println!("  When --ngrok is specified, a temporary tunnel is created for OAuth callback.");
+    println!(
+        "  The generated manifest will include https://*.ngrok-free.app/callback in redirect_urls."
+    );
+    println!("  Make sure your Slack App is configured with this wildcard URL.");
+    println!("  Note: --cloudflared and --ngrok cannot be used at the same time.");
+    println!("  Note: Custom ngrok domains are not supported in this implementation.");
     println!();
     println!("Manifest generation:");
     println!("  After successful authentication, a Slack App Manifest is automatically generated");
@@ -465,6 +478,7 @@ async fn run_auth_login(args: &[String]) -> Result<(), String> {
     let mut profile_name: Option<String> = None;
     let mut client_id: Option<String> = None;
     let mut cloudflared_path: Option<String> = None;
+    let mut ngrok_path: Option<String> = None;
     let mut bot_scopes: Option<Vec<String>> = None;
     let mut user_scopes: Option<Vec<String>> = None;
 
@@ -488,6 +502,16 @@ async fn run_auth_login(args: &[String]) -> Result<(), String> {
                     } else {
                         // Use default "cloudflared" (PATH resolution)
                         cloudflared_path = Some("cloudflared".to_string());
+                    }
+                }
+                "--ngrok" => {
+                    // Check if next arg is a value (not starting with --) or end of args
+                    if i + 1 < args.len() && !args[i + 1].starts_with("--") {
+                        i += 1;
+                        ngrok_path = Some(args[i].clone());
+                    } else {
+                        // Use default "ngrok" (PATH resolution)
+                        ngrok_path = Some("ngrok".to_string());
                     }
                 }
                 "--bot-scopes" => {
@@ -524,13 +548,18 @@ async fn run_auth_login(args: &[String]) -> Result<(), String> {
         i += 1;
     }
 
-    // Use default redirect_uri (will be overridden if cloudflared is used)
+    // Check for conflicting options
+    if cloudflared_path.is_some() && ngrok_path.is_some() {
+        return Err("Cannot specify both --cloudflared and --ngrok at the same time".to_string());
+    }
+
+    // Use default redirect_uri (will be overridden if cloudflared or ngrok is used)
     let redirect_uri = "http://127.0.0.1:8765/callback".to_string();
 
     // Keep base_url from environment for testing purposes only
     let base_url = std::env::var("SLACK_OAUTH_BASE_URL").ok();
 
-    // Call login with cloudflared parameter
+    // Call login with cloudflared and ngrok parameters
     auth::login_with_credentials_extended(auth::ExtendedLoginOptions {
         client_id,
         profile_name,
@@ -538,6 +567,7 @@ async fn run_auth_login(args: &[String]) -> Result<(), String> {
         bot_scopes,
         user_scopes,
         cloudflared_path,
+        ngrok_path,
         base_url,
     })
     .await

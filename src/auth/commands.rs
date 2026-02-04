@@ -2,6 +2,7 @@
 
 use crate::auth::cloudflared::{CloudflaredError, CloudflaredTunnel};
 use crate::auth::manifest::generate_manifest;
+use crate::auth::ngrok::{NgrokError, NgrokTunnel};
 use crate::oauth::{
     build_authorization_url, exchange_code, generate_pkce, generate_state, resolve_callback_port,
     run_callback_server, OAuthConfig, OAuthError,
@@ -827,10 +828,11 @@ pub struct ExtendedLoginOptions {
     pub bot_scopes: Option<Vec<String>>,
     pub user_scopes: Option<Vec<String>>,
     pub cloudflared_path: Option<String>,
+    pub ngrok_path: Option<String>,
     pub base_url: Option<String>,
 }
 
-/// Extended login command with cloudflared support and manifest generation
+/// Extended login command with cloudflared/ngrok support and manifest generation
 ///
 /// # Arguments
 /// * `options` - Extended login options
@@ -844,6 +846,7 @@ pub async fn login_with_credentials_extended(
         bot_scopes,
         user_scopes,
         cloudflared_path,
+        ngrok_path,
         base_url,
     } = options;
     let profile_name = profile_name.unwrap_or_else(|| "default".to_string());
@@ -932,9 +935,11 @@ pub async fn login_with_credentials_extended(
             )
         };
 
-    // Resolve redirect_uri: cloudflared or prompt
-    let mut tunnel: Option<CloudflaredTunnel> = None;
+    // Resolve redirect_uri: cloudflared, ngrok, or prompt
+    let mut cloudflared_tunnel: Option<CloudflaredTunnel> = None;
+    let mut ngrok_tunnel: Option<NgrokTunnel> = None;
     let use_cloudflared = cloudflared_path.is_some();
+    let use_ngrok = ngrok_path.is_some();
 
     if let Some(path) = cloudflared_path {
         // Start cloudflared tunnel
@@ -946,7 +951,7 @@ pub async fn login_with_credentials_extended(
                 println!("✓ Tunnel started: {}", public_url);
                 final_redirect_uri = format!("{}/callback", public_url);
                 println!("Using redirect URI: {}", final_redirect_uri);
-                tunnel = Some(t);
+                cloudflared_tunnel = Some(t);
             }
             Err(CloudflaredError::StartError(msg)) => {
                 return Err(OAuthError::ConfigError(format!(
@@ -964,8 +969,36 @@ pub async fn login_with_credentials_extended(
                 return Err(OAuthError::ConfigError(format!("Cloudflared error: {}", e)));
             }
         }
+    } else if let Some(path) = ngrok_path {
+        // Start ngrok tunnel
+        println!("Starting ngrok tunnel...");
+        let port = 8765;
+        match NgrokTunnel::start(&path, port, 30) {
+            Ok(t) => {
+                let public_url = t.public_url();
+                println!("✓ Tunnel started: {}", public_url);
+                final_redirect_uri = format!("{}/callback", public_url);
+                println!("Using redirect URI: {}", final_redirect_uri);
+                ngrok_tunnel = Some(t);
+            }
+            Err(NgrokError::StartError(msg)) => {
+                return Err(OAuthError::ConfigError(format!(
+                    "Failed to start ngrok: {}",
+                    msg
+                )));
+            }
+            Err(NgrokError::UrlExtractionError(msg)) => {
+                return Err(OAuthError::ConfigError(format!(
+                    "Failed to extract ngrok URL: {}",
+                    msg
+                )));
+            }
+            Err(e) => {
+                return Err(OAuthError::ConfigError(format!("Ngrok error: {}", e)));
+            }
+        }
     } else {
-        // Always prompt for redirect_uri when cloudflared is not used
+        // Always prompt for redirect_uri when neither cloudflared nor ngrok is used
         final_redirect_uri = prompt_for_redirect_uri(&final_redirect_uri)?;
     }
 
@@ -997,10 +1030,18 @@ pub async fn login_with_credentials_extended(
         perform_oauth_flow(&config, base_url.as_deref()).await?;
 
     // Stop cloudflared tunnel if running
-    if let Some(t) = tunnel {
+    if let Some(t) = cloudflared_tunnel {
         println!("Stopping cloudflared tunnel...");
         if let Err(e) = t.stop() {
             eprintln!("Warning: Failed to stop cloudflared: {}", e);
+        }
+    }
+
+    // Stop ngrok tunnel if running
+    if let Some(t) = ngrok_tunnel {
+        println!("Stopping ngrok tunnel...");
+        if let Err(e) = t.stop() {
+            eprintln!("Warning: Failed to stop ngrok: {}", e);
         }
     }
 
@@ -1032,6 +1073,7 @@ pub async fn login_with_credentials_extended(
         &final_user_scopes,
         &final_redirect_uri,
         use_cloudflared,
+        use_ngrok,
         &profile_name,
     ) {
         Ok(manifest_yaml) => {

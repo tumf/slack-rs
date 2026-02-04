@@ -72,6 +72,7 @@ pub struct Settings {
 /// * `user_scopes` - User OAuth scopes
 /// * `redirect_uri` - OAuth redirect URI
 /// * `use_cloudflared` - Whether cloudflared tunnel is used (affects redirect_urls)
+/// * `use_ngrok` - Whether ngrok tunnel is used (affects redirect_urls)
 /// * `profile_name` - Profile name (used for bot display name)
 ///
 /// # Returns
@@ -82,12 +83,18 @@ pub fn generate_manifest(
     user_scopes: &[String],
     redirect_uri: &str,
     use_cloudflared: bool,
+    use_ngrok: bool,
     profile_name: &str,
 ) -> Result<String, String> {
-    // Determine redirect URLs based on whether cloudflared is used
+    // Determine redirect URLs based on whether cloudflared or ngrok is used
     let redirect_urls = if use_cloudflared {
         vec![
             "https://*.trycloudflare.com/callback".to_string(),
+            redirect_uri.to_string(),
+        ]
+    } else if use_ngrok {
+        vec![
+            "https://*.ngrok-free.app/callback".to_string(),
             redirect_uri.to_string(),
         ]
     } else {
@@ -152,6 +159,7 @@ mod tests {
             &user_scopes,
             "http://localhost:8765/callback",
             false,
+            false,
             "default",
         );
 
@@ -176,6 +184,7 @@ mod tests {
             &user_scopes,
             "http://localhost:8765/callback",
             true,
+            false,
             "work",
         );
 
@@ -196,6 +205,7 @@ mod tests {
             &bot_scopes,
             &user_scopes,
             "http://localhost:8765/callback",
+            false,
             false,
             "personal",
         );
@@ -219,10 +229,33 @@ mod tests {
             &user_scopes,
             "http://localhost:8765/callback",
             false,
+            false,
             "empty",
         );
 
         // Should still generate a valid manifest even with empty scopes
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_generate_manifest_with_ngrok() {
+        let bot_scopes = vec!["chat:write".to_string()];
+        let user_scopes = vec!["search:read".to_string()];
+        let result = generate_manifest(
+            "test-client-id",
+            &bot_scopes,
+            &user_scopes,
+            "http://localhost:8765/callback",
+            false,
+            true,
+            "ngrok-test",
+        );
+
+        assert!(result.is_ok());
+        let yaml = result.unwrap();
+        assert!(yaml.contains("https://*.ngrok-free.app/callback"));
+        assert!(yaml.contains("http://localhost:8765/callback"));
+        assert!(yaml.contains("chat:write"));
+        assert!(yaml.contains("search:read"));
     }
 }
