@@ -154,7 +154,7 @@ slack-rs api call chat.postMessage channel=C123 text="Hello" thread_ts=1234567.1
 
 ### Profile Storage
 
-- **Profile metadata** (non-sensitive): `~/.config/slack-cli/profiles.json` (Linux/macOS)
+- **Profile metadata** (non-sensitive): `~/.config/slack-rs/profiles.json` (Linux/macOS)
 - **Access tokens** (sensitive): OS keyring (Keychain on macOS, Secret Service on Linux, Credential Manager on Windows)
 
 ## Security
