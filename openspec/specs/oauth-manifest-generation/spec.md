@@ -1,7 +1,9 @@
-# oauth-manifest-generation 仕様（差分）
+# oauth-manifest-generation Specification
 
-## ADDED Requirements
-### Requirement: auth login 実行時に Slack App Manifest を自動生成する
+## Purpose
+TBD - created by archiving change generate-manifest-from-profile. Update Purpose after archive.
+## Requirements
+### Requirement: Generate Slack App Manifest automatically during auth login execution
 
 `auth login` 実行時に、ユーザーが入力した `client_id`、`bot_scopes`、`user_scopes`、および解決された `redirect_uri`（cloudflared またはプロンプト入力）を使用して、Slack App Manifest の YAML を自動的に生成しなければならない (MUST)。
 
@@ -34,7 +36,7 @@
 - And 警告メッセージが表示される
 - And ユーザーに手動設定を促すメッセージが表示される
 
-### Requirement: Manifest 生成は外部 API に依存しない
+### Requirement: Manifest generation does not depend on external APIs
 
 Manifest の生成はローカルの設定値のみで完結し、Slack API への問い合わせを行ってはならない (MUST NOT)。
 
@@ -42,3 +44,4 @@ Manifest の生成はローカルの設定値のみで完結し、Slack API へ�
 - Given Manifest を生成する
 - When 生成処理を実行する
 - Then ネットワークアクセスが発生しない
+

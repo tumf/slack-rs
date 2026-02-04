@@ -22,21 +22,19 @@ pub struct Profile {
     /// OAuth redirect URI for this profile (optional for backward compatibility)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub redirect_uri: Option<String>,
-    /// OAuth scopes for this profile (deprecated - use bot_scopes/user_scopes instead)
-    /// For backward compatibility: if present and bot_scopes is None, scopes will be treated as bot_scopes
+    /// OAuth scopes for this profile (legacy field, migrated to bot_scopes for backward compatibility)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub scopes: Option<Vec<String>>,
-    /// Bot scopes (new field)
+    /// Bot OAuth scopes (new field)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub bot_scopes: Option<Vec<String>>,
-    /// User scopes (new field)
+    /// User OAuth scopes (new field)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub user_scopes: Option<Vec<String>>,
 }
 
 impl Profile {
-    /// Get bot scopes with backward compatibility
-    /// If bot_scopes is present, use it; otherwise fall back to scopes (legacy)
+    /// Get bot scopes, falling back to legacy scopes field if bot_scopes is None
     pub fn get_bot_scopes(&self) -> Option<Vec<String>> {
         self.bot_scopes.clone().or_else(|| self.scopes.clone())
     }
@@ -695,6 +693,58 @@ mod tests {
         let updated = config.get("work").unwrap();
         assert_eq!(updated.team_id, "T123");
         assert_eq!(updated.user_id, "U456");
+    }
+
+    #[test]
+    fn test_backward_compatibility_scopes_to_bot_scopes() {
+        // Test that old profiles with scopes field can be read as bot_scopes
+        let json = r#"{
+            "version": 1,
+            "profiles": {
+                "default": {
+                    "team_id": "T123",
+                    "user_id": "U456",
+                    "team_name": "Test Team",
+                    "user_name": "Test User",
+                    "scopes": ["chat:write", "users:read"]
+                }
+            }
+        }"#;
+
+        let config: ProfilesConfig = serde_json::from_str(json).unwrap();
+        let profile = config.get("default").unwrap();
+
+        // Old scopes field should be migrated to bot_scopes via get_bot_scopes()
+        assert_eq!(
+            profile.get_bot_scopes(),
+            Some(vec!["chat:write".to_string(), "users:read".to_string()])
+        );
+        assert_eq!(profile.get_user_scopes(), None);
+    }
+
+    #[test]
+    fn test_new_profile_with_bot_and_user_scopes() {
+        // Test new profiles with separate bot_scopes and user_scopes
+        let profile = Profile {
+            team_id: "T123".to_string(),
+            user_id: "U456".to_string(),
+            team_name: Some("Test Team".to_string()),
+            user_name: Some("Test User".to_string()),
+            client_id: Some("client-123".to_string()),
+            redirect_uri: Some("http://localhost:8765/callback".to_string()),
+            scopes: None,
+            bot_scopes: Some(vec!["chat:write".to_string()]),
+            user_scopes: Some(vec!["users:read".to_string()]),
+        };
+
+        assert_eq!(
+            profile.get_bot_scopes(),
+            Some(vec!["chat:write".to_string()])
+        );
+        assert_eq!(
+            profile.get_user_scopes(),
+            Some(vec!["users:read".to_string()])
+        );
     }
 
     #[test]

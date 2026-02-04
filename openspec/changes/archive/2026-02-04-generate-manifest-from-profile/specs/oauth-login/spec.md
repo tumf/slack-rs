@@ -2,7 +2,7 @@
 
 ## MODIFIED Requirements
 
-### Requirement: PKCE と state を含む認可 URL を生成する
+### Requirement: Generate authentication URL with PKCE and state
 
 OAuth 認可 URL には `client_id`、`redirect_uri`、`state`、`code_challenge`、`code_challenge_method=S256` を含めなければならない (MUST)。
 
@@ -18,7 +18,39 @@ OAuth 認可 URL には `client_id`、`redirect_uri`、`state`、`code_challenge
 - When 認可 URL を生成する
 - Then URL に `user_scope` を含めない
 
-### Requirement: redirect_uri の解決（cloudflared は OPTIONAL）
+### Requirement: Do not start if required configuration is missing
+
+login 開始時に OAuth クライアント情報が不足している場合、対話入力で補完しなければならない (MUST)。
+
+スコープについては、明示的な CLI 引数が指定されている場合を除き、対話的に入力しなければならない (MUST)。
+対話入力のデフォルト入力値は bot/user ともに `all` でなければならない (MUST)。
+
+#### Scenario: スコープが CLI 引数で指定されていない場合は対話入力される
+- Given `--bot-scopes` と `--user-scopes` が指定されていない
+- When `auth login` を実行する
+- Then bot スコープの入力プロンプトが表示される
+- And user スコープの入力プロンプトが表示される
+- And いずれのデフォルト入力値も `all` である
+
+#### Scenario: スコープが CLI 引数で指定されている場合は対話入力しない
+- Given `--bot-scopes` または `--user-scopes` が指定されている
+- When `auth login` を実行する
+- Then 指定されている側のスコープについて入力プロンプトを表示しない
+
+### Requirement: Exchange authorization code for token and save
+
+`oauth.v2.access` の成功レスポンスに含まれる `access_token` およびプロファイルに必要なメタデータは保存しなければならない (MUST)。
+
+また、`authed_user.access_token` が存在する場合は bot トークンとは別の user トークンとして保存しなければならない (MUST)。
+
+#### Scenario: bot/user 両方のトークンが返る場合に別々に保存される
+- Given OAuth レスポンスに `access_token` と `authed_user.access_token` の両方が含まれる
+- When トークン交換を実行する
+- Then bot トークンと user トークンがそれぞれ永続化され、独立して取得できる
+
+## ADDED Requirements
+
+### Requirement: Resolve redirect_uri (cloudflared is OPTIONAL)
 
 `auth login` は `--cloudflared [path]` オプションで cloudflared 実行ファイルを受け付けなければならない (MUST)。
 
@@ -61,33 +93,3 @@ OAuth 認可 URL には `client_id`、`redirect_uri`、`state`、`code_challenge
 - When OAuth フローを開始する
 - Then cloudflared が実行できないことが分かる明確なエラーメッセージを表示する
 - And OAuth フローを開始しない
-
-### Requirement: login 開始時に必要情報を対話入力で補完する
-
-login 開始時に OAuth クライアント情報が不足している場合、対話入力で補完しなければならない (MUST)。
-
-スコープについては、明示的な CLI 引数が指定されている場合を除き、対話的に入力しなければならない (MUST)。
-対話入力のデフォルト入力値は bot/user ともに `all` でなければならない (MUST)。
-
-#### Scenario: スコープが CLI 引数で指定されていない場合は対話入力される
-- Given `--bot-scopes` と `--user-scopes` が指定されていない
-- When `auth login` を実行する
-- Then bot スコープの入力プロンプトが表示される
-- And user スコープの入力プロンプトが表示される
-- And いずれのデフォルト入力値も `all` である
-
-#### Scenario: スコープが CLI 引数で指定されている場合は対話入力しない
-- Given `--bot-scopes` または `--user-scopes` が指定されている
-- When `auth login` を実行する
-- Then 指定されている側のスコープについて入力プロンプトを表示しない
-
-### Requirement: 認可コードをトークンに交換し保存する
-
-`oauth.v2.access` の成功レスポンスに含まれる `access_token` およびプロファイルに必要なメタデータは保存しなければならない (MUST)。
-
-また、`authed_user.access_token` が存在する場合は bot トークンとは別の user トークンとして保存しなければならない (MUST)。
-
-#### Scenario: bot/user 両方のトークンが返る場合に別々に保存される
-- Given OAuth レスポンスに `access_token` と `authed_user.access_token` の両方が含まれる
-- When トークン交換を実行する
-- Then bot トークンと user トークンがそれぞれ永続化され、独立して取得できる

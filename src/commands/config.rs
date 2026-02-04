@@ -60,9 +60,9 @@ pub fn oauth_set(
             user_name: existing.user_name.clone(),
             client_id: Some(client_id.clone()),
             redirect_uri: Some(redirect_uri.clone()),
-            scopes: None,                         // Deprecated
-            bot_scopes: Some(scopes_vec.clone()), // Treat as bot scopes for backward compat
-            user_scopes: None,
+            scopes: Some(scopes_vec.clone()),
+            bot_scopes: None,  // TODO: Will be populated in task 2
+            user_scopes: None, // TODO: Will be populated in task 2
         }
     } else {
         // Create placeholder profile (will be filled in during login)
@@ -74,9 +74,9 @@ pub fn oauth_set(
             user_name: None,
             client_id: Some(client_id.clone()),
             redirect_uri: Some(redirect_uri.clone()),
-            scopes: None,                         // Deprecated
-            bot_scopes: Some(scopes_vec.clone()), // Treat as bot scopes for backward compat
-            user_scopes: None,
+            scopes: Some(scopes_vec.clone()),
+            bot_scopes: None,  // TODO: Will be populated in task 2
+            user_scopes: None, // TODO: Will be populated in task 2
         }
     };
 

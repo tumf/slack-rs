@@ -37,9 +37,9 @@ pub struct OAuthConfig {
     pub client_id: String,
     pub client_secret: String,
     pub redirect_uri: String,
-    /// Bot scopes (used for OAuth scope parameter)
-    pub bot_scopes: Vec<String>,
-    /// User scopes (used for OAuth user_scope parameter)
+    /// Bot scopes (sent as `scope` parameter in OAuth URL)
+    pub scopes: Vec<String>,
+    /// User scopes (sent as `user_scope` parameter in OAuth URL)
     pub user_scopes: Vec<String>,
 }
 
@@ -59,10 +59,9 @@ impl OAuthConfig {
                 "redirect_uri is required".to_string(),
             ));
         }
-        // At least one of bot_scopes or user_scopes should be present
-        if self.bot_scopes.is_empty() && self.user_scopes.is_empty() {
+        if self.scopes.is_empty() && self.user_scopes.is_empty() {
             return Err(OAuthError::ConfigError(
-                "at least one of bot_scopes or user_scopes is required".to_string(),
+                "at least one of bot scopes or user scopes is required".to_string(),
             ));
         }
         Ok(())
@@ -107,7 +106,7 @@ mod tests {
             client_id: "test_client_id".to_string(),
             client_secret: "test_secret".to_string(),
             redirect_uri: "http://localhost:8765/callback".to_string(),
-            bot_scopes: vec!["chat:write".to_string()],
+            scopes: vec!["chat:write".to_string()],
             user_scopes: vec![],
         };
 
@@ -120,7 +119,7 @@ mod tests {
             client_id: "".to_string(),
             client_secret: "test_secret".to_string(),
             redirect_uri: "http://localhost:8765/callback".to_string(),
-            bot_scopes: vec!["chat:write".to_string()],
+            scopes: vec!["chat:write".to_string()],
             user_scopes: vec![],
         };
 
@@ -138,7 +137,7 @@ mod tests {
             client_id: "test_client_id".to_string(),
             client_secret: "".to_string(),
             redirect_uri: "http://localhost:8765/callback".to_string(),
-            bot_scopes: vec!["chat:write".to_string()],
+            scopes: vec!["chat:write".to_string()],
             user_scopes: vec![],
         };
 
@@ -156,7 +155,7 @@ mod tests {
             client_id: "test_client_id".to_string(),
             client_secret: "test_secret".to_string(),
             redirect_uri: "".to_string(),
-            bot_scopes: vec!["chat:write".to_string()],
+            scopes: vec!["chat:write".to_string()],
             user_scopes: vec![],
         };
 
@@ -174,7 +173,7 @@ mod tests {
             client_id: "test_client_id".to_string(),
             client_secret: "test_secret".to_string(),
             redirect_uri: "http://localhost:8765/callback".to_string(),
-            bot_scopes: vec![],
+            scopes: vec![],
             user_scopes: vec![],
         };
 

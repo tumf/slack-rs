@@ -1,7 +1,7 @@
 # oauth-config-management 仕様（差分）
 
 ## ADDED Requirements
-### Requirement: auth login 時に Manifest を自動生成する
+### Requirement: Generate Manifest automatically during auth login
 
 `auth login` 実行時に、入力された OAuth 設定を基に Slack App Manifest を自動的に生成し、ファイルに保存しなければならない (MUST)。
 

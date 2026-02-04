@@ -5,13 +5,14 @@ Defines how slack-rs persists profile configurations and manages access tokens s
 ## Requirements
 ### Requirement: Profile configuration can be persisted
 
-Non-sensitive information in a Profile MUST be saved to `profiles.json` and retrievable with the same content after restart.
-OAuth non-sensitive information (`client_id`, `redirect_uri`, `scopes`) is also subject to persistence.
+Profile に含まれる非機密情報は `profiles.json` に保存され、再起動後も同じ内容で取得できなければならない (MUST)。
 
-#### Scenario: Profiles containing OAuth non-sensitive information can be saved and reloaded
-- Save a profile containing `client_id`, `redirect_uri`, `scopes`
-- Reload `profiles.json`
-- All values can be retrieved with the same content
+OAuth の非機密情報（`client_id`、`redirect_uri`、`bot_scopes`、`user_scopes`）も永続化の対象としなければならない (MUST)。
+
+#### Scenario: bot/user スコープを含むプロファイルを保存して再読み込みできる
+- Given `client_id`、`redirect_uri`、`bot_scopes`、`user_scopes` を含むプロファイルを保存する
+- When `profiles.json` を再読み込みする
+- Then すべての値が同一内容で取得できる
 
 ### Requirement: Configuration file has a version field
 `profiles.json` MUST contain a `version` field. (MUST)
@@ -42,11 +43,15 @@ Tokens MUST be saved in the OS keyring and MUST NOT be saved in `profiles.json`.
 - Then the token is not included
 
 ### Requirement: keyring key format is stable
-The keyring storage key MUST be `service=slackcli`, `username={team_id}:{user_id}`. (MUST)
-#### Scenario: Generate keyring key
-- Given `team_id=T123` and `user_id=U456`
-- When generating the keyring storage key
-- Then `slackcli` and `T123:U456` are used
+
+bot トークンの Keyring 保存キーは `service=slackcli`、`username={team_id}:{user_id}` でなければならない (MUST)。
+
+user トークンは bot トークンとは異なる、安定した別キーで保存しなければならない (MUST)。
+
+#### Scenario: bot と user のトークンが別キーで保存される
+- Given `team_id=T123` と `user_id=U456` がある
+- When bot トークンと user トークンの両方を保存する
+- Then 2 つのキーは互いに異なり、かつ安定している
 
 ### Requirement: Stable key can be resolved from profile_name
 `(team_id, user_id)` MUST be uniquely resolvable from `profile_name`. (MUST)

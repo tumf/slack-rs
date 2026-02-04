@@ -2,7 +2,7 @@
 
 ## MODIFIED Requirements
 
-### Requirement: プロファイル設定を永続化できる
+### Requirement: Profile configuration can be persisted
 
 Profile に含まれる非機密情報は `profiles.json` に保存され、再起動後も同じ内容で取得できなければならない (MUST)。
 
@@ -13,7 +13,7 @@ OAuth の非機密情報（`client_id`、`redirect_uri`、`bot_scopes`、`user_s
 - When `profiles.json` を再読み込みする
 - Then すべての値が同一内容で取得できる
 
-### Requirement: Keyring のキー形式が安定している
+### Requirement: keyring key format is stable
 
 bot トークンの Keyring 保存キーは `service=slackcli`、`username={team_id}:{user_id}` でなければならない (MUST)。
 

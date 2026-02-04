@@ -5,12 +5,21 @@ TBD - created by archiving change add-oauth-scope-presets. Update Purpose after 
 ## Requirements
 ### Requirement: OAuthスコープ入力でプリセット名を受け付ける
 
-対話入力および `--scopes` 引数は、プリセット名 `all` を入力値として受け付けなければならない (MUST)。
+スコープ入力は `bot:all` と `user:all` のプリセット名を受け付けなければならない (MUST)。
 
-#### Scenario: `all` を指定した場合に展開される
-- Given `auth login` のスコープ入力または `config oauth set --scopes` に `all` が含まれる
+また、利便性のために `all` も受け付けなければならない (MUST)。`all` は入力コンテキストに応じて次のように解釈しなければならない (MUST)。
+
+- bot スコープ入力（例: `--bot-scopes`、または bot スコープの対話プロンプト）では `all` は `bot:all` と同義
+- user スコープ入力（例: `--user-scopes`、または user スコープの対話プロンプト）では `all` は `user:all` と同義
+
+後方互換として、旧来の単一スコープ入力（`scopes`）で `all` が指定された場合は `bot:all` と同義に扱わなければならない (MUST)。
+
+#### Scenario: プリセット名がそれぞれ展開される
+- Given `--bot-scopes` に `all` が含まれる
+- And `--user-scopes` に `all` が含まれる
 - When スコープを解決する
-- Then 事前定義された包括的スコープ一覧に展開される
+- Then bot 側は `bot:all` として展開される
+- And user 側は `user:all` として展開される
 
 ### Requirement: `all` と個別スコープが混在した場合に正規化する
 

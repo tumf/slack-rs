@@ -17,7 +17,9 @@ pub mod types;
 
 pub use pkce::{generate_pkce, generate_state};
 pub use port::resolve_callback_port;
-pub use scopes::{all_scopes, expand_scopes};
+pub use scopes::{
+    all_scopes, bot_all_scopes, expand_scopes, expand_scopes_with_context, user_all_scopes,
+};
 pub use server::run_callback_server;
 pub use types::{OAuthConfig, OAuthError, OAuthResponse};
 
@@ -95,26 +97,25 @@ pub fn build_authorization_url(
     let base_url = "https://slack.com/oauth/v2/authorize";
     let mut url = url::Url::parse(base_url).map_err(|e| OAuthError::ParseError(e.to_string()))?;
 
-    let mut query_pairs = url.query_pairs_mut();
-    query_pairs
+    let mut query = url.query_pairs_mut();
+    query
         .append_pair("client_id", &config.client_id)
         .append_pair("redirect_uri", &config.redirect_uri)
         .append_pair("code_challenge", code_challenge)
         .append_pair("code_challenge_method", "S256")
         .append_pair("state", state);
 
-    // Add bot scopes if present
-    if !config.bot_scopes.is_empty() {
-        query_pairs.append_pair("scope", &config.bot_scopes.join(","));
+    // Add bot scopes as 'scope' parameter if present
+    if !config.scopes.is_empty() {
+        query.append_pair("scope", &config.scopes.join(","));
     }
 
-    // Add user scopes if present
+    // Add user scopes as 'user_scope' parameter if present
     if !config.user_scopes.is_empty() {
-        query_pairs.append_pair("user_scope", &config.user_scopes.join(","));
+        query.append_pair("user_scope", &config.user_scopes.join(","));
     }
 
-    drop(query_pairs);
-
+    drop(query);
     Ok(url.to_string())
 }
 
@@ -128,7 +129,7 @@ mod tests {
             client_id: "test_client_id".to_string(),
             client_secret: "test_secret".to_string(),
             redirect_uri: "http://localhost:8765/callback".to_string(),
-            bot_scopes: vec!["chat:write".to_string(), "users:read".to_string()],
+            scopes: vec!["chat:write".to_string(), "users:read".to_string()],
             user_scopes: vec![],
         };
 
@@ -145,13 +146,37 @@ mod tests {
         assert!(url.contains("state=test_state"));
     }
 
+    #[test]
+    fn test_build_authorization_url_with_user_scope() {
+        let config = OAuthConfig {
+            client_id: "test_client_id".to_string(),
+            client_secret: "test_secret".to_string(),
+            redirect_uri: "http://localhost:8765/callback".to_string(),
+            scopes: vec!["chat:write".to_string()],
+            user_scopes: vec!["users:read".to_string(), "search:read".to_string()],
+        };
+
+        let code_challenge = "test_challenge";
+        let state = "test_state";
+
+        let url = build_authorization_url(&config, code_challenge, state).unwrap();
+
+        assert!(url.contains("client_id=test_client_id"));
+        assert!(url.contains("scope=chat%3Awrite"));
+        assert!(url.contains("user_scope=users%3Aread%2Csearch%3Aread"));
+        assert!(url.contains("redirect_uri=http%3A%2F%2Flocalhost%3A8765%2Fcallback"));
+        assert!(url.contains("code_challenge=test_challenge"));
+        assert!(url.contains("code_challenge_method=S256"));
+        assert!(url.contains("state=test_state"));
+    }
+
     #[tokio::test]
     async fn test_exchange_code_invalid_base_url() {
         let config = OAuthConfig {
             client_id: "test_client_id".to_string(),
             client_secret: "test_secret".to_string(),
             redirect_uri: "http://localhost:8765/callback".to_string(),
-            bot_scopes: vec!["chat:write".to_string()],
+            scopes: vec!["chat:write".to_string()],
             user_scopes: vec![],
         };
 
