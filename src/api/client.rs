@@ -30,7 +30,7 @@ pub enum ApiError {
     #[error("Missing required parameter: {0}")]
     MissingParameter(String),
 
-    #[error("Write operation requires --allow-write flag")]
+    #[error("Write operation denied. Set SLACKCLI_ALLOW_WRITE=true to enable write operations")]
     WriteNotAllowed,
 
     #[error("Destructive operation cancelled")]
