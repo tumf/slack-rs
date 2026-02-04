@@ -56,10 +56,10 @@ Create a Slack app and configure OAuth:
 Set environment variables:
 
 ```bash
-export SLACKCLI_CLIENT_ID="your-client-id"
-export SLACKCLI_CLIENT_SECRET="your-client-secret"
-export SLACKCLI_REDIRECT_URI="http://127.0.0.1:3000/callback"  # optional
-export SLACKCLI_SCOPES="chat:write,users:read,search:read"      # optional
+export SLACKRS_CLIENT_ID="your-client-id"
+export SLACKRS_CLIENT_SECRET="your-client-secret"
+export SLACKRS_REDIRECT_URI="http://127.0.0.1:3000/callback"  # optional
+export SLACKRS_SCOPES="chat:write,users:read,search:read"      # optional
 ```
 
 ### 2. Authenticate
@@ -145,17 +145,17 @@ slack-rs api call chat.postMessage channel=C123 text="Hello" thread_ts=1234567.1
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `SLACKCLI_CLIENT_ID` | OAuth Client ID | (required) |
-| `SLACKCLI_CLIENT_SECRET` | OAuth Client Secret | (required) |
-| `SLACKCLI_REDIRECT_URI` | OAuth Redirect URI | `http://127.0.0.1:3000/callback` |
-| `SLACKCLI_SCOPES` | Comma-separated OAuth scopes | `chat:write,users:read` |
+| `SLACKRS_CLIENT_ID` | OAuth Client ID | (required) |
+| `SLACKRS_CLIENT_SECRET` | OAuth Client Secret | (required) |
+| `SLACKRS_REDIRECT_URI` | OAuth Redirect URI | `http://127.0.0.1:3000/callback` |
+| `SLACKRS_SCOPES` | Comma-separated OAuth scopes | `chat:write,users:read` |
 | `SLACKCLI_ALLOW_WRITE` | Allow write operations (set to `false` or `0` to deny) | `true` (allow) |
-| `SLACKCLI_KEYRING_PASSWORD` | Password for export/import encryption | (required for export/import) |
+| `SLACKRS_KEYRING_PASSWORD` | Password for export/import encryption | (required for export/import) |
 | `SLACK_OAUTH_BASE_URL` | Custom OAuth base URL (for testing) | - |
 
 ### Profile Storage
 
-- **Profile metadata** (non-sensitive): `~/.config/slack-cli/profiles.json` (Linux/macOS)
+- **Profile metadata** (non-sensitive): `~/.config/slack-rs/profiles.json` (Linux/macOS)
 - **Access tokens** (sensitive): OS keyring (Keychain on macOS, Secret Service on Linux, Credential Manager on Windows)
 
 ### Write Operation Protection
@@ -199,7 +199,7 @@ Profile export creates an encrypted file containing your credentials:
 - **Encryption**: AES-256-GCM
 - **Key Derivation**: Argon2id with salt
 - **File Permissions**: Automatically set to `0600` (owner read/write only)
-- **Passphrase**: Must be provided via `SLACKCLI_KEYRING_PASSWORD` environment variable or `--passphrase-prompt`
+- **Passphrase**: Must be provided via `SLACKRS_KEYRING_PASSWORD` environment variable or `--passphrase-prompt`
 
 **⚠️ Warning**: Exported files contain sensitive credentials. Store them securely and never commit them to version control.
 

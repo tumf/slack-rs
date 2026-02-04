@@ -80,3 +80,24 @@ The `--allow-write` flag MUST NOT be required, and if specified MUST NOT affect 
 - When `--allow-write` flag is specified
 - Then write operation is allowed
 
+### Requirement: msg post supports thread replies
+`msg post` MUST pass `thread_ts` to `chat.postMessage` when `--thread-ts` is specified. (MUST)
+#### Scenario: Send thread reply with thread_ts
+- Given `--thread-ts` is specified
+- When executing `msg post`
+- Then `thread_ts` is passed to `chat.postMessage`
+
+### Requirement: reply_broadcast can only be specified with thread replies
+`msg post` MUST pass `reply_broadcast=true` when `--reply-broadcast` is specified. (MUST)
+`msg post` MUST exit with error when `--reply-broadcast` is specified without `--thread-ts`. (MUST)
+#### Scenario: Send thread reply with reply_broadcast
+- Given `--thread-ts` and `--reply-broadcast` are specified
+- When executing `msg post`
+- Then `reply_broadcast=true` is passed to `chat.postMessage`
+
+### Requirement: Destructive operations require confirmation without `--yes`
+`msg delete` MUST display confirmation if `--yes` is not present. (MUST)
+#### Scenario: Execute `msg delete` without `--yes`
+- Given executing `msg delete`
+- When `--yes` is not specified
+- Then confirmation is requested

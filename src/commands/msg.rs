@@ -11,6 +11,8 @@ use std::collections::HashMap;
 /// * `client` - API client
 /// * `channel` - Channel ID
 /// * `text` - Message text
+/// * `thread_ts` - Optional thread timestamp to reply to
+/// * `reply_broadcast` - Whether to broadcast thread reply to channel
 ///
 /// # Returns
 /// * `Ok(ApiResponse)` with posted message information
@@ -19,12 +21,21 @@ pub async fn msg_post(
     client: &ApiClient,
     channel: String,
     text: String,
+    thread_ts: Option<String>,
+    reply_broadcast: bool,
 ) -> Result<ApiResponse, ApiError> {
     check_write_allowed()?;
 
     let mut params = HashMap::new();
     params.insert("channel".to_string(), json!(channel));
     params.insert("text".to_string(), json!(text));
+
+    if let Some(ts) = thread_ts {
+        params.insert("thread_ts".to_string(), json!(ts));
+        if reply_broadcast {
+            params.insert("reply_broadcast".to_string(), json!(true));
+        }
+    }
 
     client.call_method(ApiMethod::ChatPostMessage, params).await
 }
@@ -94,7 +105,14 @@ mod tests {
     async fn test_msg_post_with_env_false() {
         std::env::set_var("SLACKCLI_ALLOW_WRITE", "false");
         let client = ApiClient::with_token("test_token".to_string());
-        let result = msg_post(&client, "C123456".to_string(), "test message".to_string()).await;
+        let result = msg_post(
+            &client,
+            "C123456".to_string(),
+            "test message".to_string(),
+            None,
+            false,
+        )
+        .await;
         assert!(result.is_err());
         assert!(matches!(result.unwrap_err(), ApiError::WriteNotAllowed));
         std::env::remove_var("SLACKCLI_ALLOW_WRITE");

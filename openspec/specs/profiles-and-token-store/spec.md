@@ -1,54 +1,69 @@
 # profiles-and-token-store Specification
 
 ## Purpose
-TBD - created by archiving change establish-profile-storage. Update Purpose after archive.
+Defines how slack-rs persists profile configurations and manages access tokens securely using OS-level storage mechanisms.
+
 ## Requirements
-### Requirement: プロファイル設定を永続化できる
-プロファイルの非秘密情報は `profiles.json` に保存され、再起動後も同一の内容を取得できなければならない。(MUST)
-#### Scenario: 新しいプロファイルを保存して再読み込みする
-- Given 空の設定ファイルが存在する
-- When プロファイル情報（profile_name, team_id, user_id, scopes）を保存する
-- Then 再読み込み時に同一の値が取得できる
+### Requirement: Profile configuration can be persisted
+Profile non-secret information MUST be saved in `profiles.json` and MUST be retrievable with identical content after restart. (MUST)
+#### Scenario: Save and reload a new profile
+- Given an empty configuration file exists
+- When profile information (profile_name, team_id, user_id, scopes) is saved
+- Then the same values can be retrieved on reload
 
-### Requirement: 設定ファイルにバージョンを持つ
-`profiles.json` は `version` フィールドを持たなければならない。(MUST)
-#### Scenario: 保存時に version が含まれる
-- Given 新規作成の設定ファイルが存在する
-- When 設定を保存する
-- Then `version` が含まれる
+### Requirement: Configuration file has a version field
+`profiles.json` MUST contain a `version` field. (MUST)
+#### Scenario: Version is included when saving
+- Given a newly created configuration file exists
+- When the configuration is saved
+- Then `version` is included
 
-### Requirement: profile_name は一意である
-同一の `profile_name` は複数登録してはならない。(MUST NOT)
-#### Scenario: 同名プロファイルを追加しようとする
-- Given `profile_name` が既に存在する
-- When 同じ `profile_name` を保存する
-- Then 重複エラーになる
+### Requirement: profile_name is unique
+The same `profile_name` MUST NOT be registered multiple times. (MUST NOT)
+#### Scenario: Attempting to add a profile with the same name
+- Given `profile_name` already exists
+- When saving the same `profile_name`
+- Then a duplicate error occurs
 
-### Requirement: `(team_id, user_id)` は安定キーとして一意である
-同じ `(team_id, user_id)` を持つプロファイルは重複してはならない。(MUST NOT)
-#### Scenario: 同じ `(team_id, user_id)` を再登録する
-- Given `(team_id, user_id)` が既に存在する
-- When 同じ `(team_id, user_id)` を持つプロファイルを保存する
-- Then 既存エントリが更新され、新規追加されない
+### Requirement: `(team_id, user_id)` is unique as a stable key
+Profiles with the same `(team_id, user_id)` MUST NOT be duplicated. (MUST NOT)
+#### Scenario: Re-registering the same `(team_id, user_id)`
+- Given `(team_id, user_id)` already exists
+- When saving a profile with the same `(team_id, user_id)`
+- Then the existing entry is updated and not added as new
 
-### Requirement: トークンは keyring に保存し、設定ファイルに保存しない
-トークンは OS keyring に保存し、`profiles.json` に保存してはならない。(MUST NOT)
-#### Scenario: token を保存して設定ファイルを確認する
-- Given token を保存した
-- When `profiles.json` を読み込む
-- Then token が含まれていない
+### Requirement: Tokens are saved in keyring and not in configuration file
+Tokens MUST be saved in the OS keyring and MUST NOT be saved in `profiles.json`. (MUST NOT)
+#### Scenario: Save token and check configuration file
+- Given a token has been saved
+- When `profiles.json` is loaded
+- Then the token is not included
 
-### Requirement: keyring のキー形式は安定である
-keyring の保存キーは `service=slackcli`, `username={team_id}:{user_id}` でなければならない。(MUST)
-#### Scenario: keyring キーを生成する
-- Given `team_id=T123` と `user_id=U456` がある
-- When keyring の保存キーを生成する
-- Then `slackcli` と `T123:U456` が使われる
+### Requirement: keyring key format is stable
+The keyring storage key MUST be `service=slackcli`, `username={team_id}:{user_id}`. (MUST)
+#### Scenario: Generate keyring key
+- Given `team_id=T123` and `user_id=U456`
+- When generating the keyring storage key
+- Then `slackcli` and `T123:U456` are used
 
-### Requirement: profile_name から安定キーを解決できる
-`profile_name` から `(team_id, user_id)` を一意に解決できなければならない。(MUST)
-#### Scenario: profile_name から `(team_id, user_id)` を解決する
-- Given 設定に profile_name が存在する
-- When profile_name を指定する
-- Then `(team_id, user_id)` が返る
+### Requirement: Stable key can be resolved from profile_name
+`(team_id, user_id)` MUST be uniquely resolvable from `profile_name`. (MUST)
+#### Scenario: Resolve `(team_id, user_id)` from profile_name
+- Given profile_name exists in the configuration
+- When profile_name is specified
+- Then `(team_id, user_id)` is returned
+
+### Requirement: Profile configuration file uses slack-rs as default path
+Profile non-secret information MUST be stored in `profiles.json` under the `slack-rs` configuration directory. (MUST)
+#### Scenario: Resolve default path
+- Given retrieving the default configuration path
+- When referencing the OS configuration directory
+- Then the path contains `slack-rs` and `profiles.json`
+
+### Requirement: Legacy path configuration file is migrated to new path
+When the new path does not exist and `profiles.json` exists in the legacy path (`slack-cli`), the configuration file MUST be migrated to the new path. (MUST)
+#### Scenario: Loading when only legacy path exists
+- Given `profiles.json` exists in the legacy path and does not exist in the new path
+- When loading the configuration file
+- Then `profiles.json` is created in the new path and the same content is loaded
 
