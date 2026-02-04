@@ -1571,6 +1571,7 @@ dependencies = [
  "httpmock",
  "keyring",
  "rand",
+ "regex",
  "reqwest",
  "rpassword",
  "serde",
