@@ -1,6 +1,6 @@
 [package]
 name = "slack-rs"
-version = "0.1.7"
+version = "0.1.8"
 edition = "2021"
 default-run = "slack-rs"
 authors = ["tumf <tumf@users.noreply.github.com>"]
@@ -29,7 +29,7 @@ directories = "5.0"
 keyring = { version = "3.6", features = ["apple-native"] }
 thiserror = "2.0"
 tokio = { version = "1.0", features = ["full"] }
-reqwest = { version = "0.12", features = ["json"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 base64 = "0.22"
 sha2 = "0.10"
 rand = "0.8"
