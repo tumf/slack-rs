@@ -6,3 +6,6 @@
 - [x] `users cache-update` コマンドを追加し、キャッシュ更新を実行経路へ接続する（検証: `src/main.rs` と `src/cli/mod.rs` で新サブコマンドが利用可能であることを確認）
 - [x] `users resolve-mentions` コマンドを追加し、キャッシュを参照して置換結果を出力する（検証: コマンド実行時にキャッシュを参照して置換された文字列が出力されるテストを追加）
 - [x] usage/help を更新する（検証: `src/cli/mod.rs` と `src/main.rs` に新オプションの説明が含まれることを確認）
+
+## Acceptance #1 Failure Follow-up
+- [x] `src/commands/users_cache.rs` の `resolve_mentions` が削除済みユーザーに ` (deleted)` を付与しており、spec の `@display_name`/`@name` 置換要件と一致しないため、削除済みユーザーでもサフィックス無しで置換する。

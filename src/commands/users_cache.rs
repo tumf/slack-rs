@@ -256,11 +256,7 @@ pub fn resolve_mentions(text: &str, cache: &WorkspaceCache, format: MentionForma
                         MentionFormat::Username => &user.name,
                     };
 
-                    if user.deleted {
-                        format!("@{} (deleted)", name)
-                    } else {
-                        format!("@{}", name)
-                    }
+                    format!("@{}", name)
                 }
                 None => caps[0].to_string(), // Keep original if not found
             }
@@ -401,15 +397,15 @@ mod tests {
         // Test display_name format
         let text = "Hello <@U123> and <@U456>!";
         let result = resolve_mentions(text, &cache, MentionFormat::DisplayName);
-        assert_eq!(result, "Hello @johnd and @jane (deleted)!");
+        assert_eq!(result, "Hello @johnd and @jane!");
 
         // Test real_name format
         let result = resolve_mentions(text, &cache, MentionFormat::RealName);
-        assert_eq!(result, "Hello @John Doe and @Jane Smith (deleted)!");
+        assert_eq!(result, "Hello @John Doe and @Jane Smith!");
 
         // Test username format
         let result = resolve_mentions(text, &cache, MentionFormat::Username);
-        assert_eq!(result, "Hello @john and @jane (deleted)!");
+        assert_eq!(result, "Hello @john and @jane!");
 
         // Test unknown user
         let text_unknown = "Hello <@U999>!";
