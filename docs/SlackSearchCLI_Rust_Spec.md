@@ -149,7 +149,7 @@ Write（今回入れる）
 - profile必須 + 出力に `team.name` を必ず含める
 - write系は **事故防止の二重ガード**
   - デフォルトで write 無効
-  - 実行には `SLACKCLI_ENABLE_WRITE=1` が必要（環境変数ガード）
+  - 実行には `SLACKRS_ENABLE_WRITE=1` が必要（環境変数ガード）
   - さらに破壊的操作（delete等）は `--yes` なしでは実行しない
   - `--lang` に応じて確認プロンプトも翻訳（i18n）
 
@@ -190,7 +190,7 @@ Write（今回入れる）
 #### 仕様
 - 言語決定順（優先度順）
   1) `--lang <tag>`（例: `ja`, `en-US`）
-  2) `SLACKCLI_LANG` 環境変数
+  2) `SLACKRS_LANG` 環境変数
   3) OS ロケール（`LANG`, `LC_ALL` 等）
   4) default: `en`
 
@@ -227,7 +227,7 @@ Write（今回入れる）
 - 429 を正しく扱う
 - tokenが安全に保存され、マスクされる
 - `--lang ja` / `--lang en` でCLIメッセージ言語が切り替わる（少なくとも主要メッセージ）
-- write系コマンドが安全装置付きで動く（`SLACKCLI_ENABLE_WRITE=1` + 必要に応じて `--yes`）
+- write系コマンドが安全装置付きで動く（`SLACKRS_ENABLE_WRITE=1` + 必要に応じて `--yes`）
 
 ---
 

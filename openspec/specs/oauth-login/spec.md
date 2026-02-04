@@ -12,9 +12,9 @@ The OAuth authorization URL MUST include `client_id`, `redirect_uri`, `state`, `
 - Then all required parameters are included
 
 ### Requirement: Do not start if required configuration is missing
-OAuth flow MUST NOT start if `SLACKCLI_CLIENT_ID` or `SLACKCLI_CLIENT_SECRET` is not set. (MUST NOT)
+OAuth flow MUST NOT start if `SLACKRS_CLIENT_ID` or `SLACKRS_CLIENT_SECRET` is not set. (MUST NOT)
 #### Scenario: Required environment variables are missing
-- Given `SLACKCLI_CLIENT_ID` is not set
+- Given `SLACKRS_CLIENT_ID` is not set
 - When executing `auth login`
 - Then it exits with an error
 
