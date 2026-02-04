@@ -4,11 +4,11 @@
 This document defines the exact schema and storage mechanisms for profiles and tokens.
 
 ## Config File Location
-- Determined by `directories` crate: `ProjectDirs::from("", "", "slack-rs")`
-- Typical paths:
-  - macOS: `~/Library/Application Support/slack-rs/profiles.json`
-  - Linux: `~/.config/slack-rs/profiles.json`
-  - Windows: `%APPDATA%\slack-rs\profiles.json`
+- All configuration and token data stored in: `~/.config/slack-rs/`
+- Platform-independent unified directory structure
+- Files:
+  - `~/.config/slack-rs/profiles.json` - Profile metadata
+  - `~/.config/slack-rs/tokens.json` - Token storage
 - Legacy paths (automatically migrated):
   - macOS: `~/Library/Application Support/slackcli/profiles.json`
   - Linux: `~/.config/slackcli/profiles.json`
@@ -59,41 +59,50 @@ This document defines the exact schema and storage mechanisms for profiles and t
   - Update existing profile's token and metadata
   - Do not create a new profile entry
 
-## Keyring Storage
+## File-Based Token Storage
 
-### Key Structure
-- **Service**: `slackcli`
-- **Username**: `{team_id}:{user_id}` (example: `T123ABC:U456DEF`)
-- **Secret**: JSON-encoded token data
+### Storage Location
+- File: `~/.config/slack-rs/tokens.json`
+- Format: JSON key-value mapping
+- File permissions: `0600` (owner read/write only) on Unix systems
 
-### Secret Payload Format
+### tokens.json Format
 
 ```json
 {
-  "access_token": "xoxp-...",
-  "token_type": "user",
-  "expires_at": null
+  "T123ABC:U456DEF": "xoxp-XXXXXXXXXX-XXXXXXXXXX-XXXXXXXXXXXX-XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+  "T123ABC:U456DEF:user": "xoxp-...",
+  "T789GHI:U012JKL": "xoxb-...",
+  "oauth-client-secret:default": "abc123def456..."
 }
 ```
 
-### Field Definitions
-- `access_token`: Slack user token (from `oauth.v2.access`)
-- `token_type`: Always `"user"` for this CLI
-- `expires_at`: Optional expiration timestamp (null for non-expiring tokens)
+### Key Structure
+- **Profile tokens**: `{team_id}:{user_id}` (example: `T123ABC:U456DEF`)
+- **Scoped tokens**: `{team_id}:{user_id}:{scope}` (example: `T123ABC:U456DEF:user`)
+- **OAuth secrets**: `oauth-client-secret:{profile_name}` (example: `oauth-client-secret:default`)
 
-### Keyring Operations
-- **Store**: `keyring::Entry::new("slackcli", "{team_id}:{user_id}").set_password(json_string)`
-- **Retrieve**: `keyring::Entry::new("slackcli", "{team_id}:{user_id}").get_password()`
-- **Delete**: `keyring::Entry::new("slackcli", "{team_id}:{user_id}").delete_password()`
+### Token Operations
+- **Store**: Write key-value pair to JSON file with 0600 permissions
+- **Retrieve**: Read token value by key from JSON file
+- **Delete**: Remove key from JSON file
+- **List**: Return all keys in JSON file
+
+### Security Considerations
+- File permissions set to `0600` (Unix) to prevent unauthorized access
+- `tokens.json` included in `.gitignore` to prevent accidental commits
+- No encryption applied - security relies on filesystem permissions
+- Tokens stored in plaintext within the file
+- Consider using system keyring for enhanced security in future versions
 
 ## Profile Resolution Flow
 
 1. User runs: `slackcli --profile acme-work search "query"`
-2. CLI reads `profiles.json`
+2. CLI reads `~/.config/slack-rs/profiles.json`
 3. Find profile with `profile_name == "acme-work"`
 4. Extract `team_id` and `user_id`
-5. Construct keyring key: `{team_id}:{user_id}`
-6. Retrieve token from keyring
+5. Construct token key: `{team_id}:{user_id}`
+6. Retrieve token from `~/.config/slack-rs/tokens.json` file
 7. Execute API call with token
 8. Update `last_used_at` in `profiles.json`
 
@@ -103,13 +112,22 @@ This document defines the exact schema and storage mechanisms for profiles and t
 - Error: `Profile 'xyz' not found. Run 'slackcli auth list' to see available profiles.`
 - Exit code: 1
 
-### Token Not Found in Keyring
+### Token Not Found in Storage
 - Error: `Token not found for profile 'xyz'. Run 'slackcli auth login --profile xyz' to re-authenticate.`
 - Exit code: 1
 
 ### Config File Corruption
 - Error: `Failed to parse profiles.json: {error}. Consider backing up and deleting the file.`
 - Exit code: 1
+
+### Token File Corruption
+- Error: `Failed to parse tokens.json: {error}. Consider backing up and deleting the file.`
+- Exit code: 1
+
+### File Permission Issues
+- Error: `Failed to set secure permissions on tokens.json: {error}`
+- Warning: Tokens file may be readable by other users
+- Exit code: 0 (warning only, operation continues)
 
 ## Migration Strategy
 - If `profiles.json` does not exist at the new path: check for legacy config and migrate
