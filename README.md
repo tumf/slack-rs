@@ -74,65 +74,47 @@ cargo install --path .
 
 #### Quick Setup: Using App Manifest (Recommended)
 
-The fastest way to create a Slack app is using an App Manifest. This automatically configures all necessary settings:
+The most recommended login flow is to install **cloudflared** and use `--cloudflared`.
+In this mode, `slack-rs auth login` generates a Slack App Manifest for you (and copies it to your clipboard).
 
-1. **Navigate to Slack API**: Go to https://api.slack.com/apps
-2. **Create app from manifest**:
-   - Click "Create New App"
-   - Choose "From an app manifest"
-   - Select your workspace
-   - Paste the following YAML manifest:
+The intended flow is:
 
-```yaml
-_metadata:
-  major_version: 2
-  minor_version: 1
-display_information:
-  name: slack-rs CLI
-  description: Command-line tool for Slack API access
-  background_color: "#2c2d30"
-features:
-  bot_user:
-    display_name: slack-rs
-    always_online: false
-oauth_config:
-  redirect_urls:
-    - http://127.0.0.1:8765/callback
-  scopes:
-    user:
-      - channels:read
-      - chat:write
-      - users:read
-      - search:read
-      - files:read
-      - groups:read
-      - im:read
-      - mpim:read
-      - reactions:read
-      - reactions:write
-      - usergroups:read
-settings:
-  org_deploy_enabled: false
-  socket_mode_enabled: false
-  token_rotation_enabled: false
-```
-
-3. **Review and create**: Click "Next" → Review permissions → Click "Create"
-4. **Get your credentials**:
-   - Go to "Basic Information" in the left sidebar
-   - Scroll to "App Credentials"
-   - Copy your **Client ID** (looks like `123456789012.1234567890123`)
-   - Click "Show" and copy your **Client Secret** (looks like `abcdef1234567890abcdef1234567890`)
+1. **Create a Slack app and get credentials**:
+   - Go to https://api.slack.com/apps
+   - Click "Create New App" ("From scratch" is fine)
+   - In "Basic Information" → "App Credentials", copy your **Client ID** and **Client Secret**
+2. **Install cloudflared**:
+   - Follow Cloudflare docs: https://developers.cloudflare.com/cloudflare-one/connections/connect-apps/install-and-setup/installation/
+3. **Start login with --cloudflared (manifest is generated automatically)**:
+   ```bash
+    slack-rs auth login my-workspace --client-id 123456789012.1234567890123 --cloudflared
+    # You'll be prompted for the client secret (hidden)
+    # A manifest YAML is generated, saved, and copied to clipboard
+    ```
+4. **Paste the generated YAML into Slack**:
+   - In your Slack app settings, open "App Manifest"
+   - Paste the generated YAML (from clipboard or `~/.config/slack-rs/<profile>_manifest.yml`)
+   - Apply the changes
+5. **Return to the terminal and press Enter**:
+   - The CLI opens your browser
+   - Click "Allow"
+   - The CLI exchanges the code for tokens and saves them securely
 
 **💡 Manifest Benefits:**
-- ✅ Automatic redirect URI configuration (`http://127.0.0.1:8765/callback`)
-- ✅ Example OAuth scopes you can customize
-- ✅ No manual clicking through settings pages
-- ✅ Easy to share and reproduce across workspaces
+- ✅ Redirect URL and scopes are configured for you
+- ✅ Less manual Slack UI configuration
+- ✅ Manifest is saved to `~/.config/slack-rs/<profile>_manifest.yml` and copied to clipboard (best effort)
+- ✅ Easy to reproduce and share
 
 **Customizing Scopes:**
 
-If you need different scopes, modify the `scopes.user` section in the manifest. Common scopes:
+If you need different scopes, change the scopes you pass to `auth login` (or edit the manifest YAML before pasting it into Slack).
+
+Flags:
+- `--bot-scopes <scopes>`: comma-separated list or `all`
+- `--user-scopes <scopes>`: comma-separated list or `all`
+
+Common scopes:
 - `chat:write` - Post messages
 - `users:read` - View users
 - `channels:read` - List public channels
@@ -224,11 +206,19 @@ slack-rs auth login my-workspace
 **What happens during login:**
 
 1. **Credentials collected**: Client ID and secret are obtained (from saved profile/keyring, CLI args, or prompts)
-2. **Browser opens**: OAuth authorization page opens automatically
-3. **User authorization**: Click "Allow" to grant permissions to your app
-4. **Callback handled**: Local server receives OAuth callback with authorization code
-5. **Token exchange**: Code is exchanged for access token
-6. **Secure storage**: Profile and token are saved securely
+
+When using `--cloudflared`:
+2. **Tunnel started**: `cloudflared` tunnel is started and a public redirect URL is determined
+3. **Manifest generated**: A Slack App Manifest YAML is generated, saved, and copied to clipboard (best effort)
+4. **You paste the manifest in Slack**: Configure your Slack app using the generated manifest
+5. **Press Enter to continue**: The CLI starts the OAuth flow
+
+OAuth flow:
+6. **Browser opens**: OAuth authorization page opens automatically
+7. **User authorization**: Click "Allow" to grant permissions to your app
+8. **Callback handled**: Callback server receives OAuth callback with authorization code
+9. **Token exchange**: Code is exchanged for access token
+10. **Secure storage**: Profile and token are saved securely
    - Profile metadata → `~/.config/slack-rs/profiles.json`
    - Access token → OS Keyring (Keychain/Secret Service/Credential Manager)
 
@@ -247,7 +237,12 @@ Profile 'my-workspace' saved.
 
 #### Using Tunneling Services for Remote Authentication
 
-When authenticating from a remote server or environment where `localhost` is not accessible (e.g., SSH, Docker, cloud instances), you can use tunneling services like **Cloudflare Tunnel (cloudflared)** (built-in) or **ngrok** (manual) to expose the local OAuth callback server.
+When authenticating from a remote server or environment where `localhost` is not accessible (e.g., SSH, Docker, cloud instances), the most recommended flow is:
+
+1. Install **cloudflared**
+2. Run `slack-rs auth login ... --cloudflared`
+
+This avoids manually starting a tunnel or managing redirect URLs.
 
 **Method A: Built-in Cloudflare Tunnel Support (Easiest)**
 
@@ -261,13 +256,17 @@ When authenticating from a remote server or environment where `localhost` is not
    - Click "Save URLs"
 
 3. **Authenticate with --cloudflared flag**:
-   ```bash
-   # The tool will automatically start cloudflared and handle the tunnel
-   slack-rs auth login my-workspace --cloudflared
+    ```bash
+    # The tool will automatically start cloudflared and handle the tunnel
+    slack-rs auth login my-workspace --cloudflared
    
    # Or with client ID
-   slack-rs auth login my-workspace --client-id 123456789012.1234567890123 --cloudflared
-   ```
+    slack-rs auth login my-workspace --client-id 123456789012.1234567890123 --cloudflared
+    ```
+
+With `--cloudflared`, you do not need to manually start a tunnel or copy/paste a tunnel URL into your config.
+The CLI starts the tunnel, generates a manifest containing the correct redirect URL, and copies it to your clipboard.
+You only need to paste the manifest into Slack and press Enter to continue.
 
 The `--cloudflared` flag automatically:
 - Starts a Cloudflare Tunnel on port 8765
@@ -289,19 +288,26 @@ If you prefer to manage the tunnel yourself:
    - Add the tunnel URL as redirect URI (e.g., `https://xyz-def-ghi.trycloudflare.com/callback`)
 
 3. **Authenticate with custom redirect URI**:
-   ```bash
-    slack-rs config oauth set my-workspace \
-      --client-id 123456789012.1234567890123 \
-      --redirect-uri https://xyz-def-ghi.trycloudflare.com/callback \
-      --scopes "chat:write,users:read"
-    slack-rs auth login my-workspace
+    ```bash
+     slack-rs config oauth set my-workspace \
+       --client-id 123456789012.1234567890123 \
+       --redirect-uri https://xyz-def-ghi.trycloudflare.com/callback \
+       --scopes "chat:write,users:read"
+     slack-rs auth login my-workspace
     ```
+
+If you are using the manifest-based flow described above, the manual `config oauth set --redirect-uri ...` step is usually unnecessary.
+Using `--cloudflared` avoids having to manually manage the tunnel URL.
 
 **Security Notes:**
 - ⚠️ Tunnel URLs are temporary and change each time you restart the service
 - ⚠️ Anyone with the tunnel URL can access your callback endpoint during authentication
 - ✅ The built-in tunnel support automatically closes the tunnel after authentication
 - ✅ Tunnels are only active during the authentication process
+
+#### ngrok status
+
+The `--ngrok` flag exists in the CLI help, but ngrok tunnel automation is not implemented in this version.
 
 ### 3. Make API Calls
 
