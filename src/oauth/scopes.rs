@@ -9,28 +9,45 @@ use std::collections::BTreeSet;
 ///
 /// This includes common bot scopes but excludes admin/Enterprise-only scopes.
 /// The list is stable and sorted alphabetically.
+///
+/// Note: Some scopes are User-only and should not be included here:
+/// - channels:write (User only)
+/// - dnd:write (User only)
+/// - users.profile:write (User only)
 pub fn bot_all_scopes() -> Vec<String> {
     vec![
         "channels:history",
+        "channels:join",
+        "channels:manage",
         "channels:read",
-        "channels:write",
+        "channels:write.invites",
+        "channels:write.topic",
         "chat:write",
+        "chat:write.customize",
+        "chat:write.public",
+        "commands",
+        "conversations.connect:manage",
         "conversations.connect:read",
         "conversations.connect:write",
         "dnd:read",
-        "dnd:write",
         "emoji:read",
         "files:read",
         "files:write",
         "groups:history",
         "groups:read",
         "groups:write",
+        "groups:write.invites",
+        "groups:write.topic",
         "im:history",
         "im:read",
         "im:write",
+        "im:write.topic",
+        "links:read",
+        "links:write",
         "mpim:history",
         "mpim:read",
         "mpim:write",
+        "mpim:write.topic",
         "pins:read",
         "pins:write",
         "reactions:read",
@@ -41,8 +58,9 @@ pub fn bot_all_scopes() -> Vec<String> {
         "usergroups:read",
         "usergroups:write",
         "users.profile:read",
-        "users.profile:write",
         "users:read",
+        "users:read.email",
+        "users:write",
     ]
     .iter()
     .map(|s| s.to_string())
@@ -53,6 +71,11 @@ pub fn bot_all_scopes() -> Vec<String> {
 ///
 /// This includes common user scopes but excludes admin/Enterprise-only scopes.
 /// The list is stable and sorted alphabetically.
+///
+/// Note: Some scopes are User-only and cannot be used as bot scopes:
+/// - channels:write
+/// - dnd:write
+/// - users.profile:write
 pub fn user_all_scopes() -> Vec<String> {
     vec![
         "channels:history",
@@ -67,6 +90,7 @@ pub fn user_all_scopes() -> Vec<String> {
         "groups:history",
         "groups:read",
         "groups:write",
+        "identify",
         "im:history",
         "im:read",
         "im:write",
@@ -88,6 +112,7 @@ pub fn user_all_scopes() -> Vec<String> {
         "users.profile:read",
         "users.profile:write",
         "users:read",
+        "users:read.email",
     ]
     .iter()
     .map(|s| s.to_string())

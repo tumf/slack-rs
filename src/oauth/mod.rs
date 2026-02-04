@@ -72,6 +72,23 @@ pub async fn exchange_code(
     let oauth_response: OAuthResponse =
         serde_json::from_str(&body).map_err(|e| OAuthError::ParseError(e.to_string()))?;
 
+    eprintln!("DEBUG: OAuth response body: {}", body);
+    eprintln!("DEBUG: OAuth response - ok: {}", oauth_response.ok);
+    eprintln!(
+        "DEBUG: OAuth response - access_token present: {}",
+        oauth_response.access_token.is_some()
+    );
+    eprintln!(
+        "DEBUG: OAuth response - authed_user present: {}",
+        oauth_response.authed_user.is_some()
+    );
+    if let Some(ref authed_user) = oauth_response.authed_user {
+        eprintln!(
+            "DEBUG: OAuth response - authed_user.access_token present: {}",
+            authed_user.access_token.is_some()
+        );
+    }
+
     if !oauth_response.ok {
         return Err(OAuthError::SlackError(
             oauth_response
@@ -116,6 +133,15 @@ pub fn build_authorization_url(
     }
 
     drop(query);
+
+    // Debug: Show the authorization URL
+    eprintln!("🔍 Debug - Authorization URL:");
+    eprintln!("  URL: {}", url.as_str());
+    eprintln!(
+        "  Contains user_scope: {}",
+        url.as_str().contains("user_scope")
+    );
+
     Ok(url.to_string())
 }
 
