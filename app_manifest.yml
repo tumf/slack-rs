@@ -2,6 +2,9 @@
 # This manifest defines the configuration for the Slack App used by the slack-rs CLI tool.
 # It includes OAuth scopes for both bot and user tokens, and configures the OAuth redirect URL.
 #
+# NOTE: This manifest uses cloudflared tunnel wildcard URL (*.trycloudflare.com) for OAuth callbacks.
+# This allows the CLI to work with temporary cloudflared tunnels without requiring localhost access.
+#
 # To use this manifest:
 # 1. Go to https://api.slack.com/apps
 # 2. Click "Create New App" -> "From an app manifest"
@@ -23,7 +26,7 @@ features:
 
 oauth_config:
   redirect_urls:
-    - http://127.0.0.1:8765/callback
+    - https://*.trycloudflare.com/callback
   scopes:
     bot:
       - channels:history
