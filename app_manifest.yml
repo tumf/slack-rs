@@ -1,0 +1,84 @@
+# Slack App Manifest for slack-rs CLI
+# This manifest defines the configuration for the Slack App used by the slack-rs CLI tool.
+# It includes OAuth scopes for both bot and user tokens, and configures the OAuth redirect URL.
+#
+# To use this manifest:
+# 1. Go to https://api.slack.com/apps
+# 2. Click "Create New App" -> "From an app manifest"
+# 3. Select your workspace
+# 4. Paste this YAML content
+# 5. Review and create the app
+# 6. Install the app to your workspace
+# 7. Copy the Client ID and Client Secret to your environment variables
+
+display_information:
+  name: slack-rs CLI
+  description: A Rust-based CLI tool for interacting with Slack API
+  background_color: "#4A154B"
+
+features:
+  bot_user:
+    display_name: slack-rs CLI Bot
+    always_online: false
+
+oauth_config:
+  redirect_urls:
+    - http://127.0.0.1:8765/callback
+  scopes:
+    bot:
+      - channels:history
+      - channels:read
+      - channels:write
+      - chat:write
+      - emoji:read
+      - files:read
+      - files:write
+      - groups:history
+      - groups:read
+      - groups:write
+      - im:history
+      - im:read
+      - im:write
+      - mpim:history
+      - mpim:read
+      - mpim:write
+      - pins:read
+      - pins:write
+      - reactions:read
+      - reactions:write
+      - team:read
+      - usergroups:read
+      - usergroups:write
+      - users:read
+    user:
+      - channels:history
+      - channels:read
+      - channels:write
+      - dnd:read
+      - dnd:write
+      - groups:history
+      - groups:read
+      - groups:write
+      - im:history
+      - im:read
+      - im:write
+      - mpim:history
+      - mpim:read
+      - mpim:write
+      - pins:read
+      - pins:write
+      - reactions:read
+      - reactions:write
+      - reminders:read
+      - reminders:write
+      - search:read
+      - stars:read
+      - stars:write
+      - users.profile:read
+      - users.profile:write
+      - users:read
+
+settings:
+  org_deploy_enabled: false
+  socket_mode_enabled: false
+  token_rotation_enabled: false
