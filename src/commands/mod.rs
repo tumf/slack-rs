@@ -8,7 +8,9 @@
 //! - msg: Message operations (post, update, delete)
 //! - react: Reaction operations (add, remove)
 //! - file: File operations (upload using external upload method)
+//! - config: Configuration management (OAuth settings)
 
+pub mod config;
 pub mod conv;
 pub mod file;
 pub mod guards;
@@ -18,6 +20,7 @@ pub mod search;
 pub mod users;
 pub mod users_cache;
 
+pub use config::{oauth_delete, oauth_set, oauth_show};
 pub use conv::{conv_history, conv_list};
 pub use file::file_upload;
 pub use msg::{msg_delete, msg_post, msg_update};

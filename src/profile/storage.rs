@@ -151,6 +151,8 @@ mod tests {
                 team_name: Some("Test Team".to_string()),
                 user_name: Some("Test User".to_string()),
                 client_id: None,
+                redirect_uri: None,
+                scopes: None,
             },
         );
 
@@ -198,6 +200,8 @@ mod tests {
                 team_name: None,
                 user_name: None,
                 client_id: None,
+                redirect_uri: None,
+                scopes: None,
             },
         );
         config.set(
@@ -208,6 +212,8 @@ mod tests {
                 team_name: Some("Team 2".to_string()),
                 user_name: Some("User 2".to_string()),
                 client_id: None,
+                redirect_uri: None,
+                scopes: None,
             },
         );
 
@@ -248,6 +254,8 @@ mod tests {
                 team_name: Some("Legacy Team".to_string()),
                 user_name: Some("Legacy User".to_string()),
                 client_id: None,
+                redirect_uri: None,
+                scopes: None,
             },
         );
         fs::create_dir_all(legacy_path.parent().unwrap()).unwrap();
@@ -288,6 +296,8 @@ mod tests {
                 team_name: None,
                 user_name: None,
                 client_id: None,
+                redirect_uri: None,
+                scopes: None,
             },
         );
         fs::create_dir_all(legacy_path.parent().unwrap()).unwrap();

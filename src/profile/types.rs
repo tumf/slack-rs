@@ -19,6 +19,12 @@ pub struct Profile {
     /// OAuth client ID for this profile (optional for backward compatibility)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub client_id: Option<String>,
+    /// OAuth redirect URI for this profile (optional for backward compatibility)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub redirect_uri: Option<String>,
+    /// OAuth scopes for this profile (optional for backward compatibility)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub scopes: Option<Vec<String>>,
 }
 
 /// Root configuration structure with versioning for future migration
@@ -125,6 +131,8 @@ mod tests {
             team_name: Some("Test Team".to_string()),
             user_name: Some("Test User".to_string()),
             client_id: None,
+            redirect_uri: None,
+            scopes: None,
         };
 
         config.set("default".to_string(), profile.clone());
@@ -141,6 +149,8 @@ mod tests {
             team_name: None,
             user_name: None,
             client_id: None,
+            redirect_uri: None,
+            scopes: None,
         };
 
         config.set("test".to_string(), profile.clone());
@@ -160,6 +170,8 @@ mod tests {
                 team_name: None,
                 user_name: None,
                 client_id: None,
+                redirect_uri: None,
+                scopes: None,
             },
         );
         config.set(
@@ -170,6 +182,8 @@ mod tests {
                 team_name: None,
                 user_name: None,
                 client_id: None,
+                redirect_uri: None,
+                scopes: None,
             },
         );
 
@@ -186,6 +200,8 @@ mod tests {
             team_name: Some("Test Team".to_string()),
             user_name: Some("Test User".to_string()),
             client_id: None,
+            redirect_uri: None,
+            scopes: None,
         };
 
         let json = serde_json::to_string(&profile).unwrap();
@@ -204,6 +220,8 @@ mod tests {
                 team_name: Some("Test Team".to_string()),
                 user_name: Some("Test User".to_string()),
                 client_id: None,
+                redirect_uri: None,
+                scopes: None,
             },
         );
 
@@ -221,6 +239,8 @@ mod tests {
             team_name: None,
             user_name: None,
             client_id: None,
+            redirect_uri: None,
+            scopes: None,
         };
         let profile2 = Profile {
             team_id: "T789".to_string(),
@@ -228,6 +248,8 @@ mod tests {
             team_name: None,
             user_name: None,
             client_id: None,
+            redirect_uri: None,
+            scopes: None,
         };
 
         // First add should succeed
@@ -253,6 +275,8 @@ mod tests {
             team_name: Some("Test Team".to_string()),
             user_name: Some("Test User".to_string()),
             client_id: None,
+            redirect_uri: None,
+            scopes: None,
         };
 
         // Adding new profile should succeed
@@ -271,6 +295,8 @@ mod tests {
             team_name: Some("Test Team".to_string()),
             user_name: Some("Test User".to_string()),
             client_id: None,
+            redirect_uri: None,
+            scopes: None,
         };
         let profile2 = Profile {
             team_id: "T123".to_string(),
@@ -278,6 +304,8 @@ mod tests {
             team_name: Some("Updated Team".to_string()),
             user_name: Some("Updated User".to_string()),
             client_id: None,
+            redirect_uri: None,
+            scopes: None,
         };
 
         config
@@ -300,6 +328,8 @@ mod tests {
             team_name: None,
             user_name: None,
             client_id: None,
+            redirect_uri: None,
+            scopes: None,
         };
         let profile2 = Profile {
             team_id: "T789".to_string(),
@@ -307,6 +337,8 @@ mod tests {
             team_name: None,
             user_name: None,
             client_id: None,
+            redirect_uri: None,
+            scopes: None,
         };
 
         config
@@ -331,6 +363,8 @@ mod tests {
             team_name: Some("Test Team".to_string()),
             user_name: Some("Test User".to_string()),
             client_id: None,
+            redirect_uri: None,
+            scopes: None,
         };
         let profile2 = Profile {
             team_id: "T123".to_string(),
@@ -338,6 +372,8 @@ mod tests {
             team_name: Some("Updated Team".to_string()),
             user_name: Some("Updated User".to_string()),
             client_id: None,
+            redirect_uri: None,
+            scopes: None,
         };
 
         config.set_or_update("old".to_string(), profile1).unwrap();
@@ -387,6 +423,8 @@ mod tests {
             team_name: Some("Test Team".to_string()),
             user_name: Some("Test User".to_string()),
             client_id: Some("client-123".to_string()),
+            redirect_uri: None,
+            scopes: None,
         };
 
         let json = serde_json::to_string(&profile).unwrap();
@@ -405,10 +443,60 @@ mod tests {
             team_name: Some("Test Team".to_string()),
             user_name: Some("Test User".to_string()),
             client_id: None,
+            redirect_uri: None,
+            scopes: None,
         };
 
         let json = serde_json::to_string(&profile).unwrap();
         // The JSON should not contain "client_id" field due to skip_serializing_if
         assert!(!json.contains("client_id"));
+    }
+
+    #[test]
+    fn test_profile_with_oauth_config_serialization() {
+        // Test that profiles with full OAuth config serialize correctly
+        let profile = Profile {
+            team_id: "T123".to_string(),
+            user_id: "U456".to_string(),
+            team_name: Some("Test Team".to_string()),
+            user_name: Some("Test User".to_string()),
+            client_id: Some("client-123".to_string()),
+            redirect_uri: Some("http://127.0.0.1:3000/callback".to_string()),
+            scopes: Some(vec!["chat:write".to_string(), "users:read".to_string()]),
+        };
+
+        let json = serde_json::to_string(&profile).unwrap();
+        let deserialized: Profile = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(profile, deserialized);
+        assert_eq!(deserialized.client_id, Some("client-123".to_string()));
+        assert_eq!(
+            deserialized.redirect_uri,
+            Some("http://127.0.0.1:3000/callback".to_string())
+        );
+        assert_eq!(
+            deserialized.scopes,
+            Some(vec!["chat:write".to_string(), "users:read".to_string()])
+        );
+    }
+
+    #[test]
+    fn test_profile_without_oauth_config_omits_fields() {
+        // Test that profiles without OAuth config don't include the fields in JSON
+        let profile = Profile {
+            team_id: "T123".to_string(),
+            user_id: "U456".to_string(),
+            team_name: Some("Test Team".to_string()),
+            user_name: Some("Test User".to_string()),
+            client_id: None,
+            redirect_uri: None,
+            scopes: None,
+        };
+
+        let json = serde_json::to_string(&profile).unwrap();
+        // The JSON should not contain OAuth config fields due to skip_serializing_if
+        assert!(!json.contains("client_id"));
+        assert!(!json.contains("redirect_uri"));
+        assert!(!json.contains("scopes"));
     }
 }

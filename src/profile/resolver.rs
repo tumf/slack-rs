@@ -57,6 +57,8 @@ mod tests {
                 team_name: Some("Test Team".to_string()),
                 user_name: Some("Test User".to_string()),
                 client_id: None,
+                redirect_uri: None,
+                scopes: None,
             },
         );
         config.set(
@@ -67,6 +69,8 @@ mod tests {
                 team_name: Some("Work Team".to_string()),
                 user_name: Some("Work User".to_string()),
                 client_id: None,
+                redirect_uri: None,
+                scopes: None,
             },
         );
 
