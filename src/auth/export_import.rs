@@ -220,6 +220,8 @@ pub fn import_profiles<T: TokenStore>(token_store: &T, options: &ImportOptions) 
             client_id: export_profile.client_id.clone(),
             redirect_uri: None, // Not exported/imported for security
             scopes: None,       // Not exported/imported for security
+            bot_scopes: None,   // Not exported/imported for security
+            user_scopes: None,  // Not exported/imported for security
         };
 
         config.set(name.clone(), profile);
@@ -373,6 +375,8 @@ mod tests {
                 client_id: None,
                 redirect_uri: None,
                 scopes: None,
+                bot_scopes: None,
+                user_scopes: None,
             },
         );
         save_config(&config_path, &config).unwrap();

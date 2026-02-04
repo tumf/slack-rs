@@ -95,13 +95,25 @@ pub fn build_authorization_url(
     let base_url = "https://slack.com/oauth/v2/authorize";
     let mut url = url::Url::parse(base_url).map_err(|e| OAuthError::ParseError(e.to_string()))?;
 
-    url.query_pairs_mut()
+    let mut query_pairs = url.query_pairs_mut();
+    query_pairs
         .append_pair("client_id", &config.client_id)
-        .append_pair("scope", &config.scopes.join(","))
         .append_pair("redirect_uri", &config.redirect_uri)
         .append_pair("code_challenge", code_challenge)
         .append_pair("code_challenge_method", "S256")
         .append_pair("state", state);
+
+    // Add bot scopes if present
+    if !config.bot_scopes.is_empty() {
+        query_pairs.append_pair("scope", &config.bot_scopes.join(","));
+    }
+
+    // Add user scopes if present
+    if !config.user_scopes.is_empty() {
+        query_pairs.append_pair("user_scope", &config.user_scopes.join(","));
+    }
+
+    drop(query_pairs);
 
     Ok(url.to_string())
 }
@@ -116,7 +128,8 @@ mod tests {
             client_id: "test_client_id".to_string(),
             client_secret: "test_secret".to_string(),
             redirect_uri: "http://localhost:8765/callback".to_string(),
-            scopes: vec!["chat:write".to_string(), "users:read".to_string()],
+            bot_scopes: vec!["chat:write".to_string(), "users:read".to_string()],
+            user_scopes: vec![],
         };
 
         let code_challenge = "test_challenge";
@@ -138,7 +151,8 @@ mod tests {
             client_id: "test_client_id".to_string(),
             client_secret: "test_secret".to_string(),
             redirect_uri: "http://localhost:8765/callback".to_string(),
-            scopes: vec!["chat:write".to_string()],
+            bot_scopes: vec!["chat:write".to_string()],
+            user_scopes: vec![],
         };
 
         // Using an invalid URL should result in a network error

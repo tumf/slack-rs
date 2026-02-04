@@ -52,6 +52,87 @@ pub fn all_scopes() -> Vec<String> {
     .collect()
 }
 
+/// Returns bot-specific scopes
+///
+/// This includes scopes typically used for bot tokens.
+#[allow(dead_code)]
+pub fn bot_scopes() -> Vec<String> {
+    vec![
+        "channels:history",
+        "channels:read",
+        "channels:write",
+        "chat:write",
+        "conversations.connect:read",
+        "conversations.connect:write",
+        "emoji:read",
+        "files:read",
+        "files:write",
+        "groups:history",
+        "groups:read",
+        "groups:write",
+        "im:history",
+        "im:read",
+        "im:write",
+        "mpim:history",
+        "mpim:read",
+        "mpim:write",
+        "pins:read",
+        "pins:write",
+        "reactions:read",
+        "reactions:write",
+        "reminders:read",
+        "reminders:write",
+        "usergroups:read",
+        "usergroups:write",
+        "users:read",
+    ]
+    .iter()
+    .map(|s| s.to_string())
+    .collect()
+}
+
+/// Returns user-specific scopes
+///
+/// This includes scopes typically used for user tokens.
+#[allow(dead_code)]
+pub fn user_scopes() -> Vec<String> {
+    vec![
+        "channels:history",
+        "channels:read",
+        "channels:write",
+        "chat:write",
+        "dnd:read",
+        "dnd:write",
+        "files:read",
+        "files:write",
+        "groups:history",
+        "groups:read",
+        "groups:write",
+        "im:history",
+        "im:read",
+        "im:write",
+        "mpim:history",
+        "mpim:read",
+        "mpim:write",
+        "pins:read",
+        "pins:write",
+        "reactions:read",
+        "reactions:write",
+        "reminders:read",
+        "reminders:write",
+        "search:read",
+        "stars:read",
+        "stars:write",
+        "team:read",
+        "users.profile:read",
+        "users.profile:write",
+        "users:read",
+    ]
+    .iter()
+    .map(|s| s.to_string())
+    .collect()
+}
+
 /// Expands preset names (like "all") in a scope list and removes duplicates
 ///
 /// # Arguments
@@ -77,6 +158,76 @@ pub fn expand_scopes(input_scopes: &[String]) -> Vec<String> {
         if normalized == "all" {
             // Expand the "all" preset
             for preset_scope in all_scopes() {
+                expanded.insert(preset_scope);
+            }
+        } else {
+            // Keep individual scopes as-is (preserving original case)
+            expanded.insert(scope.trim().to_string());
+        }
+    }
+
+    expanded.into_iter().collect()
+}
+
+/// Expands preset names for bot scopes with context awareness
+///
+/// # Arguments
+/// * `input_scopes` - List of scopes which may include preset names like "all", "bot:all"
+///
+/// # Returns
+/// A deduplicated, sorted list of concrete scopes with presets expanded
+///
+/// "all" is interpreted as "bot:all" in bot context
+#[allow(dead_code)]
+pub fn expand_bot_scopes(input_scopes: &[String]) -> Vec<String> {
+    let mut expanded = BTreeSet::new();
+
+    for scope in input_scopes {
+        let normalized = scope.trim().to_lowercase();
+
+        if normalized == "all" || normalized == "bot:all" {
+            // Expand the bot preset
+            for preset_scope in bot_scopes() {
+                expanded.insert(preset_scope);
+            }
+        } else if normalized == "user:all" {
+            // User scopes should not be in bot scopes, but handle gracefully
+            for preset_scope in user_scopes() {
+                expanded.insert(preset_scope);
+            }
+        } else {
+            // Keep individual scopes as-is (preserving original case)
+            expanded.insert(scope.trim().to_string());
+        }
+    }
+
+    expanded.into_iter().collect()
+}
+
+/// Expands preset names for user scopes with context awareness
+///
+/// # Arguments
+/// * `input_scopes` - List of scopes which may include preset names like "all", "user:all"
+///
+/// # Returns
+/// A deduplicated, sorted list of concrete scopes with presets expanded
+///
+/// "all" is interpreted as "user:all" in user context
+#[allow(dead_code)]
+pub fn expand_user_scopes(input_scopes: &[String]) -> Vec<String> {
+    let mut expanded = BTreeSet::new();
+
+    for scope in input_scopes {
+        let normalized = scope.trim().to_lowercase();
+
+        if normalized == "all" || normalized == "user:all" {
+            // Expand the user preset
+            for preset_scope in user_scopes() {
+                expanded.insert(preset_scope);
+            }
+        } else if normalized == "bot:all" {
+            // Bot scopes should not be in user scopes, but handle gracefully
+            for preset_scope in bot_scopes() {
                 expanded.insert(preset_scope);
             }
         } else {

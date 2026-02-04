@@ -40,7 +40,8 @@ async fn test_exchange_code_with_mock_server() {
         client_id: "test_client_id".to_string(),
         client_secret: "test_client_secret".to_string(),
         redirect_uri: "http://localhost:8765/callback".to_string(),
-        scopes: vec!["chat:write".to_string()],
+        bot_scopes: vec!["chat:write".to_string()],
+        user_scopes: vec![],
     };
 
     // Exchange code
@@ -86,7 +87,8 @@ async fn test_exchange_code_slack_error() {
         client_id: "test_client_id".to_string(),
         client_secret: "test_client_secret".to_string(),
         redirect_uri: "http://localhost:3000/callback".to_string(),
-        scopes: vec!["chat:write".to_string()],
+        bot_scopes: vec!["chat:write".to_string()],
+        user_scopes: vec![],
     };
 
     // Exchange code
@@ -125,7 +127,8 @@ async fn test_exchange_code_http_error() {
         client_id: "test_client_id".to_string(),
         client_secret: "test_client_secret".to_string(),
         redirect_uri: "http://localhost:3000/callback".to_string(),
-        scopes: vec!["chat:write".to_string()],
+        bot_scopes: vec!["chat:write".to_string()],
+        user_scopes: vec![],
     };
 
     // Exchange code

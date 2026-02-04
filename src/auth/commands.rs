@@ -94,11 +94,13 @@ pub async fn login_with_credentials(
         };
 
     // Create OAuth config
+    // For backward compatibility, treat final_scopes as bot_scopes
     let config = OAuthConfig {
         client_id: final_client_id.clone(),
         client_secret: final_client_secret.clone(),
         redirect_uri: final_redirect_uri.clone(),
-        scopes: final_scopes.clone(),
+        bot_scopes: final_scopes.clone(),
+        user_scopes: vec![], // No user scopes in legacy flow
     };
 
     // Perform login flow (existing implementation)
@@ -106,6 +108,7 @@ pub async fn login_with_credentials(
         perform_oauth_flow(&config, base_url.as_deref()).await?;
 
     // Save profile with OAuth config and client_secret to Keyring
+    // For backward compatibility, treat final_scopes as bot_scopes
     save_profile_and_credentials(SaveCredentials {
         config_path: &config_path,
         profile_name: &profile_name,
@@ -116,7 +119,8 @@ pub async fn login_with_credentials(
         client_id: &final_client_id,
         client_secret: &final_client_secret,
         redirect_uri: &final_redirect_uri,
-        scopes: &final_scopes,
+        bot_scopes: &final_scopes,
+        user_scopes: &[], // No user scopes in legacy flow
     })?;
 
     println!("✓ Authentication successful!");
@@ -278,7 +282,8 @@ struct SaveCredentials<'a> {
     client_id: &'a str,
     client_secret: &'a str,
     redirect_uri: &'a str,
-    scopes: &'a [String],
+    bot_scopes: &'a [String],
+    user_scopes: &'a [String],
 }
 
 /// Save profile and credentials (including client_id and client_secret)
@@ -287,7 +292,7 @@ fn save_profile_and_credentials(creds: SaveCredentials) -> Result<(), OAuthError
     let mut profiles_config =
         load_config(creds.config_path).unwrap_or_else(|_| ProfilesConfig::new());
 
-    // Create profile with OAuth config (client_id, redirect_uri, scopes)
+    // Create profile with OAuth config (client_id, redirect_uri, bot_scopes, user_scopes)
     let profile = Profile {
         team_id: creds.team_id.to_string(),
         user_id: creds.user_id.to_string(),
@@ -295,7 +300,9 @@ fn save_profile_and_credentials(creds: SaveCredentials) -> Result<(), OAuthError
         user_name: None,
         client_id: Some(creds.client_id.to_string()),
         redirect_uri: Some(creds.redirect_uri.to_string()),
-        scopes: Some(creds.scopes.to_vec()),
+        scopes: None, // Deprecated field
+        bot_scopes: Some(creds.bot_scopes.to_vec()),
+        user_scopes: Some(creds.user_scopes.to_vec()),
     };
 
     profiles_config
@@ -408,6 +415,8 @@ pub async fn login(
         client_id: None, // OAuth client ID not stored in legacy login flow
         redirect_uri: None,
         scopes: None,
+        bot_scopes: None,
+        user_scopes: None,
     };
 
     config
@@ -611,7 +620,8 @@ mod tests {
         let config_path = temp_dir.path().join("profiles.json");
 
         // Save profile with client_id and client_secret to Keyring
-        let scopes = vec!["chat:write".to_string(), "users:read".to_string()];
+        let bot_scopes = vec!["chat:write".to_string(), "users:read".to_string()];
+        let user_scopes: Vec<String> = vec![];
         save_profile_and_credentials(SaveCredentials {
             config_path: &config_path,
             profile_name: "test",
@@ -622,7 +632,8 @@ mod tests {
             client_id: "test-client-id",
             client_secret: "test-client-secret",
             redirect_uri: "http://127.0.0.1:8765/callback",
-            scopes: &scopes,
+            bot_scopes: &bot_scopes,
+            user_scopes: &user_scopes,
         })
         .unwrap();
 
@@ -659,6 +670,8 @@ mod tests {
                 client_id: None,
                 redirect_uri: None,
                 scopes: None,
+                bot_scopes: None,
+                user_scopes: None,
             },
         );
         save_config(&config_path, &config).unwrap();

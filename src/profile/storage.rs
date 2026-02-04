@@ -153,6 +153,8 @@ mod tests {
                 client_id: None,
                 redirect_uri: None,
                 scopes: None,
+                bot_scopes: None,
+                user_scopes: None,
             },
         );
 
@@ -202,6 +204,8 @@ mod tests {
                 client_id: None,
                 redirect_uri: None,
                 scopes: None,
+                bot_scopes: None,
+                user_scopes: None,
             },
         );
         config.set(
@@ -214,6 +218,8 @@ mod tests {
                 client_id: None,
                 redirect_uri: None,
                 scopes: None,
+                bot_scopes: None,
+                user_scopes: None,
             },
         );
 
@@ -256,6 +262,8 @@ mod tests {
                 client_id: None,
                 redirect_uri: None,
                 scopes: None,
+                bot_scopes: None,
+                user_scopes: None,
             },
         );
         fs::create_dir_all(legacy_path.parent().unwrap()).unwrap();
@@ -298,6 +306,8 @@ mod tests {
                 client_id: None,
                 redirect_uri: None,
                 scopes: None,
+                bot_scopes: None,
+                user_scopes: None,
             },
         );
         fs::create_dir_all(legacy_path.parent().unwrap()).unwrap();

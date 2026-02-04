@@ -968,6 +968,8 @@ fn example_profile_management() {
         client_id: None,
         redirect_uri: None,
         scopes: None,
+        bot_scopes: None,
+        user_scopes: None,
     };
 
     // Use add() to prevent duplicates
@@ -1000,6 +1002,8 @@ fn demonstrate_profile_persistence() {
         client_id: None,
         redirect_uri: None,
         scopes: None,
+        bot_scopes: None,
+        user_scopes: None,
     };
 
     let profile2 = Profile {
@@ -1010,6 +1014,8 @@ fn demonstrate_profile_persistence() {
         client_id: None,
         redirect_uri: None,
         scopes: None,
+        bot_scopes: None,
+        user_scopes: None,
     };
 
     // Demonstrate add() - should succeed for new profile
@@ -1033,6 +1039,8 @@ fn demonstrate_profile_persistence() {
         client_id: None,
         redirect_uri: None,
         scopes: None,
+        bot_scopes: None,
+        user_scopes: None,
     };
     match config.set_or_update("personal".to_string(), updated_profile2) {
         Ok(_) => println!("Updated 'personal' profile using set_or_update()"),

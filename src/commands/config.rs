@@ -60,7 +60,9 @@ pub fn oauth_set(
             user_name: existing.user_name.clone(),
             client_id: Some(client_id.clone()),
             redirect_uri: Some(redirect_uri.clone()),
-            scopes: Some(scopes_vec.clone()),
+            scopes: None,                         // Deprecated
+            bot_scopes: Some(scopes_vec.clone()), // Treat as bot scopes for backward compat
+            user_scopes: None,
         }
     } else {
         // Create placeholder profile (will be filled in during login)
@@ -72,7 +74,9 @@ pub fn oauth_set(
             user_name: None,
             client_id: Some(client_id.clone()),
             redirect_uri: Some(redirect_uri.clone()),
-            scopes: Some(scopes_vec.clone()),
+            scopes: None,                         // Deprecated
+            bot_scopes: Some(scopes_vec.clone()), // Treat as bot scopes for backward compat
+            user_scopes: None,
         }
     };
 
@@ -169,6 +173,8 @@ pub fn oauth_delete(profile_name: String) -> Result<(), OAuthError> {
         client_id: None,
         redirect_uri: None,
         scopes: None,
+        bot_scopes: None,
+        user_scopes: None,
     };
 
     config.set(profile_name.clone(), updated_profile);

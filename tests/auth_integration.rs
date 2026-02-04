@@ -70,6 +70,8 @@ fn test_profile_with_token_storage() {
         client_id: None,
         redirect_uri: None,
         scopes: None,
+        bot_scopes: None,
+        user_scopes: None,
     };
 
     // Add profile
