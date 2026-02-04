@@ -10,9 +10,9 @@ This document defines the exact schema and storage mechanisms for profiles and t
   - `~/.config/slack-rs/profiles.json` - Profile metadata
   - `~/.config/slack-rs/tokens.json` - Token storage
 - Legacy paths (automatically migrated):
-  - macOS: `~/Library/Application Support/slackcli/profiles.json`
-  - Linux: `~/.config/slackcli/profiles.json`
-  - Windows: `%APPDATA%\slackcli\profiles.json`
+  - macOS: `~/Library/Application Support/slack-rs/profiles.json`
+  - Linux: `~/.config/slack-rs/profiles.json`
+  - Windows: `%APPDATA%\slack-rs\profiles.json`
 
 ## profiles.json Schema
 
@@ -131,7 +131,7 @@ This document defines the exact schema and storage mechanisms for profiles and t
 
 ## Migration Strategy
 - If `profiles.json` does not exist at the new path: check for legacy config and migrate
-  - Legacy config path: `ProjectDirs::from("", "", "slackcli")` + `profiles.json`
+  - Legacy config path: `ProjectDirs::from("", "", "slack-rs")` + `profiles.json`
   - Migration: Try `fs::rename` first; if it fails, copy content and keep old file
   - Migration is automatic and transparent on first access
 - If `profiles.json` does not exist: create with `version: 1` and empty `profiles` array

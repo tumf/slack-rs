@@ -60,7 +60,7 @@ cargo test --test manual_token_test -- --nocapture
 cargo run -- auth status
 
 # Verify in macOS Keychain
-security find-generic-password -s "slackcli" -a "T06EJ9E5Z96:U06DEV59QS3" -w
+security find-generic-password -s "slack-rs" -a "T06EJ9E5Z96:U06DEV59QS3" -w
 ```
 
 ## Changes Made

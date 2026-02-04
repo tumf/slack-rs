@@ -63,7 +63,7 @@
 
 ### Token Store (secret)
 - **Keyring**:
-  - service: `slackcli`
+  - service: `slack-rs`
   - username: `{team_id}:{user_id}`
   - secret: token payload (either raw access token or JSON blob)
 
