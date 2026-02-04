@@ -56,6 +56,7 @@ mod tests {
                 user_id: "U456".to_string(),
                 team_name: Some("Test Team".to_string()),
                 user_name: Some("Test User".to_string()),
+                client_id: None,
             },
         );
         config.set(
@@ -65,6 +66,7 @@ mod tests {
                 user_id: "U012".to_string(),
                 team_name: Some("Work Team".to_string()),
                 user_name: Some("Work User".to_string()),
+                client_id: None,
             },
         );
 
