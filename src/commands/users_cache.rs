@@ -513,7 +513,7 @@ mod tests {
         });
 
         // Use up() to respond to first request
-        Mock::given(method("POST"))
+        Mock::given(method("GET"))
             .and(path("/users.list"))
             .respond_with(
                 ResponseTemplate::new(200)
@@ -525,7 +525,7 @@ mod tests {
             .await;
 
         // Use up() to respond to second request
-        Mock::given(method("POST"))
+        Mock::given(method("GET"))
             .and(path("/users.list"))
             .respond_with(
                 ResponseTemplate::new(200)

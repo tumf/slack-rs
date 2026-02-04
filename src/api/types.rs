@@ -45,6 +45,18 @@ impl ApiMethod {
         }
     }
 
+    /// Check if this method requires GET request
+    pub fn uses_get_method(&self) -> bool {
+        matches!(
+            self,
+            ApiMethod::SearchMessages
+                | ApiMethod::ConversationsList
+                | ApiMethod::ConversationsHistory
+                | ApiMethod::UsersInfo
+                | ApiMethod::UsersList
+        )
+    }
+
     /// Check if this is a write operation
     #[allow(dead_code)]
     pub fn is_write(&self) -> bool {

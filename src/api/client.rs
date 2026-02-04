@@ -170,13 +170,34 @@ impl ApiClient {
             &token.chars().take(10).collect::<String>()
         );
 
-        let response = self
-            .client
-            .post(&url)
-            .bearer_auth(token)
-            .json(&params)
-            .send()
-            .await?;
+        let response = if method.uses_get_method() {
+            // Use GET request with query parameters
+            let mut query_params = vec![];
+            for (key, value) in params {
+                let value_str = match value {
+                    Value::String(s) => s,
+                    Value::Number(n) => n.to_string(),
+                    Value::Bool(b) => b.to_string(),
+                    _ => serde_json::to_string(&value).unwrap_or_default(),
+                };
+                query_params.push((key, value_str));
+            }
+
+            self.client
+                .get(&url)
+                .bearer_auth(token)
+                .query(&query_params)
+                .send()
+                .await?
+        } else {
+            // Use POST request with JSON body
+            self.client
+                .post(&url)
+                .bearer_auth(token)
+                .json(&params)
+                .send()
+                .await?
+        };
 
         let response_json: ApiResponse = response.json().await?;
 
@@ -359,6 +380,23 @@ mod tests {
         assert!(ApiMethod::ChatDelete.is_destructive());
         assert!(!ApiMethod::ReactionsAdd.is_destructive());
         assert!(ApiMethod::ReactionsRemove.is_destructive());
+    }
+
+    #[test]
+    fn test_api_method_uses_get() {
+        // GET methods
+        assert!(ApiMethod::SearchMessages.uses_get_method());
+        assert!(ApiMethod::ConversationsList.uses_get_method());
+        assert!(ApiMethod::ConversationsHistory.uses_get_method());
+        assert!(ApiMethod::UsersInfo.uses_get_method());
+        assert!(ApiMethod::UsersList.uses_get_method());
+
+        // POST methods
+        assert!(!ApiMethod::ChatPostMessage.uses_get_method());
+        assert!(!ApiMethod::ChatUpdate.uses_get_method());
+        assert!(!ApiMethod::ChatDelete.uses_get_method());
+        assert!(!ApiMethod::ReactionsAdd.uses_get_method());
+        assert!(!ApiMethod::ReactionsRemove.uses_get_method());
     }
 
     #[test]

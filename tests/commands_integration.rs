@@ -22,7 +22,7 @@ async fn test_search_calls_correct_api() {
         serde_json::json!({"total": 1, "matches": []}),
     );
 
-    Mock::given(method("POST"))
+    Mock::given(method("GET"))
         .and(path("/search.messages"))
         .and(header("authorization", "Bearer test_token"))
         .respond_with(ResponseTemplate::new(200).set_body_json(&response_data))
@@ -143,7 +143,7 @@ async fn test_conv_history_calls_correct_api() {
     response_data.insert("ok".to_string(), serde_json::json!(true));
     response_data.insert("messages".to_string(), serde_json::json!([]));
 
-    Mock::given(method("POST"))
+    Mock::given(method("GET"))
         .and(path("/conversations.history"))
         .and(header("authorization", "Bearer test_token"))
         .respond_with(ResponseTemplate::new(200).set_body_json(&response_data))
@@ -165,7 +165,7 @@ async fn test_users_info_calls_correct_api() {
     response_data.insert("ok".to_string(), serde_json::json!(true));
     response_data.insert("user".to_string(), serde_json::json!({"id": "U123456"}));
 
-    Mock::given(method("POST"))
+    Mock::given(method("GET"))
         .and(path("/users.info"))
         .and(header("authorization", "Bearer test_token"))
         .respond_with(ResponseTemplate::new(200).set_body_json(&response_data))

@@ -903,17 +903,17 @@ fn generate_and_save_manifest(
     )
     .map_err(|e| OAuthError::ConfigError(format!("Failed to generate manifest: {}", e)))?;
 
-    // Determine save path
-    let manifest_path = if let Some(config_dir) = directories::ProjectDirs::from("", "", "slack-rs")
-    {
-        let dir = config_dir.config_dir();
-        fs::create_dir_all(dir).map_err(|e| {
-            OAuthError::ConfigError(format!("Failed to create config directory: {}", e))
-        })?;
-        dir.join(format!("{}_manifest.yml", profile_name))
-    } else {
-        PathBuf::from(format!("{}_manifest.yml", profile_name))
-    };
+    // Determine save path using unified config directory
+    let home = std::env::var("HOME")
+        .map_err(|_| OAuthError::ConfigError("HOME environment variable not set".to_string()))?;
+    let config_dir = PathBuf::from(home).join(".config/slack-rs");
+
+    // Create directory if it doesn't exist
+    fs::create_dir_all(&config_dir).map_err(|e| {
+        OAuthError::ConfigError(format!("Failed to create config directory: {}", e))
+    })?;
+
+    let manifest_path = config_dir.join(format!("{}_manifest.yml", profile_name));
 
     // Write manifest to file
     fs::write(&manifest_path, manifest_yaml)
