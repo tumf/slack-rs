@@ -3,6 +3,15 @@ name = "slack-rs"
 version = "0.1.6"
 edition = "2021"
 default-run = "slack-rs"
+authors = ["tumf <tumf@users.noreply.github.com>"]
+description = "A Slack CLI tool with OAuth authentication, profile management, and API access"
+license = "MIT"
+repository = "https://github.com/tumf/slack-rs"
+homepage = "https://github.com/tumf/slack-rs"
+documentation = "https://docs.rs/slack-rs"
+readme = "README.md"
+keywords = ["slack", "cli", "oauth", "api", "workspace"]
+categories = ["command-line-utilities", "api-bindings"]
 
 [[bin]]
 name = "slack-rs"
@@ -38,8 +47,8 @@ httpmock = "0.8"
 serial_test = "3.0"
 
 [package.metadata.release]
-# Skip publishing to crates.io by default (set to false if you want to publish)
-publish = false
+# Publish to crates.io
+publish = true
 # Create and push git tag
 tag = true
 # Push changes to remote
