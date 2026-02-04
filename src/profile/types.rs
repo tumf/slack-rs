@@ -352,4 +352,63 @@ mod tests {
         // New name should not exist
         assert_eq!(config.get("new"), None);
     }
+
+    #[test]
+    fn test_backward_compatibility_profile_without_client_id() {
+        // Test that old profiles.json without client_id can be deserialized
+        let json = r#"{
+            "version": 1,
+            "profiles": {
+                "default": {
+                    "team_id": "T123",
+                    "user_id": "U456",
+                    "team_name": "Test Team",
+                    "user_name": "Test User"
+                }
+            }
+        }"#;
+
+        let config: ProfilesConfig = serde_json::from_str(json).unwrap();
+        assert_eq!(config.version, 1);
+        assert_eq!(config.profiles.len(), 1);
+
+        let profile = config.get("default").unwrap();
+        assert_eq!(profile.team_id, "T123");
+        assert_eq!(profile.user_id, "U456");
+        assert_eq!(profile.client_id, None);
+    }
+
+    #[test]
+    fn test_profile_with_client_id_serialization() {
+        // Test that new profiles with client_id serialize correctly
+        let profile = Profile {
+            team_id: "T123".to_string(),
+            user_id: "U456".to_string(),
+            team_name: Some("Test Team".to_string()),
+            user_name: Some("Test User".to_string()),
+            client_id: Some("client-123".to_string()),
+        };
+
+        let json = serde_json::to_string(&profile).unwrap();
+        let deserialized: Profile = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(profile, deserialized);
+        assert_eq!(deserialized.client_id, Some("client-123".to_string()));
+    }
+
+    #[test]
+    fn test_profile_without_client_id_omits_field() {
+        // Test that profiles without client_id don't include the field in JSON
+        let profile = Profile {
+            team_id: "T123".to_string(),
+            user_id: "U456".to_string(),
+            team_name: Some("Test Team".to_string()),
+            user_name: Some("Test User".to_string()),
+            client_id: None,
+        };
+
+        let json = serde_json::to_string(&profile).unwrap();
+        // The JSON should not contain "client_id" field due to skip_serializing_if
+        assert!(!json.contains("client_id"));
+    }
 }

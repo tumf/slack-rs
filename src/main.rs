@@ -45,52 +45,9 @@ async fn main() {
             }
             match args[2].as_str() {
                 "login" => {
-                    // Load OAuth config from environment variables
-                    let client_id = match std::env::var("SLACKRS_CLIENT_ID") {
-                        Ok(val) => val,
-                        Err(_) => {
-                            eprintln!("Error: SLACKRS_CLIENT_ID environment variable is required");
-                            eprintln!("Please set it with your Slack OAuth client ID");
-                            std::process::exit(1);
-                        }
-                    };
-
-                    let client_secret = match std::env::var("SLACKRS_CLIENT_SECRET") {
-                        Ok(val) => val,
-                        Err(_) => {
-                            eprintln!(
-                                "Error: SLACKRS_CLIENT_SECRET environment variable is required"
-                            );
-                            eprintln!("Please set it with your Slack OAuth client secret");
-                            std::process::exit(1);
-                        }
-                    };
-
-                    let redirect_uri = std::env::var("SLACKRS_REDIRECT_URI")
-                        .unwrap_or_else(|_| "http://127.0.0.1:3000/callback".to_string());
-
-                    let scopes = std::env::var("SLACKRS_SCOPES")
-                        .unwrap_or_else(|_| "chat:write,users:read".to_string())
-                        .split(',')
-                        .map(|s| s.trim().to_string())
-                        .collect();
-
-                    let config = oauth::OAuthConfig {
-                        client_id,
-                        client_secret,
-                        redirect_uri,
-                        scopes,
-                    };
-
-                    let profile_name = args.get(3).cloned();
-                    let base_url = std::env::var("SLACK_OAUTH_BASE_URL").ok();
-
-                    match auth::login(config, profile_name, base_url).await {
-                        Ok(_) => {}
-                        Err(e) => {
-                            eprintln!("Login failed: {}", e);
-                            std::process::exit(1);
-                        }
+                    if let Err(e) = run_auth_login(&args[3..]).await {
+                        eprintln!("Login failed: {}", e);
+                        std::process::exit(1);
                     }
                 }
                 "status" => {
@@ -385,13 +342,16 @@ fn print_api_usage() {
 
 fn print_auth_usage() {
     println!("Auth command usage:");
-    println!("  auth login [profile_name]           - Authenticate with Slack");
+    println!("  auth login [profile_name] [--client-id <id>] - Authenticate with Slack");
     println!("  auth status [profile_name]          - Show profile status");
     println!("  auth list                           - List all profiles");
     println!("  auth rename <old> <new>             - Rename a profile");
     println!("  auth logout [profile_name]          - Remove authentication");
     println!("  auth export [options]               - Export profiles to encrypted file");
     println!("  auth import [options]               - Import profiles from encrypted file");
+    println!();
+    println!("Login options:");
+    println!("  --client-id <id>                    - OAuth client ID (optional)");
     println!();
     println!("Export options:");
     println!(
@@ -409,6 +369,53 @@ fn print_auth_usage() {
     println!("  --passphrase-prompt                 - Prompt for passphrase");
     println!("  --yes                               - Automatically accept conflicts");
     println!("  --force                             - Overwrite existing profiles");
+}
+
+/// Run the auth login command with argument parsing
+async fn run_auth_login(args: &[String]) -> Result<(), String> {
+    let mut profile_name: Option<String> = None;
+    let mut client_id: Option<String> = None;
+
+    let mut i = 0;
+    while i < args.len() {
+        if args[i].starts_with("--") {
+            match args[i].as_str() {
+                "--client-id" => {
+                    i += 1;
+                    if i < args.len() {
+                        client_id = Some(args[i].clone());
+                    } else {
+                        return Err("--client-id requires a value".to_string());
+                    }
+                }
+                _ => {
+                    return Err(format!("Unknown option: {}", args[i]));
+                }
+            }
+        } else if profile_name.is_none() {
+            profile_name = Some(args[i].clone());
+        } else {
+            return Err(format!("Unexpected argument: {}", args[i]));
+        }
+        i += 1;
+    }
+
+    // Get redirect_uri and scopes from environment (with defaults)
+    let redirect_uri = std::env::var("SLACKRS_REDIRECT_URI")
+        .unwrap_or_else(|_| "http://127.0.0.1:3000/callback".to_string());
+
+    let scopes = std::env::var("SLACKRS_SCOPES")
+        .unwrap_or_else(|_| "chat:write,users:read".to_string())
+        .split(',')
+        .map(|s| s.trim().to_string())
+        .collect();
+
+    let base_url = std::env::var("SLACK_OAUTH_BASE_URL").ok();
+
+    // Call login with the client_id argument
+    auth::login_with_credentials(client_id, profile_name, redirect_uri, scopes, base_url)
+        .await
+        .map_err(|e| e.to_string())
 }
 
 async fn handle_export_command(args: &[String]) {

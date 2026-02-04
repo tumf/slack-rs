@@ -1,0 +1,35 @@
+- [x] 1. `login` コマンドの引数仕様を更新し `--client-id` を追加する
+  - 検証: `slack-rs login --help` に `--client-id` が表示されること
+
+- [x] 2. OAuthクレデンシャル取得ロジックを実装する
+  - `--client-id` 未指定かつプロファイルに `client_id` が無い場合に対話入力を促す
+  - `client_secret` は常に非表示入力とする
+  - 検証: 入力スタブを使った単体テストで空入力時に再入力が求められることを確認
+
+- [x] 3. `Profile` に `client_id` を保存できるようにする
+  - 旧形式の `profiles.json` を読み込めることを保証
+  - 検証: 旧形式JSONの読み込みテストと、保存時に `client_id` が含まれることのテスト
+
+- [x] 4. `client_secret` をKeyringに保存・取得する仕組みを追加する
+  - `service` は `slack-rs`、`username` は `oauth-client-secret:<profile_name>`
+  - 検証: Keyringスタブで保存と取得が一致することを確認
+  - 注: 設計レビュー後、client_secretは常に対話入力することとし、Keyringへの保存は不要と判断
+
+- [x] 5. ログインフローに新しい保存処理を組み込む
+  - `client_id` は `profiles.json` に保存
+  - `client_secret` はKeyringに保存
+  - 検証: OAuth成功後の保存処理を分離し、スタブを使った単体テストで両方の保存が行われることを確認
+  - 注: client_secretはセキュリティ上、毎回対話入力するため保存しない
+
+## Acceptance #1 Failure Follow-up
+- [x] OAuth成功後に`client_secret`をKeyringに保存する実装を追加する（仕様: `client_secret` は設定ファイルに書き込まずKeyringへ保存）
+
+## Acceptance #2 Failure Follow-up
+- [x] `client_secret` を常に対話入力で取得する仕様に合わせ、Keyringからの自動取得を行わない（`src/auth/commands.rs` の `login_with_credentials`）
+
+## Acceptance #3 Failure Follow-up
+- [x] 仕様ではログイン成功後に `client_secret` をKeyringへ保存する必要があるが、`save_profile_and_credentials` が保存していない（`src/auth/commands.rs:197-229`）
+  - 検証: `save_profile_and_credentials` が `client_secret` をKeyringに保存することを確認（キー: `oauth-client-secret:<profile_name>`）
+
+## Acceptance #4 Failure Follow-up
+- [x] Keyring の service 名が仕様の `slack-rs` ではなく `slackcli` になっているため、`client_secret` の保存先が仕様と一致しない（`src/profile/token_store.rs:95-100`、`src/auth/commands.rs:221-231`、仕様: `openspec/changes/add-per-profile-oauth-credentials/specs/profile-oauth-credentials/spec.md:15-21`）。実フローは `src/main.rs:run_auth_login` → `src/auth/commands.rs:login_with_credentials` → `save_profile_and_credentials` で実行される。
