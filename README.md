@@ -72,7 +72,75 @@ cargo install --path .
 
 ### 1. Set Up OAuth Credentials
 
-#### Creating a Slack App
+#### Quick Setup: Using App Manifest (Recommended)
+
+The fastest way to create a Slack app is using an App Manifest. This automatically configures all necessary settings:
+
+1. **Navigate to Slack API**: Go to https://api.slack.com/apps
+2. **Create app from manifest**:
+   - Click "Create New App"
+   - Choose "From an app manifest"
+   - Select your workspace
+   - Paste the following YAML manifest:
+
+```yaml
+display_information:
+  name: slack-rs CLI
+  description: Command-line tool for Slack API access
+  background_color: "#2c2d30"
+features:
+  bot_user:
+    display_name: slack-rs
+    always_online: false
+oauth_config:
+  redirect_urls:
+    - http://127.0.0.1:8765/callback
+  scopes:
+    user:
+      - channels:read
+      - chat:write
+      - users:read
+      - search:read
+      - files:read
+      - groups:read
+      - im:read
+      - mpim:read
+      - reactions:read
+      - reactions:write
+      - usergroups:read
+settings:
+  org_deploy_enabled: false
+  socket_mode_enabled: false
+  token_rotation_enabled: false
+```
+
+3. **Review and create**: Click "Next" → Review permissions → Click "Create"
+4. **Get your credentials**:
+   - Go to "Basic Information" in the left sidebar
+   - Scroll to "App Credentials"
+   - Copy your **Client ID** (looks like `123456789012.1234567890123`)
+   - Click "Show" and copy your **Client Secret** (looks like `abcdef1234567890abcdef1234567890`)
+
+**💡 Manifest Benefits:**
+- ✅ Automatic redirect URI configuration (`http://127.0.0.1:8765/callback`)
+- ✅ Pre-configured comprehensive OAuth scopes
+- ✅ No manual clicking through settings pages
+- ✅ Easy to share and reproduce across workspaces
+
+**Customizing Scopes:**
+
+If you need different scopes, modify the `scopes.user` section in the manifest. Common scopes:
+- `chat:write` - Post messages
+- `users:read` - View users
+- `channels:read` - List public channels
+- `files:read` - Access files
+- `search:read` - Search workspace content
+- `reactions:write` - Add/remove reactions
+- See full list: https://api.slack.com/scopes
+
+#### Manual Setup (Alternative)
+
+If you prefer manual configuration:
 
 1. **Navigate to Slack API**: Go to https://api.slack.com/apps
 2. **Create an app**:
@@ -94,7 +162,7 @@ cargo install --path .
      - `search:read` - Search workspace content
      - Add more as needed based on API methods you'll use
 5. **Get your credentials**:
-   - Scroll to top of "OAuth & Permissions" page
+   - Go to "Basic Information" → "App Credentials"
    - Copy your **Client ID** (looks like `123456789012.1234567890123`)
    - Click "Show" and copy your **Client Secret** (looks like `abcdef1234567890abcdef1234567890`)
 
