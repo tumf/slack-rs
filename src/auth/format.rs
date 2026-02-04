@@ -35,7 +35,7 @@ pub type Result<T> = std::result::Result<T, FormatError>;
 const MAGIC: &[u8; 8] = b"SLACKCLI";
 const CURRENT_VERSION: u32 = 1;
 
-/// Profile data for export (includes token)
+/// Profile data for export (includes token and optional OAuth credentials)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExportProfile {
     pub team_id: String,
@@ -43,6 +43,12 @@ pub struct ExportProfile {
     pub team_name: Option<String>,
     pub user_name: Option<String>,
     pub token: String,
+    /// OAuth client ID (optional for backward compatibility)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub client_id: Option<String>,
+    /// OAuth client secret (optional for backward compatibility)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub client_secret: Option<String>,
 }
 
 /// Export payload structure
@@ -257,6 +263,8 @@ mod tests {
                 team_name: Some("Test Team".to_string()),
                 user_name: Some("Test User".to_string()),
                 token: "xoxb-test-token".to_string(),
+                client_id: None,
+                client_secret: None,
             },
         );
 

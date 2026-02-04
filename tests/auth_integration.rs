@@ -67,6 +67,7 @@ fn test_profile_with_token_storage() {
         user_id: "U456DEF".to_string(),
         team_name: Some("Test Team".to_string()),
         user_name: Some("Test User".to_string()),
+        client_id: None,
     };
 
     // Add profile

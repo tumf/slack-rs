@@ -85,20 +85,21 @@ pub async fn login(
     let config_path = default_config_path()
         .map_err(|e| OAuthError::ConfigError(format!("Failed to get config path: {}", e)))?;
 
-    let mut profiles_config = load_config(&config_path).unwrap_or_else(|_| ProfilesConfig::new());
+    let mut config = load_config(&config_path).unwrap_or_else(|_| ProfilesConfig::new());
 
     let profile = Profile {
         team_id: team_id.clone(),
         user_id: user_id.clone(),
         team_name,
         user_name: None, // We don't get user name from OAuth response
+        client_id: None, // OAuth client ID not stored in legacy login flow
     };
 
-    profiles_config
+    config
         .set_or_update(profile_name.clone(), profile)
         .map_err(|e| OAuthError::ConfigError(format!("Failed to save profile: {}", e)))?;
 
-    save_config(&config_path, &profiles_config)
+    save_config(&config_path, &config)
         .map_err(|e| OAuthError::ConfigError(format!("Failed to save config: {}", e)))?;
 
     // Save token

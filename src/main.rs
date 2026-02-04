@@ -811,6 +811,7 @@ fn example_profile_management() {
         user_id: "U456DEF".to_string(),
         team_name: Some("Example Team".to_string()),
         user_name: Some("Example User".to_string()),
+        client_id: None,
     };
 
     // Use add() to prevent duplicates
@@ -839,6 +840,7 @@ fn demonstrate_profile_persistence() {
         user_id: "U456DEF".to_string(),
         team_name: Some("Example Team".to_string()),
         user_name: Some("Example User".to_string()),
+        client_id: None,
     };
 
     let profile2 = Profile {
@@ -846,6 +848,7 @@ fn demonstrate_profile_persistence() {
         user_id: "U012JKL".to_string(),
         team_name: Some("Another Team".to_string()),
         user_name: Some("Another User".to_string()),
+        client_id: None,
     };
 
     // Demonstrate add() - should succeed for new profile
@@ -866,6 +869,7 @@ fn demonstrate_profile_persistence() {
         user_id: "U012JKL".to_string(),
         team_name: Some("Updated Team Name".to_string()),
         user_name: Some("Updated User Name".to_string()),
+        client_id: None,
     };
     match config.set_or_update("personal".to_string(), updated_profile2) {
         Ok(_) => println!("Updated 'personal' profile using set_or_update()"),
