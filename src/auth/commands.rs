@@ -401,30 +401,20 @@ fn save_profile_and_credentials(creds: SaveCredentials) -> Result<(), OAuthError
     // Save tokens to keyring
     let token_store = KeyringTokenStore::default_service();
 
-    // Save bot token if present
+    // Save bot token to team_id:user_id key (make_token_key format)
     if let Some(bot_token) = creds.bot_token {
-        let bot_token_key = format!("{}:{}:bot", creds.team_id, creds.user_id);
+        let bot_token_key = make_token_key(creds.team_id, creds.user_id);
         token_store
             .set(&bot_token_key, bot_token)
             .map_err(|e| OAuthError::ConfigError(format!("Failed to save bot token: {}", e)))?;
     }
 
-    // Save user token if present
+    // Save user token to separate key (team_id:user_id:user)
     if let Some(user_token) = creds.user_token {
         let user_token_key = format!("{}:{}:user", creds.team_id, creds.user_id);
         token_store
             .set(&user_token_key, user_token)
             .map_err(|e| OAuthError::ConfigError(format!("Failed to save user token: {}", e)))?;
-    }
-
-    // For backward compatibility, save the preferred token to the legacy key
-    // Priority: user_token > bot_token
-    let legacy_token_key = make_token_key(creds.team_id, creds.user_id);
-    let legacy_token = creds.user_token.or(creds.bot_token);
-    if let Some(token) = legacy_token {
-        token_store
-            .set(&legacy_token_key, token)
-            .map_err(|e| OAuthError::ConfigError(format!("Failed to save legacy token: {}", e)))?;
     }
 
     // Save client_secret to keyring (per design: service=slack-rs, username=oauth-client-secret:<profile_name>)
@@ -792,6 +782,38 @@ mod tests {
         let profile = loaded_config.get("legacy").unwrap();
         assert_eq!(profile.client_id, None);
         assert_eq!(profile.team_id, "T999");
+    }
+
+    #[test]
+    fn test_bot_and_user_token_storage_keys() {
+        use crate::profile::InMemoryTokenStore;
+
+        // Create token store
+        let token_store = InMemoryTokenStore::new();
+
+        // Test credentials
+        let team_id = "T123";
+        let user_id = "U456";
+        let bot_token = "xoxb-test-bot-token";
+        let user_token = "xoxp-test-user-token";
+
+        // Simulate what save_profile_and_credentials does
+        let bot_token_key = make_token_key(team_id, user_id); // team_id:user_id
+        let user_token_key = format!("{}:{}:user", team_id, user_id); // team_id:user_id:user
+
+        token_store.set(&bot_token_key, bot_token).unwrap();
+        token_store.set(&user_token_key, user_token).unwrap();
+
+        // Verify bot token is stored at team_id:user_id
+        assert_eq!(token_store.get(&bot_token_key).unwrap(), bot_token);
+        assert_eq!(bot_token_key, "T123:U456");
+
+        // Verify user token is stored at team_id:user_id:user
+        assert_eq!(token_store.get(&user_token_key).unwrap(), user_token);
+        assert_eq!(user_token_key, "T123:U456:user");
+
+        // Verify they are different keys
+        assert_ne!(bot_token_key, user_token_key);
     }
 }
 

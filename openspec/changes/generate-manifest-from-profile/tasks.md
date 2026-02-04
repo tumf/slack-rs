@@ -63,3 +63,6 @@
 - [x] `--bot-scopes` / `--user-scopes` の CLI 入力でも `all` / `bot:all` / `user:all` をコンテキストに応じて展開する（`src/main.rs` の解析結果が `src/auth/commands.rs` に渡る前に展開）。
 - [x] OAuth 応答の bot トークンと user トークンを別キーで保存できるようにし、`authed_user.access_token` がある場合は両方を永続化する（`src/auth/commands.rs` の OAuth フローと保存処理を更新）。
 - [x] `--cloudflared` 未指定時は、保存済み `redirect_uri` があっても必ずプロンプトで取得する（`src/auth/commands.rs` の redirect_uri 解決を修正）。
+
+## Acceptance #2 Failure Follow-up
+- [x] bot トークンの Keyring 保存キーを `team_id:user_id`（`make_token_key`）に戻し、user トークンは別キーで保存する（`src/auth/commands.rs` の `save_profile_and_credentials` を修正）。
