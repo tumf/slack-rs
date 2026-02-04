@@ -21,7 +21,7 @@
    - OAuth フロー完了後に cloudflared プロセスを終了する機能を実装
    - 検証: モックプロセスを使用して、URL 抽出と終了処理が正しく動作することを確認する。
 
-- [ ] 5. `auth login` に redirect_uri 解決の分岐を追加する（cloudflared は OPTIONAL）。
+- [x] 5. `auth login` に redirect_uri 解決の分岐を追加する（cloudflared は OPTIONAL）。
    - `--cloudflared [path]` が指定されている場合:
       - Tunnel 起動時に公開 URL を抽出し、`/callback` を付加して redirect_uri とする
       - 生成した redirect_uri を OAuth フローで使用する
@@ -43,7 +43,7 @@
      - cloudflared を使わない場合: ユーザーが入力した redirect_uri を含める
    - 検証: 固定入力に対して期待する YAML が生成されるユニットテストを追加する。
 
-- [ ] 7. `auth login` に Manifest 自動生成機能を統合する。
+- [x] 7. `auth login` に Manifest 自動生成機能を統合する。
    - OAuth フロー完了後、入力情報から Manifest を生成
    - 生成した Manifest を `~/.config/slack-rs/<profile>_manifest.yml` に保存
    - 保存成功時にファイルパスをユーザーに通知
@@ -54,7 +54,7 @@
       - cloudflared なしのケースで `oauth_config.redirect_urls` にユーザー入力の redirect_uri が含まれることを確認する。
       - 実 Slack UI でのアップロード確認など、人手を必要とする検証は行わない。
 
-- [ ] 8. CLI ドキュメント/ヘルプに Manifest 自動生成の説明を追加する。
+- [x] 8. CLI ドキュメント/ヘルプに Manifest 自動生成の説明を追加する。
    - cloudflared tunnel の使用方法と Slack App 設定要件（`https://*.trycloudflare.com/callback`）を記載
    - Manifest ファイルの保存先と使用方法を説明
    - 検証: `--help` 出力に該当説明が含まれることを確認する。

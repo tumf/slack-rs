@@ -380,7 +380,7 @@ fn print_api_usage() {
 
 fn print_auth_usage() {
     println!("Auth command usage:");
-    println!("  auth login [profile_name] [--client-id <id>] - Authenticate with Slack");
+    println!("  auth login [profile_name] [options] - Authenticate with Slack");
     println!("  auth status [profile_name]          - Show profile status");
     println!("  auth list                           - List all profiles");
     println!("  auth rename <old> <new>             - Rename a profile");
@@ -390,6 +390,24 @@ fn print_auth_usage() {
     println!();
     println!("Login options:");
     println!("  --client-id <id>                    - OAuth client ID (optional)");
+    println!("  --bot-scopes <scopes>               - Bot scopes (comma-separated or 'all')");
+    println!("  --user-scopes <scopes>              - User scopes (comma-separated or 'all')");
+    println!("  --cloudflared [path]                - Use cloudflared tunnel for redirect URI");
+    println!("                                        (path optional, defaults to 'cloudflared' in PATH)");
+    println!();
+    println!("Cloudflared tunnel usage:");
+    println!(
+        "  When --cloudflared is specified, a temporary tunnel is created for OAuth callback."
+    );
+    println!("  The generated manifest will include https://*.trycloudflare.com/callback in redirect_urls.");
+    println!("  Make sure your Slack App is configured with this wildcard URL.");
+    println!();
+    println!("Manifest generation:");
+    println!("  After successful authentication, a Slack App Manifest is automatically generated");
+    println!("  and saved to ~/.config/slack-rs/<profile>_manifest.yml");
+    println!(
+        "  This manifest can be uploaded to https://api.slack.com/apps for easy app configuration."
+    );
     println!();
     println!("Export options:");
     println!(
@@ -446,6 +464,9 @@ fn print_config_oauth_usage(prog: &str) {
 async fn run_auth_login(args: &[String]) -> Result<(), String> {
     let mut profile_name: Option<String> = None;
     let mut client_id: Option<String> = None;
+    let mut cloudflared_path: Option<String> = None;
+    let mut bot_scopes: Option<Vec<String>> = None;
+    let mut user_scopes: Option<Vec<String>> = None;
 
     let mut i = 0;
     while i < args.len() {
@@ -457,6 +478,34 @@ async fn run_auth_login(args: &[String]) -> Result<(), String> {
                         client_id = Some(args[i].clone());
                     } else {
                         return Err("--client-id requires a value".to_string());
+                    }
+                }
+                "--cloudflared" => {
+                    // Check if next arg is a value (not starting with --) or end of args
+                    if i + 1 < args.len() && !args[i + 1].starts_with("--") {
+                        i += 1;
+                        cloudflared_path = Some(args[i].clone());
+                    } else {
+                        // Use default "cloudflared" (PATH resolution)
+                        cloudflared_path = Some("cloudflared".to_string());
+                    }
+                }
+                "--bot-scopes" => {
+                    i += 1;
+                    if i < args.len() {
+                        bot_scopes =
+                            Some(args[i].split(',').map(|s| s.trim().to_string()).collect());
+                    } else {
+                        return Err("--bot-scopes requires a value".to_string());
+                    }
+                }
+                "--user-scopes" => {
+                    i += 1;
+                    if i < args.len() {
+                        user_scopes =
+                            Some(args[i].split(',').map(|s| s.trim().to_string()).collect());
+                    } else {
+                        return Err("--user-scopes requires a value".to_string());
                     }
                 }
                 _ => {
@@ -471,21 +520,24 @@ async fn run_auth_login(args: &[String]) -> Result<(), String> {
         i += 1;
     }
 
-    // Use default redirect_uri and scopes (can be overridden via config oauth set)
+    // Use default redirect_uri (will be overridden if cloudflared is used)
     let redirect_uri = "http://127.0.0.1:8765/callback".to_string();
-
-    let scopes: Vec<String> = "chat:write,users:read"
-        .split(',')
-        .map(|s| s.trim().to_string())
-        .collect();
 
     // Keep base_url from environment for testing purposes only
     let base_url = std::env::var("SLACK_OAUTH_BASE_URL").ok();
 
-    // Call login with the client_id argument (no bot/user scopes specified, will prompt)
-    auth::login_with_credentials(client_id, profile_name, redirect_uri, scopes, None, None, base_url)
-        .await
-        .map_err(|e| e.to_string())
+    // Call login with cloudflared parameter
+    auth::login_with_credentials_extended(auth::ExtendedLoginOptions {
+        client_id,
+        profile_name,
+        redirect_uri,
+        bot_scopes,
+        user_scopes,
+        cloudflared_path,
+        base_url,
+    })
+    .await
+    .map_err(|e| e.to_string())
 }
 
 /// Run config oauth set command

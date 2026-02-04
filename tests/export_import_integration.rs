@@ -25,8 +25,8 @@ fn test_export_import_single_profile() {
             client_id: None,
             redirect_uri: None,
             scopes: None,
-        bot_scopes: None,
-        user_scopes: None,
+            bot_scopes: None,
+            user_scopes: None,
         },
     );
     save_config(&config_path, &config).unwrap();

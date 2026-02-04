@@ -9,6 +9,7 @@
 //! - export: Export profiles to encrypted file
 //! - import: Import profiles from encrypted file
 
+pub mod cloudflared;
 pub mod commands;
 pub mod crypto;
 pub mod export_import;
@@ -16,7 +17,11 @@ pub mod format;
 pub mod i18n;
 pub mod manifest;
 
-pub use commands::{list, login_with_credentials, logout, rename, status};
+pub use cloudflared::{CloudflaredError, CloudflaredTunnel};
+pub use commands::{
+    list, login_with_credentials, login_with_credentials_extended, logout, rename, status,
+    ExtendedLoginOptions,
+};
 pub use export_import::{export_profiles, import_profiles, ExportOptions, ImportOptions};
 pub use i18n::{Language, Messages};
 pub use manifest::generate_manifest;

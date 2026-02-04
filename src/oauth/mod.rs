@@ -17,7 +17,9 @@ pub mod types;
 
 pub use pkce::{generate_pkce, generate_state};
 pub use port::resolve_callback_port;
-pub use scopes::{all_scopes, bot_all_scopes, expand_scopes, expand_scopes_with_context, user_all_scopes};
+pub use scopes::{
+    all_scopes, bot_all_scopes, expand_scopes, expand_scopes_with_context, user_all_scopes,
+};
 pub use server::run_callback_server;
 pub use types::{OAuthConfig, OAuthError, OAuthResponse};
 
