@@ -74,7 +74,7 @@ setup: pre-commit-hooks
 	@echo "Setting up development environment..."
 	@command -v rustfmt >/dev/null 2>&1 || rustup component add rustfmt
 	@command -v clippy >/dev/null 2>&1 || rustup component add clippy
-	@command -v cargo-bump >/dev/null 2>&1 || cargo install cargo-bump
+	@command -v cargo-release >/dev/null 2>&1 || cargo install cargo-release
 	@echo "Development environment setup complete!"
 
 # Install pre-commit hooks
@@ -116,17 +116,17 @@ pre-commit-hooks:
 # Bump patch version (0.1.0 -> 0.1.1) and create git tag
 bump-patch:
 	@echo "Bumping patch version..."
-	@cargo bump patch -g
+	@cargo release patch --execute
 	@echo "Patch version bumped and tagged successfully"
 
 # Bump minor version (0.1.0 -> 0.2.0) and create git tag
 bump-minor:
 	@echo "Bumping minor version..."
-	@cargo bump minor -g
+	@cargo release minor --execute
 	@echo "Minor version bumped and tagged successfully"
 
 # Bump major version (0.1.0 -> 1.0.0) and create git tag
 bump-major:
 	@echo "Bumping major version..."
-	@cargo bump major -g
+	@cargo release major --execute
 	@echo "Major version bumped and tagged successfully"

@@ -34,3 +34,22 @@ tempfile = "3.14"
 wiremock = "0.6"
 httpmock = "0.8"
 serial_test = "3.0"
+
+[package.metadata.release]
+# Skip publishing to crates.io by default (set to false if you want to publish)
+publish = false
+# Create and push git tag
+tag = true
+# Push changes to remote
+push = true
+# Sign git tags with GPG
+sign-tag = false
+# Pre-release replacements and checks
+pre-release-commit-message = "chore: release {{version}}"
+post-release-commit-message = "chore: bump version to {{next_version}}-dev"
+# Enable/disable pre-release checks
+verify = true
+# Enable/disable pre-release hook execution
+pre-release-hook = []
+# Enable/disable post-release hook execution
+post-release-hook = []
