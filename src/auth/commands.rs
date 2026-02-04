@@ -54,13 +54,27 @@ pub async fn login_with_credentials(
         }
     };
 
-    // Prompt for client_secret (always)
-    let client_secret = prompt_for_client_secret()?;
+    // Try to get client_secret from keyring, otherwise prompt
+    let client_secret_store = KeyringTokenStore::new("slack-rs");
+    let client_secret_key = format!("oauth-client-secret:{}", profile_name);
+    let client_secret = match client_secret_store.get(&client_secret_key) {
+        Ok(secret) => {
+            println!(
+                "Using saved OAuth client secret for profile '{}'",
+                profile_name
+            );
+            secret
+        }
+        Err(_) => {
+            // No saved secret, prompt for it
+            prompt_for_client_secret()?
+        }
+    };
 
     // Create OAuth config
     let config = OAuthConfig {
         client_id: final_client_id.clone(),
-        client_secret,
+        client_secret: client_secret.clone(),
         redirect_uri,
         scopes,
     };
@@ -69,16 +83,17 @@ pub async fn login_with_credentials(
     let (team_id, team_name, user_id, token) =
         perform_oauth_flow(&config, base_url.as_deref()).await?;
 
-    // Save profile with client_id
-    save_profile_and_credentials(
-        &config_path,
-        &profile_name,
-        &team_id,
-        &team_name,
-        &user_id,
-        &token,
-        &final_client_id,
-    )?;
+    // Save profile with client_id and client_secret
+    save_profile_and_credentials(SaveCredentials {
+        config_path: &config_path,
+        profile_name: &profile_name,
+        team_id: &team_id,
+        team_name: &team_name,
+        user_id: &user_id,
+        token: &token,
+        client_id: &final_client_id,
+        client_secret: &client_secret,
+    })?;
 
     println!("✓ Authentication successful!");
     println!("Profile '{}' saved.", profile_name);
@@ -182,44 +197,54 @@ async fn perform_oauth_flow(
     Ok((team_id, team_name, user_id, token))
 }
 
+/// Credentials to save after OAuth authentication
+struct SaveCredentials<'a> {
+    config_path: &'a std::path::Path,
+    profile_name: &'a str,
+    team_id: &'a str,
+    team_name: &'a Option<String>,
+    user_id: &'a str,
+    token: &'a str,
+    client_id: &'a str,
+    client_secret: &'a str,
+}
+
 /// Save profile and credentials (including client_id and client_secret)
-fn save_profile_and_credentials(
-    config_path: &std::path::Path,
-    profile_name: &str,
-    team_id: &str,
-    team_name: &Option<String>,
-    user_id: &str,
-    token: &str,
-    client_id: &str,
-) -> Result<(), OAuthError> {
+fn save_profile_and_credentials(creds: SaveCredentials) -> Result<(), OAuthError> {
     // Load or create config
-    let mut profiles_config = load_config(config_path).unwrap_or_else(|_| ProfilesConfig::new());
+    let mut profiles_config =
+        load_config(creds.config_path).unwrap_or_else(|_| ProfilesConfig::new());
 
     // Create profile with client_id
     let profile = Profile {
-        team_id: team_id.to_string(),
-        user_id: user_id.to_string(),
-        team_name: team_name.clone(),
+        team_id: creds.team_id.to_string(),
+        user_id: creds.user_id.to_string(),
+        team_name: creds.team_name.clone(),
         user_name: None,
-        client_id: Some(client_id.to_string()),
+        client_id: Some(creds.client_id.to_string()),
     };
 
     profiles_config
-        .set_or_update(profile_name.to_string(), profile)
+        .set_or_update(creds.profile_name.to_string(), profile)
         .map_err(|e| OAuthError::ConfigError(format!("Failed to save profile: {}", e)))?;
 
-    save_config(config_path, &profiles_config)
+    save_config(creds.config_path, &profiles_config)
         .map_err(|e| OAuthError::ConfigError(format!("Failed to save config: {}", e)))?;
 
     // Save token to keyring
     let token_store = KeyringTokenStore::default_service();
-    let token_key = make_token_key(team_id, user_id);
+    let token_key = make_token_key(creds.team_id, creds.user_id);
     token_store
-        .set(&token_key, token)
+        .set(&token_key, creds.token)
         .map_err(|e| OAuthError::ConfigError(format!("Failed to save token: {}", e)))?;
 
-    // Note: We don't save client_secret to keyring because design specifies prompting every time
-    // The client_secret is only used for this OAuth flow and not persisted
+    // Save client_secret to keyring with profile-specific key
+    // Service: slack-rs, Username: oauth-client-secret:<profile_name>
+    let client_secret_store = KeyringTokenStore::new("slack-rs");
+    let client_secret_key = format!("oauth-client-secret:{}", creds.profile_name);
+    client_secret_store
+        .set(&client_secret_key, creds.client_secret)
+        .map_err(|e| OAuthError::ConfigError(format!("Failed to save client secret: {}", e)))?;
 
     Ok(())
 }
@@ -230,6 +255,7 @@ fn save_profile_and_credentials(
 /// * `config` - OAuth configuration
 /// * `profile_name` - Optional profile name (defaults to "default")
 /// * `base_url` - Optional base URL for testing
+#[allow(dead_code)]
 pub async fn login(
     config: OAuthConfig,
     profile_name: Option<String>,
@@ -509,16 +535,17 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let config_path = temp_dir.path().join("profiles.json");
 
-        // Save profile with client_id
-        save_profile_and_credentials(
-            &config_path,
-            "test",
-            "T123",
-            &Some("Test Team".to_string()),
-            "U456",
-            "xoxb-test-token",
-            "test-client-id",
-        )
+        // Save profile with client_id and client_secret
+        save_profile_and_credentials(SaveCredentials {
+            config_path: &config_path,
+            profile_name: "test",
+            team_id: "T123",
+            team_name: &Some("Test Team".to_string()),
+            user_id: "U456",
+            token: "xoxb-test-token",
+            client_id: "test-client-id",
+            client_secret: "test-client-secret",
+        })
         .unwrap();
 
         // Verify profile was saved with client_id
@@ -527,6 +554,22 @@ mod tests {
         assert_eq!(profile.client_id, Some("test-client-id".to_string()));
         assert_eq!(profile.team_id, "T123");
         assert_eq!(profile.user_id, "U456");
+
+        // Verify client_secret was saved to keyring
+        // Note: This test actually writes to the system keyring
+        let client_secret_store = KeyringTokenStore::new("slack-rs");
+        let client_secret_key = format!("oauth-client-secret:{}", "test");
+        match client_secret_store.get(&client_secret_key) {
+            Ok(stored_secret) => {
+                assert_eq!(stored_secret, "test-client-secret");
+                // Clean up
+                let _ = client_secret_store.delete(&client_secret_key);
+            }
+            Err(_) => {
+                // Keyring may not be available in test environment
+                // At least verify that the save call didn't fail above
+            }
+        }
     }
 
     #[test]

@@ -20,3 +20,6 @@
   - `client_secret` はKeyringに保存
   - 検証: OAuth成功後の保存処理を分離し、スタブを使った単体テストで両方の保存が行われることを確認
   - 注: client_secretはセキュリティ上、毎回対話入力するため保存しない
+
+## Acceptance #1 Failure Follow-up
+- [x] OAuth成功後に`client_secret`をKeyringに保存する実装を追加する（仕様: `client_secret` は設定ファイルに書き込まずKeyringへ保存）
