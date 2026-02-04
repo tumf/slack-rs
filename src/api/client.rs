@@ -89,7 +89,7 @@ impl Default for ApiClientConfig {
 /// - Generic API calls via `call()` with arbitrary endpoints
 pub struct ApiClient {
     client: Client,
-    token: Option<String>,
+    pub(crate) token: Option<String>,
     config: ApiClientConfig,
 }
 
