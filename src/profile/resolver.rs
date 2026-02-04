@@ -59,6 +59,8 @@ mod tests {
                 client_id: None,
                 redirect_uri: None,
                 scopes: None,
+                bot_scopes: None,
+                user_scopes: None,
             },
         );
         config.set(
@@ -71,6 +73,8 @@ mod tests {
                 client_id: None,
                 redirect_uri: None,
                 scopes: None,
+                bot_scopes: None,
+                user_scopes: None,
             },
         );
 

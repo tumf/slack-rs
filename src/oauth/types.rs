@@ -37,7 +37,10 @@ pub struct OAuthConfig {
     pub client_id: String,
     pub client_secret: String,
     pub redirect_uri: String,
+    /// Bot scopes (sent as `scope` parameter in OAuth URL)
     pub scopes: Vec<String>,
+    /// User scopes (sent as `user_scope` parameter in OAuth URL)
+    pub user_scopes: Vec<String>,
 }
 
 impl OAuthConfig {
@@ -56,8 +59,10 @@ impl OAuthConfig {
                 "redirect_uri is required".to_string(),
             ));
         }
-        if self.scopes.is_empty() {
-            return Err(OAuthError::ConfigError("scopes are required".to_string()));
+        if self.scopes.is_empty() && self.user_scopes.is_empty() {
+            return Err(OAuthError::ConfigError(
+                "at least one of bot scopes or user scopes is required".to_string(),
+            ));
         }
         Ok(())
     }
@@ -102,6 +107,7 @@ mod tests {
             client_secret: "test_secret".to_string(),
             redirect_uri: "http://localhost:8765/callback".to_string(),
             scopes: vec!["chat:write".to_string()],
+            user_scopes: vec![],
         };
 
         assert!(config.validate().is_ok());
@@ -114,6 +120,7 @@ mod tests {
             client_secret: "test_secret".to_string(),
             redirect_uri: "http://localhost:8765/callback".to_string(),
             scopes: vec!["chat:write".to_string()],
+            user_scopes: vec![],
         };
 
         let result = config.validate();
@@ -131,6 +138,7 @@ mod tests {
             client_secret: "".to_string(),
             redirect_uri: "http://localhost:8765/callback".to_string(),
             scopes: vec!["chat:write".to_string()],
+            user_scopes: vec![],
         };
 
         let result = config.validate();
@@ -148,6 +156,7 @@ mod tests {
             client_secret: "test_secret".to_string(),
             redirect_uri: "".to_string(),
             scopes: vec!["chat:write".to_string()],
+            user_scopes: vec![],
         };
 
         let result = config.validate();
@@ -165,6 +174,7 @@ mod tests {
             client_secret: "test_secret".to_string(),
             redirect_uri: "http://localhost:8765/callback".to_string(),
             scopes: vec![],
+            user_scopes: vec![],
         };
 
         let result = config.validate();

@@ -61,6 +61,8 @@ pub fn oauth_set(
             client_id: Some(client_id.clone()),
             redirect_uri: Some(redirect_uri.clone()),
             scopes: Some(scopes_vec.clone()),
+            bot_scopes: None,  // TODO: Will be populated in task 2
+            user_scopes: None, // TODO: Will be populated in task 2
         }
     } else {
         // Create placeholder profile (will be filled in during login)
@@ -73,6 +75,8 @@ pub fn oauth_set(
             client_id: Some(client_id.clone()),
             redirect_uri: Some(redirect_uri.clone()),
             scopes: Some(scopes_vec.clone()),
+            bot_scopes: None,  // TODO: Will be populated in task 2
+            user_scopes: None, // TODO: Will be populated in task 2
         }
     };
 
@@ -169,6 +173,8 @@ pub fn oauth_delete(profile_name: String) -> Result<(), OAuthError> {
         client_id: None,
         redirect_uri: None,
         scopes: None,
+        bot_scopes: None,
+        user_scopes: None,
     };
 
     config.set(profile_name.clone(), updated_profile);

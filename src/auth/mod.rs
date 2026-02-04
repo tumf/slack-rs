@@ -14,7 +14,9 @@ pub mod crypto;
 pub mod export_import;
 pub mod format;
 pub mod i18n;
+pub mod manifest;
 
 pub use commands::{list, login_with_credentials, logout, rename, status};
 pub use export_import::{export_profiles, import_profiles, ExportOptions, ImportOptions};
 pub use i18n::{Language, Messages};
+pub use manifest::generate_manifest;

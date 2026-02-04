@@ -17,13 +17,17 @@ use std::process::Command;
 /// * `client_id` - Optional OAuth client ID from CLI
 /// * `profile_name` - Optional profile name (defaults to "default")
 /// * `redirect_uri` - OAuth redirect URI (used as fallback if not in profile)
-/// * `scopes` - OAuth scopes (used as fallback if not in profile)
+/// * `_scopes` - OAuth scopes (legacy parameter, unused - use bot_scopes/user_scopes instead)
+/// * `bot_scopes` - Optional bot scopes from CLI
+/// * `user_scopes` - Optional user scopes from CLI
 /// * `base_url` - Optional base URL for testing
 pub async fn login_with_credentials(
     client_id: Option<String>,
     profile_name: Option<String>,
     redirect_uri: String,
-    scopes: Vec<String>,
+    _scopes: Vec<String>,
+    bot_scopes: Option<Vec<String>>,
+    user_scopes: Option<Vec<String>>,
     base_url: Option<String>,
 ) -> Result<(), OAuthError> {
     let profile_name = profile_name.unwrap_or_else(|| "default".to_string());
@@ -34,50 +38,81 @@ pub async fn login_with_credentials(
     let existing_config = load_config(&config_path).ok();
 
     // Resolve OAuth config with priority: CLI arg > saved in profile > prompt (not fallback)
-    let (final_client_id, final_redirect_uri, final_scopes) = if let Some(config) = &existing_config
-    {
-        if let Some(profile) = config.get(&profile_name) {
-            // Client ID: CLI arg > profile > prompt
-            let resolved_client_id = match client_id {
-                Some(id) => id,
-                None => {
-                    if let Some(saved_id) = &profile.client_id {
-                        saved_id.clone()
-                    } else {
-                        prompt_for_client_id()?
+    let (final_client_id, final_redirect_uri, final_bot_scopes, final_user_scopes) =
+        if let Some(config) = &existing_config {
+            if let Some(profile) = config.get(&profile_name) {
+                // Client ID: CLI arg > profile > prompt
+                let resolved_client_id = match client_id {
+                    Some(id) => id,
+                    None => {
+                        if let Some(saved_id) = &profile.client_id {
+                            saved_id.clone()
+                        } else {
+                            prompt_for_client_id()?
+                        }
                     }
-                }
-            };
+                };
 
-            // Redirect URI: profile > prompt (not fallback)
-            let resolved_redirect_uri = if let Some(saved_uri) = &profile.redirect_uri {
-                saved_uri.clone()
+                // Redirect URI: profile > prompt (not fallback)
+                let resolved_redirect_uri = if let Some(saved_uri) = &profile.redirect_uri {
+                    saved_uri.clone()
+                } else {
+                    prompt_for_redirect_uri(&redirect_uri)?
+                };
+
+                // Bot scopes: CLI arg > profile.bot_scopes > profile.scopes (legacy) > prompt
+                let resolved_bot_scopes = if let Some(cli_bot_scopes) = bot_scopes {
+                    cli_bot_scopes
+                } else if let Some(saved_bot_scopes) = profile.get_bot_scopes() {
+                    saved_bot_scopes
+                } else {
+                    prompt_for_bot_scopes()?
+                };
+
+                // User scopes: CLI arg > profile.user_scopes > prompt
+                let resolved_user_scopes = if let Some(cli_user_scopes) = user_scopes {
+                    cli_user_scopes
+                } else if let Some(saved_user_scopes) = profile.get_user_scopes() {
+                    saved_user_scopes
+                } else {
+                    prompt_for_user_scopes()?
+                };
+
+                (
+                    resolved_client_id,
+                    resolved_redirect_uri,
+                    resolved_bot_scopes,
+                    resolved_user_scopes,
+                )
             } else {
-                prompt_for_redirect_uri(&redirect_uri)?
-            };
-
-            // Scopes: profile > prompt (not fallback)
-            let resolved_scopes = if let Some(saved_scopes) = &profile.scopes {
-                saved_scopes.clone()
-            } else {
-                prompt_for_scopes(&scopes)?
-            };
-
-            (resolved_client_id, resolved_redirect_uri, resolved_scopes)
+                // Profile doesn't exist, prompt for all OAuth config
+                let resolved_client_id =
+                    client_id.unwrap_or_else(|| prompt_for_client_id().unwrap());
+                let resolved_redirect_uri = prompt_for_redirect_uri(&redirect_uri)?;
+                let resolved_bot_scopes = bot_scopes.unwrap_or_else(|| prompt_for_bot_scopes().unwrap());
+                let resolved_user_scopes =
+                    user_scopes.unwrap_or_else(|| prompt_for_user_scopes().unwrap());
+                (
+                    resolved_client_id,
+                    resolved_redirect_uri,
+                    resolved_bot_scopes,
+                    resolved_user_scopes,
+                )
+            }
         } else {
-            // Profile doesn't exist, prompt for all OAuth config
+            // No config file exists, prompt for all OAuth config
             let resolved_client_id = client_id.unwrap_or_else(|| prompt_for_client_id().unwrap());
             let resolved_redirect_uri = prompt_for_redirect_uri(&redirect_uri)?;
-            let resolved_scopes = prompt_for_scopes(&scopes)?;
-            (resolved_client_id, resolved_redirect_uri, resolved_scopes)
-        }
-    } else {
-        // No config file exists, prompt for all OAuth config
-        let resolved_client_id = client_id.unwrap_or_else(|| prompt_for_client_id().unwrap());
-        let resolved_redirect_uri = prompt_for_redirect_uri(&redirect_uri)?;
-        let resolved_scopes = prompt_for_scopes(&scopes)?;
-        (resolved_client_id, resolved_redirect_uri, resolved_scopes)
-    };
+            let resolved_bot_scopes = bot_scopes.unwrap_or_else(|| prompt_for_bot_scopes().unwrap());
+            let resolved_user_scopes =
+                user_scopes.unwrap_or_else(|| prompt_for_user_scopes().unwrap());
+            (
+                resolved_client_id,
+                resolved_redirect_uri,
+                resolved_bot_scopes,
+                resolved_user_scopes,
+            )
+        };
 
     // Client secret resolution: Keyring > prompt
     let token_store = KeyringTokenStore::default_service();
@@ -98,7 +133,8 @@ pub async fn login_with_credentials(
         client_id: final_client_id.clone(),
         client_secret: final_client_secret.clone(),
         redirect_uri: final_redirect_uri.clone(),
-        scopes: final_scopes.clone(),
+        scopes: final_bot_scopes.clone(),
+        user_scopes: final_user_scopes.clone(),
     };
 
     // Perform login flow (existing implementation)
@@ -116,7 +152,9 @@ pub async fn login_with_credentials(
         client_id: &final_client_id,
         client_secret: &final_client_secret,
         redirect_uri: &final_redirect_uri,
-        scopes: &final_scopes,
+        scopes: &final_bot_scopes, // Legacy field, now stores bot scopes
+        bot_scopes: &final_bot_scopes,
+        user_scopes: &final_user_scopes,
     })?;
 
     println!("✓ Authentication successful!");
@@ -180,7 +218,7 @@ fn prompt_for_redirect_uri(default: &str) -> Result<String, OAuthError> {
     }
 }
 
-/// Prompt user for OAuth scopes with default option
+/// Prompt user for OAuth scopes with default option (legacy function for backward compatibility)
 fn prompt_for_scopes(default: &[String]) -> Result<Vec<String>, OAuthError> {
     let default_str = default.join(",");
     print!(
@@ -203,6 +241,54 @@ fn prompt_for_scopes(default: &[String]) -> Result<Vec<String>, OAuthError> {
         let scopes: Vec<String> = trimmed.split(',').map(|s| s.trim().to_string()).collect();
         Ok(crate::oauth::expand_scopes(&scopes))
     }
+}
+
+/// Prompt user for bot OAuth scopes with default "all"
+fn prompt_for_bot_scopes() -> Result<Vec<String>, OAuthError> {
+    print!(
+        "Enter bot scopes (comma-separated, or 'all'/'bot:all' for preset) [all]: "
+    );
+    io::stdout()
+        .flush()
+        .map_err(|e| OAuthError::ConfigError(format!("Failed to flush stdout: {}", e)))?;
+
+    let mut input = String::new();
+    io::stdin()
+        .read_line(&mut input)
+        .map_err(|e| OAuthError::ConfigError(format!("Failed to read input: {}", e)))?;
+
+    let trimmed = input.trim();
+    let scopes_input = if trimmed.is_empty() {
+        vec!["all".to_string()]
+    } else {
+        trimmed.split(',').map(|s| s.trim().to_string()).collect()
+    };
+
+    Ok(crate::oauth::expand_scopes_with_context(&scopes_input, true))
+}
+
+/// Prompt user for user OAuth scopes with default "all"
+fn prompt_for_user_scopes() -> Result<Vec<String>, OAuthError> {
+    print!(
+        "Enter user scopes (comma-separated, or 'all'/'user:all' for preset) [all]: "
+    );
+    io::stdout()
+        .flush()
+        .map_err(|e| OAuthError::ConfigError(format!("Failed to flush stdout: {}", e)))?;
+
+    let mut input = String::new();
+    io::stdin()
+        .read_line(&mut input)
+        .map_err(|e| OAuthError::ConfigError(format!("Failed to read input: {}", e)))?;
+
+    let trimmed = input.trim();
+    let scopes_input = if trimmed.is_empty() {
+        vec!["all".to_string()]
+    } else {
+        trimmed.split(',').map(|s| s.trim().to_string()).collect()
+    };
+
+    Ok(crate::oauth::expand_scopes_with_context(&scopes_input, false))
 }
 
 /// Perform OAuth flow and return user/team info and token
@@ -278,7 +364,9 @@ struct SaveCredentials<'a> {
     client_id: &'a str,
     client_secret: &'a str,
     redirect_uri: &'a str,
-    scopes: &'a [String],
+    scopes: &'a [String],      // Legacy field for backward compatibility
+    bot_scopes: &'a [String],  // New bot scopes field
+    user_scopes: &'a [String], // New user scopes field
 }
 
 /// Save profile and credentials (including client_id and client_secret)
@@ -287,7 +375,7 @@ fn save_profile_and_credentials(creds: SaveCredentials) -> Result<(), OAuthError
     let mut profiles_config =
         load_config(creds.config_path).unwrap_or_else(|_| ProfilesConfig::new());
 
-    // Create profile with OAuth config (client_id, redirect_uri, scopes)
+    // Create profile with OAuth config (client_id, redirect_uri, bot_scopes, user_scopes)
     let profile = Profile {
         team_id: creds.team_id.to_string(),
         user_id: creds.user_id.to_string(),
@@ -295,7 +383,9 @@ fn save_profile_and_credentials(creds: SaveCredentials) -> Result<(), OAuthError
         user_name: None,
         client_id: Some(creds.client_id.to_string()),
         redirect_uri: Some(creds.redirect_uri.to_string()),
-        scopes: Some(creds.scopes.to_vec()),
+        scopes: Some(creds.scopes.to_vec()), // Legacy field
+        bot_scopes: Some(creds.bot_scopes.to_vec()),
+        user_scopes: Some(creds.user_scopes.to_vec()),
     };
 
     profiles_config
@@ -408,6 +498,8 @@ pub async fn login(
         client_id: None, // OAuth client ID not stored in legacy login flow
         redirect_uri: None,
         scopes: None,
+        bot_scopes: None,
+        user_scopes: None,
     };
 
     config
@@ -612,6 +704,8 @@ mod tests {
 
         // Save profile with client_id and client_secret to Keyring
         let scopes = vec!["chat:write".to_string(), "users:read".to_string()];
+        let bot_scopes = vec!["chat:write".to_string()];
+        let user_scopes = vec!["users:read".to_string()];
         save_profile_and_credentials(SaveCredentials {
             config_path: &config_path,
             profile_name: "test",
@@ -623,6 +717,8 @@ mod tests {
             client_secret: "test-client-secret",
             redirect_uri: "http://127.0.0.1:8765/callback",
             scopes: &scopes,
+            bot_scopes: &bot_scopes,
+            user_scopes: &user_scopes,
         })
         .unwrap();
 
@@ -659,6 +755,8 @@ mod tests {
                 client_id: None,
                 redirect_uri: None,
                 scopes: None,
+                bot_scopes: None,
+                user_scopes: None,
             },
         );
         save_config(&config_path, &config).unwrap();
