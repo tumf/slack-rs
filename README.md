@@ -259,7 +259,7 @@ slack-rs auth list
 Authenticate with a Slack workspace and save credentials.
 
 ```bash
-# Basic login (uses env vars or prompts)
+# Basic login (uses saved profile or prompts)
 slack-rs auth login [profile-name]
 
 # Login with specific client ID
