@@ -6,13 +6,13 @@ Enables secure backup and restoration of authentication profiles through encrypt
 ### Requirement: Provide export/import via CLI
 Export/import of profiles MUST be executable from the CLI.
 #### Scenario: Export command encrypts and saves profile
-- **WHEN** `slackcli auth export --profile <name> --out <path>` is executed
+- **WHEN** `slack-rs auth export --profile <name> --out <path>` is executed
 - **THEN** the specified profile is encrypted and saved to the output path
 
 ### Requirement: Export requires encryption and does not output plaintext
 Only encrypted binary MUST be generated, and plaintext authentication information MUST NOT be output. (MUST NOT)
 #### Scenario: Export produces encrypted binary only
-- **WHEN** `slackcli auth export` is executed
+- **WHEN** `slack-rs auth export` is executed
 - **THEN** only encrypted binary is generated
 - **AND** plain text JSON is not written to files or stdout
 
@@ -44,7 +44,7 @@ Saving MUST only be possible with secure file permissions. (MUST)
 インポート時に復元対象の機密情報はKeyringへ保存されることがMUST。
 
 #### Scenario: Import decrypts and stores to keyring
-- `slackcli auth import --in <path>` 実行時、OAuthクライアントシークレットが含まれていればKeyringへ保存される
+- `slack-rs auth import --in <path>` 実行時、OAuthクライアントシークレットが含まれていればKeyringへ保存される
 
 ### Requirement: Import applies safeguard on team_id conflict
 A safeguard MUST be applied when the same team_id exists. (MUST)
