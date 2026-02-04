@@ -73,33 +73,35 @@ setup: pre-commit-hooks
 pre-commit-hooks:
 	@echo "Installing pre-commit hooks..."
 	@mkdir -p .git/hooks
-	@echo '#!/bin/bash' > .git/hooks/pre-commit
-	@echo 'set -e' >> .git/hooks/pre-commit
-	@echo '' >> .git/hooks/pre-commit
-	@echo 'echo "Running pre-commit checks..."' >> .git/hooks/pre-commit
-	@echo '' >> .git/hooks/pre-commit
-	@echo '# Check formatting' >> .git/hooks/pre-commit
-	@echo 'echo "Checking code formatting..."' >> .git/hooks/pre-commit
-	@echo 'if ! cargo fmt -- --check; then' >> .git/hooks/pre-commit
-	@echo '    echo "❌ Code formatting check failed. Run '\''cargo fmt'\'' to fix."' >> .git/hooks/pre-commit
-	@echo '    exit 1' >> .git/hooks/pre-commit
-	@echo 'fi' >> .git/hooks/pre-commit
-	@echo '' >> .git/hooks/pre-commit
-	@echo '# Run clippy' >> .git/hooks/pre-commit
-	@echo 'echo "Running clippy..."' >> .git/hooks/pre-commit
-	@echo 'if ! cargo clippy -- -D warnings; then' >> .git/hooks/pre-commit
-	@echo '    echo "❌ Clippy check failed. Fix the warnings above."' >> .git/hooks/pre-commit
-	@echo '    exit 1' >> .git/hooks/pre-commit
-	@echo 'fi' >> .git/hooks/pre-commit
-	@echo '' >> .git/hooks/pre-commit
-	@echo '# Run tests' >> .git/hooks/pre-commit
-	@echo 'echo "Running tests..."' >> .git/hooks/pre-commit
-	@echo 'if ! cargo test --quiet; then' >> .git/hooks/pre-commit
-	@echo '    echo "❌ Tests failed. Fix the failing tests."' >> .git/hooks/pre-commit
-	@echo '    exit 1' >> .git/hooks/pre-commit
-	@echo 'fi' >> .git/hooks/pre-commit
-	@echo '' >> .git/hooks/pre-commit
-	@echo 'echo "✅ All pre-commit checks passed!"' >> .git/hooks/pre-commit
+	@printf '%s\n' \
+		'#!/bin/bash' \
+		'set -e' \
+		'' \
+		'echo "Running pre-commit checks..."' \
+		'' \
+		'# Check formatting' \
+		'echo "Checking code formatting..."' \
+		'if ! cargo fmt -- --check; then' \
+		'    echo "❌ Code formatting check failed. Run '\''cargo fmt'\'' to fix."' \
+		'    exit 1' \
+		'fi' \
+		'' \
+		'# Run clippy' \
+		'echo "Running clippy..."' \
+		'if ! cargo clippy -- -D warnings; then' \
+		'    echo "❌ Clippy check failed. Fix the warnings above."' \
+		'    exit 1' \
+		'fi' \
+		'' \
+		'# Run tests' \
+		'echo "Running tests..."' \
+		'if ! cargo test --quiet; then' \
+		'    echo "❌ Tests failed. Fix the failing tests."' \
+		'    exit 1' \
+		'fi' \
+		'' \
+		'echo "✅ All pre-commit checks passed!"' \
+		> .git/hooks/pre-commit
 	@chmod +x .git/hooks/pre-commit
 	@echo "Pre-commit hooks installed successfully!"
 
