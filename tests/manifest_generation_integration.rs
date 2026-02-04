@@ -24,10 +24,10 @@ fn test_manifest_generation_with_cloudflared() {
     assert!(result.is_ok());
     let yaml = result.unwrap();
 
-    // Verify cloudflared wildcard URL is included
-    assert!(yaml.contains("https://*.trycloudflare.com/callback"));
+    // Wildcard URLs are not supported by Slack, so only the actual redirect_uri is included
+    assert!(!yaml.contains("https://*.trycloudflare.com/callback"));
 
-    // Verify redirect_uri is also included
+    // Verify redirect_uri is included
     assert!(yaml.contains(redirect_uri));
 
     // Verify bot scopes
@@ -144,10 +144,10 @@ fn test_manifest_generation_with_ngrok() {
     assert!(result.is_ok());
     let yaml = result.unwrap();
 
-    // Verify ngrok wildcard URL is included
-    assert!(yaml.contains("https://*.ngrok-free.app/callback"));
+    // Wildcard URLs are not supported by Slack, so only the actual redirect_uri is included
+    assert!(!yaml.contains("https://*.ngrok-free.app/callback"));
 
-    // Verify redirect_uri is also included
+    // Verify redirect_uri is included
     assert!(yaml.contains(redirect_uri));
 
     // Verify bot scopes
