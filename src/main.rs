@@ -191,6 +191,18 @@ async fn main() {
                         std::process::exit(1);
                     }
                 }
+                "cache-update" => {
+                    if let Err(e) = run_users_cache_update(&args).await {
+                        eprintln!("Users cache-update failed: {}", e);
+                        std::process::exit(1);
+                    }
+                }
+                "resolve-mentions" => {
+                    if let Err(e) = run_users_resolve_mentions(&args).await {
+                        eprintln!("Users resolve-mentions failed: {}", e);
+                        std::process::exit(1);
+                    }
+                }
                 _ => print_users_usage(&args[0]),
             }
         }
@@ -292,6 +304,8 @@ fn print_help() {
     println!("    conv list                        List conversations");
     println!("    conv history <channel>           Get conversation history");
     println!("    users info <user_id>             Get user information");
+    println!("    users cache-update               Update user cache for mention resolution");
+    println!("    users resolve-mentions <text>    Resolve user mentions in text");
     println!("    msg post <channel> <text>        Post a message (supports --thread-ts and --reply-broadcast)");
     println!("    msg update <channel> <ts> <text> Update a message");
     println!("    msg delete <channel> <ts>        Delete a message");
@@ -325,6 +339,8 @@ fn print_usage() {
     println!("  conv list                      - List conversations");
     println!("  conv history <channel>         - Get conversation history");
     println!("  users info <user_id>           - Get user information");
+    println!("  users cache-update             - Update user cache for mention resolution (supports --profile, --force)");
+    println!("  users resolve-mentions <text>  - Resolve user mentions in text (supports --profile, --format)");
     println!("  msg post <channel> <text>      - Post a message (requires --allow-write, supports --thread-ts and --reply-broadcast)");
     println!("  msg update <channel> <ts> <text> - Update a message (requires --allow-write)");
     println!("  msg delete <channel> <ts>      - Delete a message (requires --allow-write)");
