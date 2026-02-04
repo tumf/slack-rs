@@ -53,7 +53,7 @@ Create a Slack app and configure OAuth:
 3. Add OAuth scopes (e.g., `chat:write`, `users:read`, `search:read`)
 4. Note your **Client ID** and **Client Secret**
 
-Set environment variables:
+**Option A: Set environment variables (global credentials):**
 
 ```bash
 export SLACKRS_CLIENT_ID="your-client-id"
@@ -62,15 +62,32 @@ export SLACKRS_REDIRECT_URI="http://127.0.0.1:3000/callback"  # optional
 export SLACKRS_SCOPES="chat:write,users:read,search:read"      # optional
 ```
 
+**Option B: Use per-profile credentials:**
+
+You can save different client IDs for different profiles. During the `auth login` command, the tool will prompt you for credentials if not provided via environment variables or command-line arguments.
+
 ### 2. Authenticate
 
 Login to your Slack workspace:
 
 ```bash
+# Using environment variables (SLACKRS_CLIENT_ID and SLACKRS_CLIENT_SECRET)
+slack-rs auth login my-workspace
+
+# Or provide client ID via command-line (you'll be prompted for client secret)
+slack-rs auth login my-workspace --client-id your-client-id
+
+# Or let the tool prompt you for both credentials
 slack-rs auth login my-workspace
 ```
 
 This will open a browser for OAuth authorization. After approval, your credentials will be securely stored in your OS keyring.
+
+**Per-Profile Client Keys:**
+- Each profile can use a different OAuth client ID
+- The client ID is saved with the profile (in `~/.config/slack-rs/profiles.json`)
+- The client secret is always prompted for security (never saved)
+- On subsequent logins to the same profile, the saved client ID will be reused unless you provide a different one via `--client-id`
 
 ### 3. Make API Calls
 
@@ -99,6 +116,7 @@ slack-rs auth list
 ```bash
 # Login to a workspace
 slack-rs auth login [profile-name]
+slack-rs auth login [profile-name] --client-id <your-client-id>
 
 # Show authentication status
 slack-rs auth status [profile-name]
@@ -119,6 +137,32 @@ slack-rs auth export --all --out <file> --yes
 # Import profiles
 slack-rs auth import --profile <name> --in <file>
 slack-rs auth import --all --in <file>
+```
+
+#### Per-Profile Client Keys
+
+Each profile can have its own OAuth client ID, allowing you to:
+- Use different Slack apps for different workspaces
+- Test with development and production OAuth apps
+- Manage multiple teams with separate credentials
+
+**How it works:**
+1. **First login**: Provide client ID via `--client-id` flag, environment variable, or interactive prompt
+2. **Client ID is saved**: Stored in profile metadata (`~/.config/slack-rs/profiles.json`)
+3. **Subsequent logins**: Saved client ID is reused automatically
+4. **Client Secret**: Always prompted for security (never saved to disk)
+
+**Examples:**
+
+```bash
+# Login with specific client ID (will be saved to profile)
+slack-rs auth login dev-workspace --client-id 123456.789012
+
+# Login to production workspace with different client ID
+slack-rs auth login prod-workspace --client-id 987654.321098
+
+# Subsequent login reuses saved client ID (only prompts for secret)
+slack-rs auth login dev-workspace
 ```
 
 ### API Calls
@@ -145,8 +189,8 @@ slack-rs api call chat.postMessage channel=C123 text="Hello" thread_ts=1234567.1
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `SLACKRS_CLIENT_ID` | OAuth Client ID | (required) |
-| `SLACKRS_CLIENT_SECRET` | OAuth Client Secret | (required) |
+| `SLACKRS_CLIENT_ID` | OAuth Client ID (optional if using per-profile credentials or `--client-id` flag) | - |
+| `SLACKRS_CLIENT_SECRET` | OAuth Client Secret (optional - will be prompted if not set) | - |
 | `SLACKRS_REDIRECT_URI` | OAuth Redirect URI | `http://127.0.0.1:3000/callback` |
 | `SLACKRS_SCOPES` | Comma-separated OAuth scopes | `chat:write,users:read` |
 | `SLACKCLI_ALLOW_WRITE` | Allow write operations (set to `false` or `0` to deny) | `true` (allow) |
@@ -155,8 +199,12 @@ slack-rs api call chat.postMessage channel=C123 text="Hello" thread_ts=1234567.1
 
 ### Profile Storage
 
-- **Profile metadata** (non-sensitive): `~/.config/slack-rs/profiles.json` (Linux/macOS)
-- **Access tokens** (sensitive): OS keyring (Keychain on macOS, Secret Service on Linux, Credential Manager on Windows)
+- **Profile metadata** (includes client ID, team/user info): `~/.config/slack-rs/profiles.json` (Linux/macOS)
+- **Sensitive credentials** (access tokens and client secrets): OS keyring (Keychain on macOS, Secret Service on Linux, Credential Manager on Windows)
+
+Each profile stores:
+- **In JSON file**: `team_id`, `user_id`, `team_name`, `user_name`, `client_id`
+- **In OS keyring**: Access token and client secret (when saved via export/import)
 
 ### Write Operation Protection
 
@@ -183,14 +231,19 @@ slack-rs msg post C123456 "Hello"  # Now succeeds
 
 ## Security
 
-### Token Storage
+### Credential Storage
 
+**Access Tokens:**
 All access tokens are stored securely in your operating system's credential manager:
 - **macOS**: Keychain
 - **Linux**: Secret Service (GNOME Keyring, KWallet)
 - **Windows**: Credential Manager
 
 Tokens are never stored in plain text files or logged to the console.
+
+**Client Keys:**
+- **Client IDs**: Stored in profile metadata file (`~/.config/slack-rs/profiles.json`). These are not considered sensitive as they're part of OAuth public flow.
+- **Client Secrets**: Never saved to disk during normal operation. Always prompted when needed for authentication. Only stored in OS keyring when explicitly saved via export/import for backup purposes.
 
 ### Profile Export/Import
 
