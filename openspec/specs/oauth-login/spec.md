@@ -96,37 +96,34 @@ OAuth configuration MUST be resolved from CLI arguments or profile configuration
 
 `--cloudflared` が指定された場合、`auth login` は cloudflared tunnel プロセスを起動し、生成された公開 URL を抽出し、それを OAuth フローの `redirect_uri` として使用しなければならない (MUST)。tunnel は OAuth フロー完了後に停止しなければならない (MUST)。
 
+`auth login` は `--ngrok [path]` を受け付けなければならない (MUST)。
+
+`--ngrok` が指定され、`path` が省略された場合は実行ファイル名 `ngrok`（PATH 探索）を使用しなければならない (MUST)。
+
+`--ngrok <path>` が指定された場合は、その `path` を使用しなければならない (MUST)。
+
+`--ngrok` が指定された場合は `ngrok http 8765` を起動し、公開 URL を抽出して `{public_url}/callback` を redirect_uri として使用しなければならない (MUST)。OAuth 完了後に ngrok プロセスを停止しなければならない (MUST)。
+
+`--ngrok` と `--cloudflared` が同時に指定された場合はエラーにしなければならない (MUST)。
+
 `--cloudflared` が指定されない場合、`auth login` はユーザーに redirect_uri をプロンプトして取得し、その値を OAuth フローの `redirect_uri` として使用しなければならない (MUST)。この場合、cloudflared を起動してはならない (MUST NOT)。
 
-#### Scenario: `--cloudflared <path>` 指定時に tunnel を起動し公開 URL を redirect_uri に使用する
-- Given `auth login --cloudflared <path>` を実行する
+#### ADDED Scenario: `--ngrok`（path 省略）で ngrok を起動し redirect_uri を解決する
+- Given `auth login --ngrok` を実行する
 - When OAuth フローを開始する
-- Then 指定された cloudflared を `tunnel --url http://localhost:8765` で起動する
-- And cloudflared の出力から公開 URL（例: `https://xxx.trycloudflare.com`）を抽出する
+- Then 実行ファイル名 `ngrok` を使用して `ngrok http 8765` を起動する
+- And ngrok の出力から `https://*.ngrok-free.app` の公開 URL を抽出する
 - And redirect_uri を `{public_url}/callback` に設定する
-- And OAuth コールバック受信後に tunnel を停止する
+- And OAuth 完了後に ngrok を停止する
 
-#### Scenario: `--cloudflared`（path 省略）指定時にデフォルト実行ファイル名で tunnel を起動する
-- Given `auth login --cloudflared` を実行する
+#### ADDED Scenario: `--ngrok <path>` 指定で ngrok を起動し redirect_uri を解決する
+- Given `auth login --ngrok <path>` を実行する
 - When OAuth フローを開始する
-- Then cloudflared 実行ファイルとして `cloudflared` を使用する
-- And `tunnel --url http://localhost:8765` で起動する
-- And cloudflared の出力から公開 URL（例: `https://xxx.trycloudflare.com`）を抽出する
-- And redirect_uri を `{public_url}/callback` に設定する
-- And OAuth コールバック受信後に tunnel を停止する
+- Then 指定された `path` の ngrok を起動する
+- And 公開 URL を抽出して redirect_uri に設定する
 
-#### Scenario: `--cloudflared` 未指定時は redirect_uri をプロンプトして cloudflared を起動しない
-- Given `auth login` を実行する
-- And `--cloudflared` が指定されていない
-- When OAuth フローを開始する
-- Then redirect_uri の入力プロンプトが表示される
-- And 入力された redirect_uri を使用する
-- And cloudflared tunnel を起動しない
-
-#### Scenario: `--cloudflared` 指定時に cloudflared が実行できない場合のエラーハンドリング
-- Given `auth login --cloudflared [path]` を実行する
-- And cloudflared 実行ファイルが未存在、または実行できない
-- When OAuth フローを開始する
-- Then cloudflared が実行できないことが分かる明確なエラーメッセージを表示する
-- And OAuth フローを開始しない
+#### ADDED Scenario: `--ngrok` と `--cloudflared` の同時指定はエラーになる
+- Given `auth login --ngrok --cloudflared` を実行する
+- When 引数を解決する
+- Then 競合エラーが表示され OAuth フローを開始しない
 
