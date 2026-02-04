@@ -1,8 +1,8 @@
 //! Auth command implementations
 
 use crate::oauth::{
-    build_authorization_url, exchange_code, generate_pkce, generate_state,
-    resolve_callback_port, run_callback_server, OAuthConfig, OAuthError,
+    build_authorization_url, exchange_code, generate_pkce, generate_state, resolve_callback_port,
+    run_callback_server, OAuthConfig, OAuthError,
 };
 use crate::profile::{
     default_config_path, load_config, make_token_key, save_config, KeyringTokenStore, Profile,

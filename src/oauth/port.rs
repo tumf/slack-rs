@@ -39,8 +39,11 @@ pub fn resolve_callback_port() -> Result<u16, OAuthError> {
         Ok(port_str) => {
             let port_str = port_str.trim();
             if port_str.is_empty() {
-                // Empty env var, use default
-                return Ok(DEFAULT_OAUTH_PORT);
+                // Empty or whitespace-only env var is a configuration error
+                return Err(OAuthError::ConfigError(format!(
+                    "{} is set but empty or contains only whitespace",
+                    OAUTH_PORT_ENV
+                )));
             }
 
             // Parse the port
@@ -118,18 +121,40 @@ mod tests {
     fn test_resolve_callback_port_empty_env() {
         std::env::remove_var(OAUTH_PORT_ENV);
         std::env::set_var(OAUTH_PORT_ENV, "");
-        let port = resolve_callback_port().unwrap();
-        assert_eq!(port, DEFAULT_OAUTH_PORT);
+        let result = resolve_callback_port();
+        assert!(result.is_err());
+        match result {
+            Err(OAuthError::ConfigError(msg)) => {
+                assert!(msg.contains("is set but empty"));
+            }
+            _ => panic!("Expected ConfigError for empty env var"),
+        }
         std::env::remove_var(OAUTH_PORT_ENV);
     }
 
     #[test]
     #[serial]
-    fn test_resolve_callback_port_whitespace_env() {
+    fn test_resolve_callback_port_whitespace_around_number() {
         std::env::remove_var(OAUTH_PORT_ENV);
         std::env::set_var(OAUTH_PORT_ENV, "  9123  ");
         let port = resolve_callback_port().unwrap();
         assert_eq!(port, 9123);
+        std::env::remove_var(OAUTH_PORT_ENV);
+    }
+
+    #[test]
+    #[serial]
+    fn test_resolve_callback_port_whitespace_only() {
+        std::env::remove_var(OAUTH_PORT_ENV);
+        std::env::set_var(OAUTH_PORT_ENV, "   ");
+        let result = resolve_callback_port();
+        assert!(result.is_err());
+        match result {
+            Err(OAuthError::ConfigError(msg)) => {
+                assert!(msg.contains("is set but empty"));
+            }
+            _ => panic!("Expected ConfigError for whitespace-only env var"),
+        }
         std::env::remove_var(OAUTH_PORT_ENV);
     }
 

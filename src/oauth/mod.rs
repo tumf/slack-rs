@@ -14,7 +14,7 @@ pub mod server;
 pub mod types;
 
 pub use pkce::{generate_pkce, generate_state};
-pub use port::{resolve_callback_port, DEFAULT_OAUTH_PORT, OAUTH_PORT_ENV};
+pub use port::resolve_callback_port;
 pub use server::run_callback_server;
 pub use types::{OAuthConfig, OAuthError, OAuthResponse};
 
