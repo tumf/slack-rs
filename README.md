@@ -149,6 +149,7 @@ slack-rs api call chat.postMessage channel=C123 text="Hello" thread_ts=1234567.1
 | `SLACKRS_CLIENT_SECRET` | OAuth Client Secret | (required) |
 | `SLACKRS_REDIRECT_URI` | OAuth Redirect URI | `http://127.0.0.1:3000/callback` |
 | `SLACKRS_SCOPES` | Comma-separated OAuth scopes | `chat:write,users:read` |
+| `SLACKCLI_ALLOW_WRITE` | Allow write operations (set to `false` or `0` to deny) | `true` (allow) |
 | `SLACKRS_KEYRING_PASSWORD` | Password for export/import encryption | (required for export/import) |
 | `SLACK_OAUTH_BASE_URL` | Custom OAuth base URL (for testing) | - |
 
@@ -156,6 +157,29 @@ slack-rs api call chat.postMessage channel=C123 text="Hello" thread_ts=1234567.1
 
 - **Profile metadata** (non-sensitive): `~/.config/slack-rs/profiles.json` (Linux/macOS)
 - **Access tokens** (sensitive): OS keyring (Keychain on macOS, Secret Service on Linux, Credential Manager on Windows)
+
+### Write Operation Protection
+
+Write operations (posting, updating, deleting messages, and managing reactions) are controlled by the `SLACKCLI_ALLOW_WRITE` environment variable:
+
+- **Default behavior** (variable not set): Write operations are **allowed**
+- **Deny write operations**: Set `SLACKCLI_ALLOW_WRITE=false` or `SLACKCLI_ALLOW_WRITE=0`
+- **Explicitly allow**: Set `SLACKCLI_ALLOW_WRITE=true` or `SLACKCLI_ALLOW_WRITE=1`
+
+**Example: Preventing accidental write operations**
+
+```bash
+# Deny all write operations
+export SLACKCLI_ALLOW_WRITE=false
+
+# This will fail with an error
+slack-rs msg post C123456 "Hello"
+# Error: Write operation denied. Set SLACKCLI_ALLOW_WRITE=true to enable write operations
+
+# Re-enable write operations
+export SLACKCLI_ALLOW_WRITE=true
+slack-rs msg post C123456 "Hello"  # Now succeeds
+```
 
 ## Security
 

@@ -30,7 +30,7 @@ pub enum ApiError {
     #[error("Missing required parameter: {0}")]
     MissingParameter(String),
 
-    #[error("Write operation requires --allow-write flag")]
+    #[error("Write operation denied. Set SLACKCLI_ALLOW_WRITE=true to enable write operations")]
     WriteNotAllowed,
 
     #[error("Destructive operation cancelled")]
@@ -89,7 +89,7 @@ impl Default for ApiClientConfig {
 /// - Generic API calls via `call()` with arbitrary endpoints
 pub struct ApiClient {
     client: Client,
-    token: Option<String>,
+    pub(crate) token: Option<String>,
     config: ApiClientConfig,
 }
 

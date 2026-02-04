@@ -12,7 +12,6 @@ use std::collections::HashMap;
 /// * `channel` - Channel ID
 /// * `timestamp` - Message timestamp
 /// * `name` - Emoji name (without colons, e.g., "thumbsup")
-/// * `allow_write` - Whether write operations are allowed
 ///
 /// # Returns
 /// * `Ok(ApiResponse)` with reaction confirmation
@@ -22,9 +21,8 @@ pub async fn react_add(
     channel: String,
     timestamp: String,
     name: String,
-    allow_write: bool,
 ) -> Result<ApiResponse, ApiError> {
-    check_write_allowed(allow_write)?;
+    check_write_allowed()?;
 
     let mut params = HashMap::new();
     params.insert("channel".to_string(), json!(channel));
@@ -41,7 +39,6 @@ pub async fn react_add(
 /// * `channel` - Channel ID
 /// * `timestamp` - Message timestamp
 /// * `name` - Emoji name (without colons, e.g., "thumbsup")
-/// * `allow_write` - Whether write operations are allowed
 /// * `yes` - Skip confirmation prompt
 ///
 /// # Returns
@@ -52,10 +49,9 @@ pub async fn react_remove(
     channel: String,
     timestamp: String,
     name: String,
-    allow_write: bool,
     yes: bool,
 ) -> Result<ApiResponse, ApiError> {
-    check_write_allowed(allow_write)?;
+    check_write_allowed()?;
     confirm_destructive(yes, "remove this reaction")?;
 
     let mut params = HashMap::new();
@@ -71,33 +67,35 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    async fn test_react_add_without_write_flag() {
+    async fn test_react_add_with_env_false() {
+        std::env::set_var("SLACKCLI_ALLOW_WRITE", "false");
         let client = ApiClient::with_token("test_token".to_string());
         let result = react_add(
             &client,
             "C123456".to_string(),
             "1234567890.123456".to_string(),
             "thumbsup".to_string(),
-            false,
         )
         .await;
         assert!(result.is_err());
         assert!(matches!(result.unwrap_err(), ApiError::WriteNotAllowed));
+        std::env::remove_var("SLACKCLI_ALLOW_WRITE");
     }
 
     #[tokio::test]
-    async fn test_react_remove_without_write_flag() {
+    async fn test_react_remove_with_env_false() {
+        std::env::set_var("SLACKCLI_ALLOW_WRITE", "false");
         let client = ApiClient::with_token("test_token".to_string());
         let result = react_remove(
             &client,
             "C123456".to_string(),
             "1234567890.123456".to_string(),
             "thumbsup".to_string(),
-            false,
             true,
         )
         .await;
         assert!(result.is_err());
         assert!(matches!(result.unwrap_err(), ApiError::WriteNotAllowed));
+        std::env::remove_var("SLACKCLI_ALLOW_WRITE");
     }
 }
