@@ -48,5 +48,3 @@ sign-tag = false
 pre-release-commit-message = "chore: release {{version}}"
 # Enable/disable pre-release checks
 verify = true
-# Enable/disable pre-release hook execution
-pre-release-hook = []
