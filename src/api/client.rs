@@ -157,19 +157,6 @@ impl ApiClient {
 
         let url = format!("{}/{}", self.config.base_url, method.as_str());
 
-        // Debug: Show API request details
-        eprintln!("🔍 Debug - API Request:");
-        eprintln!("  Method: {}", method.as_str());
-        eprintln!("  URL: {}", url);
-        eprintln!(
-            "  Params: {}",
-            serde_json::to_string_pretty(&params).unwrap_or_else(|_| "{}".to_string())
-        );
-        eprintln!(
-            "  Token prefix: {}...",
-            &token.chars().take(10).collect::<String>()
-        );
-
         let response = if method.uses_get_method() {
             // Use GET request with query parameters
             let mut query_params = vec![];
@@ -200,13 +187,6 @@ impl ApiClient {
         };
 
         let response_json: ApiResponse = response.json().await?;
-
-        // Debug: Show API response
-        eprintln!("🔍 Debug - API Response:");
-        eprintln!("  OK: {}", response_json.ok);
-        if let Some(ref error) = response_json.error {
-            eprintln!("  Error: {}", error);
-        }
 
         if !response_json.ok {
             return Err(ApiError::SlackError(

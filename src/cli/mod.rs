@@ -20,34 +20,15 @@ pub async fn get_api_client(profile_name: Option<String>) -> Result<ApiClient, S
 
     // Try to get user token first (for APIs that require user scope like search.messages)
     let user_token_key = format!("{}:{}:user", profile.team_id, profile.user_id);
-    eprintln!(
-        "🔍 Debug - Trying to get user token with key: {}",
-        user_token_key
-    );
 
     let token = match token_store.get(&user_token_key) {
-        Ok(user_token) => {
-            eprintln!("✓ Using user token for API calls");
-            eprintln!(
-                "  Token prefix: {}...",
-                &user_token.chars().take(10).collect::<String>()
-            );
-            user_token
-        }
-        Err(e) => {
-            eprintln!("⚠️  User token not found: {}", e);
+        Ok(user_token) => user_token,
+        Err(_) => {
             // Fall back to bot token
             let bot_token_key = make_token_key(&profile.team_id, &profile.user_id);
-            eprintln!("🔍 Trying to get bot token with key: {}", bot_token_key);
-            let bot_token = token_store
+            token_store
                 .get(&bot_token_key)
-                .map_err(|e| format!("Failed to get token: {}", e))?;
-            eprintln!("✓ Using bot token for API calls");
-            eprintln!(
-                "  Token prefix: {}...",
-                &bot_token.chars().take(10).collect::<String>()
-            );
-            bot_token
+                .map_err(|e| format!("Failed to get token: {}", e))?
         }
     };
 
