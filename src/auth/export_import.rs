@@ -210,6 +210,7 @@ pub fn import_profiles<T: TokenStore>(token_store: &T, options: &ImportOptions) 
             user_id: export_profile.user_id.clone(),
             team_name: export_profile.team_name,
             user_name: export_profile.user_name,
+            client_id: None, // OAuth client ID not included in legacy exports
         };
 
         config.set(name, profile);
@@ -355,6 +356,7 @@ mod tests {
                 user_id: "U456".to_string(),
                 team_name: Some("Test Team".to_string()),
                 user_name: Some("Test User".to_string()),
+                client_id: None,
             },
         );
         save_config(&config_path, &config).unwrap();

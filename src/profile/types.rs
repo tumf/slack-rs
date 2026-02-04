@@ -16,6 +16,9 @@ pub struct Profile {
     pub user_id: String,
     pub team_name: Option<String>,
     pub user_name: Option<String>,
+    /// OAuth client ID for this profile (optional for backward compatibility)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub client_id: Option<String>,
 }
 
 /// Root configuration structure with versioning for future migration
@@ -121,6 +124,7 @@ mod tests {
             user_id: "U456".to_string(),
             team_name: Some("Test Team".to_string()),
             user_name: Some("Test User".to_string()),
+            client_id: None,
         };
 
         config.set("default".to_string(), profile.clone());
@@ -136,6 +140,7 @@ mod tests {
             user_id: "U456".to_string(),
             team_name: None,
             user_name: None,
+            client_id: None,
         };
 
         config.set("test".to_string(), profile.clone());
@@ -154,6 +159,7 @@ mod tests {
                 user_id: "U1".to_string(),
                 team_name: None,
                 user_name: None,
+                client_id: None,
             },
         );
         config.set(
@@ -163,6 +169,7 @@ mod tests {
                 user_id: "U2".to_string(),
                 team_name: None,
                 user_name: None,
+                client_id: None,
             },
         );
 
@@ -178,6 +185,7 @@ mod tests {
             user_id: "U456".to_string(),
             team_name: Some("Test Team".to_string()),
             user_name: Some("Test User".to_string()),
+            client_id: None,
         };
 
         let json = serde_json::to_string(&profile).unwrap();
@@ -195,6 +203,7 @@ mod tests {
                 user_id: "U456".to_string(),
                 team_name: Some("Test Team".to_string()),
                 user_name: Some("Test User".to_string()),
+                client_id: None,
             },
         );
 
@@ -211,12 +220,14 @@ mod tests {
             user_id: "U456".to_string(),
             team_name: None,
             user_name: None,
+            client_id: None,
         };
         let profile2 = Profile {
             team_id: "T789".to_string(),
             user_id: "U012".to_string(),
             team_name: None,
             user_name: None,
+            client_id: None,
         };
 
         // First add should succeed
@@ -241,6 +252,7 @@ mod tests {
             user_id: "U456".to_string(),
             team_name: Some("Test Team".to_string()),
             user_name: Some("Test User".to_string()),
+            client_id: None,
         };
 
         // Adding new profile should succeed
@@ -258,12 +270,14 @@ mod tests {
             user_id: "U456".to_string(),
             team_name: Some("Test Team".to_string()),
             user_name: Some("Test User".to_string()),
+            client_id: None,
         };
         let profile2 = Profile {
             team_id: "T123".to_string(),
             user_id: "U456".to_string(),
             team_name: Some("Updated Team".to_string()),
             user_name: Some("Updated User".to_string()),
+            client_id: None,
         };
 
         config
@@ -285,12 +299,14 @@ mod tests {
             user_id: "U456".to_string(),
             team_name: None,
             user_name: None,
+            client_id: None,
         };
         let profile2 = Profile {
             team_id: "T789".to_string(),
             user_id: "U012".to_string(),
             team_name: None,
             user_name: None,
+            client_id: None,
         };
 
         config
@@ -314,12 +330,14 @@ mod tests {
             user_id: "U456".to_string(),
             team_name: Some("Test Team".to_string()),
             user_name: Some("Test User".to_string()),
+            client_id: None,
         };
         let profile2 = Profile {
             team_id: "T123".to_string(),
             user_id: "U456".to_string(),
             team_name: Some("Updated Team".to_string()),
             user_name: Some("Updated User".to_string()),
+            client_id: None,
         };
 
         config.set_or_update("old".to_string(), profile1).unwrap();
@@ -333,5 +351,64 @@ mod tests {
         assert_eq!(config.get("old"), Some(&profile2));
         // New name should not exist
         assert_eq!(config.get("new"), None);
+    }
+
+    #[test]
+    fn test_backward_compatibility_profile_without_client_id() {
+        // Test that old profiles.json without client_id can be deserialized
+        let json = r#"{
+            "version": 1,
+            "profiles": {
+                "default": {
+                    "team_id": "T123",
+                    "user_id": "U456",
+                    "team_name": "Test Team",
+                    "user_name": "Test User"
+                }
+            }
+        }"#;
+
+        let config: ProfilesConfig = serde_json::from_str(json).unwrap();
+        assert_eq!(config.version, 1);
+        assert_eq!(config.profiles.len(), 1);
+
+        let profile = config.get("default").unwrap();
+        assert_eq!(profile.team_id, "T123");
+        assert_eq!(profile.user_id, "U456");
+        assert_eq!(profile.client_id, None);
+    }
+
+    #[test]
+    fn test_profile_with_client_id_serialization() {
+        // Test that new profiles with client_id serialize correctly
+        let profile = Profile {
+            team_id: "T123".to_string(),
+            user_id: "U456".to_string(),
+            team_name: Some("Test Team".to_string()),
+            user_name: Some("Test User".to_string()),
+            client_id: Some("client-123".to_string()),
+        };
+
+        let json = serde_json::to_string(&profile).unwrap();
+        let deserialized: Profile = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(profile, deserialized);
+        assert_eq!(deserialized.client_id, Some("client-123".to_string()));
+    }
+
+    #[test]
+    fn test_profile_without_client_id_omits_field() {
+        // Test that profiles without client_id don't include the field in JSON
+        let profile = Profile {
+            team_id: "T123".to_string(),
+            user_id: "U456".to_string(),
+            team_name: Some("Test Team".to_string()),
+            user_name: Some("Test User".to_string()),
+            client_id: None,
+        };
+
+        let json = serde_json::to_string(&profile).unwrap();
+        // The JSON should not contain "client_id" field due to skip_serializing_if
+        assert!(!json.contains("client_id"));
     }
 }
