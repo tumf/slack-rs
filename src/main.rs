@@ -1086,7 +1086,7 @@ fn demonstrate_token_storage() {
     println!("  // Stores tokens in ~/.config/slack-rs/tokens.json with 0600 permissions");
     println!("\nKeyringTokenStore is also available:");
     println!("  let store = KeyringTokenStore::default_service();");
-    println!("  // Uses OS keyring with service='slackcli' (kept for backward compatibility)");
+    println!("  // Uses OS keyring with service='slack-rs'");
 
     println!();
 }
@@ -1240,7 +1240,7 @@ fn demonstrate_keyring_token_storage() {
 
     // Create KeyringTokenStore with default service name
     let keyring_store = KeyringTokenStore::default_service();
-    println!("Created KeyringTokenStore with service='slackcli' (kept for backward compatibility)");
+    println!("Created KeyringTokenStore with service='slack-rs'");
 
     // Create a test token key
     let key = make_token_key("T123ABC", "U456DEF");
