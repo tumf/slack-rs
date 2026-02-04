@@ -242,6 +242,21 @@ async fn main() {
                 _ => print_react_usage(&args[0]),
             }
         }
+        "file" => {
+            if args.len() < 3 {
+                print_file_usage(&args[0]);
+                std::process::exit(1);
+            }
+            match args[2].as_str() {
+                "upload" => {
+                    if let Err(e) = run_file_upload(&args).await {
+                        eprintln!("File upload failed: {}", e);
+                        std::process::exit(1);
+                    }
+                }
+                _ => print_file_usage(&args[0]),
+            }
+        }
         "demo" => {
             println!("Slack CLI - OAuth authentication flow");
             println!();
@@ -297,6 +312,7 @@ fn print_help() {
     println!("    msg delete <channel> <ts>        Delete a message");
     println!("    react add <channel> <ts> <emoji> Add a reaction");
     println!("    react remove <channel> <ts> <emoji> Remove a reaction");
+    println!("    file upload <path>               Upload a file (external upload method)");
     println!("    demo                             Run demonstration");
     println!();
     println!("API CALL OPTIONS:");
@@ -330,6 +346,7 @@ fn print_usage() {
     println!("  msg delete <channel> <ts>      - Delete a message (requires --allow-write)");
     println!("  react add <channel> <ts> <emoji> - Add a reaction (requires --allow-write)");
     println!("  react remove <channel> <ts> <emoji> - Remove a reaction (requires --allow-write)");
+    println!("  file upload <path>             - Upload a file using external upload method (requires --allow-write)");
     println!("  demo                           - Run demonstration");
     println!("  --help, -h                     - Show help");
     println!("  --version, -v                  - Show version");

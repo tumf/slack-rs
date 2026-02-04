@@ -209,6 +209,32 @@ pub async fn run_react_remove(args: &[String]) -> Result<(), String> {
     Ok(())
 }
 
+pub async fn run_file_upload(args: &[String]) -> Result<(), String> {
+    if args.len() < 4 {
+        return Err(
+            "Usage: file upload <path> --allow-write [--channel=ID] [--channels=IDs] [--title=TITLE] [--comment=TEXT] [--profile=NAME]"
+                .to_string(),
+        );
+    }
+
+    let file_path = args[3].clone();
+    let allow_write = has_flag(args, "--allow-write");
+
+    // Support both --channel and --channels
+    let channels = get_option(args, "--channel=").or_else(|| get_option(args, "--channels="));
+    let title = get_option(args, "--title=");
+    let comment = get_option(args, "--comment=");
+    let profile = get_option(args, "--profile=");
+
+    let client = get_api_client(profile).await?;
+    let response = commands::file_upload(&client, file_path, channels, title, comment, allow_write)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    println!("{}", serde_json::to_string_pretty(&response).unwrap());
+    Ok(())
+}
+
 pub fn print_conv_usage(prog: &str) {
     println!("Conv command usage:");
     println!(
@@ -250,6 +276,14 @@ pub fn print_react_usage(prog: &str) {
     );
     println!(
         "  {} react remove <channel> <ts> <emoji> --allow-write [--yes] [--profile=NAME]",
+        prog
+    );
+}
+
+pub fn print_file_usage(prog: &str) {
+    println!("File command usage:");
+    println!(
+        "  {} file upload <path> --allow-write [--channel=ID] [--channels=IDs] [--title=TITLE] [--comment=TEXT] [--profile=NAME]",
         prog
     );
 }

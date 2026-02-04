@@ -368,3 +368,117 @@ async fn test_react_remove_calls_correct_api() {
 
     assert!(result.is_ok());
 }
+
+#[tokio::test]
+async fn test_file_upload_requires_allow_write() {
+    let mock_server = MockServer::start().await;
+    let client = ApiClient::new_with_base_url("test_token".to_string(), mock_server.uri());
+
+    let result = commands::file_upload(
+        &client,
+        "/tmp/test.txt".to_string(),
+        None,
+        None,
+        None,
+        false, // allow_write = false
+    )
+    .await;
+
+    assert!(result.is_err());
+    assert!(result
+        .unwrap_err()
+        .to_string()
+        .contains("requires --allow-write"));
+}
+
+#[tokio::test]
+async fn test_file_upload_external_flow() {
+    use std::io::Write;
+    use tempfile::NamedTempFile;
+
+    // Create a temporary file for testing
+    let mut temp_file = NamedTempFile::new().unwrap();
+    writeln!(temp_file, "test content").unwrap();
+    let file_path = temp_file.path().to_str().unwrap().to_string();
+
+    // Start a mock server for Slack API endpoints
+    let mock_server = MockServer::start().await;
+
+    // Mock files.getUploadURLExternal
+    let get_url_response = serde_json::json!({
+        "ok": true,
+        "upload_url": format!("{}/upload", mock_server.uri()),
+        "file_id": "F12345"
+    });
+
+    Mock::given(method("POST"))
+        .and(path("/files.getUploadURLExternal"))
+        .and(header("authorization", "Bearer test_token"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(&get_url_response))
+        .expect(1)
+        .mount(&mock_server)
+        .await;
+
+    // Mock upload endpoint (external URL)
+    Mock::given(method("POST"))
+        .and(path("/upload"))
+        .and(header("content-type", "application/octet-stream"))
+        .respond_with(ResponseTemplate::new(200))
+        .expect(1)
+        .mount(&mock_server)
+        .await;
+
+    // Mock files.completeUploadExternal
+    let complete_response = serde_json::json!({
+        "ok": true,
+        "files": [{
+            "id": "F12345",
+            "title": "test file"
+        }]
+    });
+
+    Mock::given(method("POST"))
+        .and(path("/files.completeUploadExternal"))
+        .and(header("authorization", "Bearer test_token"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(&complete_response))
+        .expect(1)
+        .mount(&mock_server)
+        .await;
+
+    // Create API client
+    let client = ApiClient::new_with_base_url("test_token".to_string(), mock_server.uri());
+
+    // Call file_upload command
+    let result = commands::file_upload(
+        &client,
+        file_path,
+        Some("C123456".to_string()),
+        Some("Test File".to_string()),
+        Some("Test comment".to_string()),
+        true, // allow_write = true
+    )
+    .await;
+
+    assert!(result.is_ok());
+    let response_value = result.unwrap();
+    assert!(response_value.get("ok").is_some());
+}
+
+#[tokio::test]
+async fn test_file_upload_nonexistent_file() {
+    let mock_server = MockServer::start().await;
+    let client = ApiClient::new_with_base_url("test_token".to_string(), mock_server.uri());
+
+    let result = commands::file_upload(
+        &client,
+        "/nonexistent/file.txt".to_string(),
+        None,
+        None,
+        None,
+        true, // allow_write = true
+    )
+    .await;
+
+    assert!(result.is_err());
+    assert!(result.unwrap_err().to_string().contains("File not found"));
+}
