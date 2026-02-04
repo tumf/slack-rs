@@ -39,8 +39,8 @@ async fn test_exchange_code_with_mock_server() {
     let config = OAuthConfig {
         client_id: "test_client_id".to_string(),
         client_secret: "test_client_secret".to_string(),
-        redirect_uri: "http://localhost:3000/callback".to_string(),
-        scopes: vec!["chat:write".to_string(), "users:read".to_string()],
+        redirect_uri: "http://localhost:8765/callback".to_string(),
+        scopes: vec!["chat:write".to_string()],
     };
 
     // Exchange code

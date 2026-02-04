@@ -1,8 +1,8 @@
 //! Auth command implementations
 
 use crate::oauth::{
-    build_authorization_url, exchange_code, generate_pkce, generate_state, run_callback_server,
-    OAuthConfig, OAuthError,
+    build_authorization_url, exchange_code, generate_pkce, generate_state, resolve_callback_port,
+    run_callback_server, OAuthConfig, OAuthError,
 };
 use crate::profile::{
     default_config_path, load_config, make_token_key, save_config, KeyringTokenStore, Profile,
@@ -231,9 +231,10 @@ async fn perform_oauth_flow(
         println!("Please open the URL manually in your browser.");
     }
 
-    // Start callback server
+    // Start callback server with resolved port
+    let port = resolve_callback_port()?;
     println!("Waiting for authentication callback...");
-    let callback_result = run_callback_server(3000, state.clone(), 300).await?;
+    let callback_result = run_callback_server(port, state.clone(), 300).await?;
 
     println!("Received authorization code, exchanging for token...");
 
@@ -355,9 +356,10 @@ pub async fn login(
         println!("Please open the URL manually in your browser.");
     }
 
-    // Start callback server
+    // Start callback server with resolved port
+    let port = resolve_callback_port()?;
     println!("Waiting for authentication callback...");
-    let callback_result = run_callback_server(3000, state.clone(), 300).await?;
+    let callback_result = run_callback_server(port, state.clone(), 300).await?;
 
     println!("Received authorization code, exchanging for token...");
 
@@ -619,7 +621,7 @@ mod tests {
             token: "xoxb-test-token",
             client_id: "test-client-id",
             client_secret: "test-client-secret",
-            redirect_uri: "http://127.0.0.1:3000/callback",
+            redirect_uri: "http://127.0.0.1:8765/callback",
             scopes: &scopes,
         })
         .unwrap();

@@ -436,8 +436,8 @@ fn print_config_oauth_usage(prog: &str) {
     println!("      Delete OAuth configuration for a profile");
     println!();
     println!("Examples:");
-    println!("  {} config oauth set work --client-id 123.456 --redirect-uri http://127.0.0.1:3000/callback --scopes \"chat:write,users:read\"", prog);
-    println!("  {} config oauth set work --client-id 123.456 --redirect-uri http://127.0.0.1:3000/callback --scopes \"all\"", prog);
+    println!("  {} config oauth set work --client-id 123.456 --redirect-uri http://127.0.0.1:8765/callback --scopes \"chat:write,users:read\"", prog);
+    println!("  {} config oauth set work --client-id 123.456 --redirect-uri http://127.0.0.1:8765/callback --scopes \"all\"", prog);
     println!("  {} config oauth show work", prog);
     println!("  {} config oauth delete work", prog);
 }
@@ -472,7 +472,7 @@ async fn run_auth_login(args: &[String]) -> Result<(), String> {
     }
 
     // Use default redirect_uri and scopes (can be overridden via config oauth set)
-    let redirect_uri = "http://127.0.0.1:3000/callback".to_string();
+    let redirect_uri = "http://127.0.0.1:8765/callback".to_string();
 
     let scopes: Vec<String> = "chat:write,users:read"
         .split(',')
