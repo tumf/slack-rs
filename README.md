@@ -3,6 +3,9 @@
 A Slack CLI tool written in Rust that provides comprehensive access to the Slack Web API using OAuth authentication.
 
 [![CI](https://github.com/tumf/slack-rs/workflows/CI/badge.svg)](https://github.com/tumf/slack-rs/actions)
+[![Crates.io](https://img.shields.io/crates/v/slack-rs.svg)](https://crates.io/crates/slack-rs)
+[![Documentation](https://docs.rs/slack-rs/badge.svg)](https://docs.rs/slack-rs)
+[![Downloads](https://img.shields.io/crates/d/slack-rs.svg)](https://crates.io/crates/slack-rs)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 ## Overview
