@@ -19,6 +19,21 @@ A Slack CLI tool written in Rust that provides comprehensive access to the Slack
 - 🛠️ **Wrapper Commands** for common operations
 - 🔁 **Smart Retry Logic** with exponential backoff and rate limit handling
 
+## TL;DR
+
+```bash
+# Build / test
+make build
+make test
+make check
+
+# (Optional) Build Serena symbol index under .serena/cache
+make index
+```
+
+Notes:
+- `make index` requires the `serena` CLI (e.g. `uv tool install serena`).
+
 ## Installation
 
 ### Prerequisites

@@ -1,6 +1,6 @@
 # Makefile for slack-rs
 
-.PHONY: build help install release test clean fmt lint check setup pre-commit-hooks bump-patch bump-minor bump-major
+.PHONY: build help install release test clean fmt lint check setup pre-commit-hooks bump-patch bump-minor bump-major index
 
 # Default target - build debug version
 build:
@@ -19,6 +19,7 @@ help:
 	@echo "  make fmt               - Format code with rustfmt"
 	@echo "  make lint              - Run clippy linter"
 	@echo "  make check             - Run fmt, lint, and test"
+	@echo "  make index             - Build Serena symbol index (.serena/cache)"
 	@echo "  make setup             - Setup development environment"
 	@echo "  make pre-commit-hooks  - Install git pre-commit hooks"
 	@echo "  make bump-patch        - Bump patch version (0.1.0 -> 0.1.1)"
@@ -60,6 +61,13 @@ lint:
 # Run all checks (format, lint, test)
 check: fmt lint test
 	@echo "All checks passed!"
+
+# Build Serena symbol index under .serena/cache
+index:
+	@echo "Indexing project for Serena..."
+	@command -v serena >/dev/null 2>&1 || (echo "serena CLI not found. Install it first (e.g. 'uv tool install serena')." && exit 1)
+	serena project index . --log-level INFO
+	@echo "Serena index complete."
 
 # Setup development environment
 setup: pre-commit-hooks
