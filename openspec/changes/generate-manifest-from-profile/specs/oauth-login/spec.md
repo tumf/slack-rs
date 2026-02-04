@@ -1,0 +1,80 @@
+# oauth-login 仕様（差分）
+
+## MODIFIED Requirements
+
+### Requirement: PKCE と state を含む認可 URL を生成する
+
+OAuth 認可 URL には `client_id`、`redirect_uri`、`state`、`code_challenge`、`code_challenge_method=S256` を含めなければならない (MUST)。
+
+さらに、user スコープが 1 つ以上ある場合は `user_scope` も含めなければならない (MUST)。
+
+#### Scenario: user スコープがある場合に user_scope が付与される
+- Given OAuth 設定に `user_scopes` が存在する
+- When 認可 URL を生成する
+- Then URL に `user_scope` が含まれる
+
+#### Scenario: user スコープが空の場合は user_scope を付与しない
+- Given `user_scopes` が空である
+- When 認可 URL を生成する
+- Then URL に `user_scope` を含めない
+
+### Requirement: redirect_uri の解決（cloudflared は OPTIONAL）
+
+`auth login` は `--cloudflared <path>` オプションで cloudflared 実行ファイルのパスを受け付けなければならない (MUST)。
+
+`--cloudflared` が指定された場合、`auth login` は cloudflared tunnel プロセスを起動し、生成された公開 URL を抽出し、それを OAuth フローの `redirect_uri` として使用しなければならない (MUST)。tunnel は OAuth フロー完了後に停止しなければならない (MUST)。
+
+`--cloudflared` が指定されない場合、`auth login` はユーザーに redirect_uri をプロンプトして取得し、その値を OAuth フローの `redirect_uri` として使用しなければならない (MUST)。この場合、cloudflared を起動してはならない (MUST NOT)。
+
+#### Scenario: `--cloudflared` 指定時に tunnel を起動し公開 URL を redirect_uri に使用する
+- Given `auth login --cloudflared <path>` を実行する
+- When OAuth フローを開始する
+- Then 指定された cloudflared を `tunnel --url http://localhost:8765` で起動する
+- And cloudflared の出力から公開 URL（例: `https://xxx.trycloudflare.com`）を抽出する
+- And redirect_uri を `{public_url}/callback` に設定する
+- And OAuth コールバック受信後に tunnel を停止する
+
+#### Scenario: `--cloudflared` 未指定時は redirect_uri をプロンプトして cloudflared を起動しない
+- Given `auth login` を実行する
+- And `--cloudflared` が指定されていない
+- When OAuth フローを開始する
+- Then redirect_uri の入力プロンプトが表示される
+- And 入力された redirect_uri を使用する
+- And cloudflared tunnel を起動しない
+
+#### Scenario: `--cloudflared` 指定時に cloudflared が実行できない場合のエラーハンドリング
+- Given `auth login --cloudflared <path>` を実行する
+- And 指定パスの cloudflared が未存在、または実行できない
+- When OAuth フローを開始する
+- Then cloudflared が実行できないことが分かる明確なエラーメッセージを表示する
+- And OAuth フローを開始しない
+
+### Requirement: login 開始時に必要情報を対話入力で補完する
+
+login 開始時に OAuth クライアント情報が不足している場合、対話入力で補完しなければならない (MUST)。
+
+スコープについては、明示的な CLI 引数が指定されている場合を除き、対話的に入力しなければならない (MUST)。
+対話入力のデフォルト入力値は bot/user ともに `all` でなければならない (MUST)。
+
+#### Scenario: スコープが CLI 引数で指定されていない場合は対話入力される
+- Given `--bot-scopes` と `--user-scopes` が指定されていない
+- When `auth login` を実行する
+- Then bot スコープの入力プロンプトが表示される
+- And user スコープの入力プロンプトが表示される
+- And いずれのデフォルト入力値も `all` である
+
+#### Scenario: スコープが CLI 引数で指定されている場合は対話入力しない
+- Given `--bot-scopes` または `--user-scopes` が指定されている
+- When `auth login` を実行する
+- Then 指定されている側のスコープについて入力プロンプトを表示しない
+
+### Requirement: 認可コードをトークンに交換し保存する
+
+`oauth.v2.access` の成功レスポンスに含まれる `access_token` およびプロファイルに必要なメタデータは保存しなければならない (MUST)。
+
+また、`authed_user.access_token` が存在する場合は bot トークンとは別の user トークンとして保存しなければならない (MUST)。
+
+#### Scenario: bot/user 両方のトークンが返る場合に別々に保存される
+- Given OAuth レスポンスに `access_token` と `authed_user.access_token` の両方が含まれる
+- When トークン交換を実行する
+- Then bot トークンと user トークンがそれぞれ永続化され、独立して取得できる
