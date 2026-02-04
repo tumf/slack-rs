@@ -12,6 +12,7 @@ use std::time::Duration;
 
 /// Error type for cloudflared operations
 #[derive(Debug)]
+#[allow(dead_code)]
 pub enum CloudflaredError {
     /// Failed to start cloudflared process
     StartError(String),
@@ -82,25 +83,36 @@ impl CloudflaredTunnel {
         // Create channel for URL extraction
         let (tx, rx): (std::sync::mpsc::Sender<String>, Receiver<String>) = channel();
 
-        // Spawn thread to read stdout and stderr
+        // Spawn thread to read stdout continuously (don't stop after finding URL)
         let tx_clone = tx.clone();
         thread::spawn(move || {
             let reader = BufReader::new(stdout);
+            let mut url_sent = false;
             for line in reader.lines().map_while(Result::ok) {
-                if let Some(url) = extract_public_url(&line) {
-                    let _ = tx_clone.send(url);
-                    break;
+                // Send URL once, but keep reading to prevent SIGPIPE
+                if !url_sent {
+                    if let Some(url) = extract_public_url(&line) {
+                        let _ = tx_clone.send(url);
+                        url_sent = true;
+                    }
                 }
+                // Continue reading all output to keep pipe open
             }
         });
 
+        // Spawn thread to read stderr continuously (don't stop after finding URL)
         thread::spawn(move || {
             let reader = BufReader::new(stderr);
+            let mut url_sent = false;
             for line in reader.lines().map_while(Result::ok) {
-                if let Some(url) = extract_public_url(&line) {
-                    let _ = tx.send(url);
-                    break;
+                // Send URL once, but keep reading to prevent SIGPIPE
+                if !url_sent {
+                    if let Some(url) = extract_public_url(&line) {
+                        let _ = tx.send(url);
+                        url_sent = true;
+                    }
                 }
+                // Continue reading all output to keep pipe open
             }
         });
 
@@ -126,7 +138,23 @@ impl CloudflaredTunnel {
         &self.public_url
     }
 
+    /// Check if the tunnel process is still running
+    pub fn is_running(&mut self) -> bool {
+        match self.process.try_wait() {
+            Ok(None) => true, // Process is still running
+            Ok(Some(status)) => {
+                eprintln!("⚠️  Cloudflared process exited with status: {}", status);
+                false
+            }
+            Err(e) => {
+                eprintln!("⚠️  Failed to check cloudflared process status: {}", e);
+                false
+            }
+        }
+    }
+
     /// Stop the cloudflared tunnel
+    #[allow(dead_code)]
     pub fn stop(mut self) -> Result<(), CloudflaredError> {
         self.process.kill().map_err(|e| {
             CloudflaredError::ProcessTerminated(format!("Failed to kill process: {}", e))
@@ -136,6 +164,19 @@ impl CloudflaredTunnel {
         let _ = self.process.wait();
 
         Ok(())
+    }
+}
+
+impl Drop for CloudflaredTunnel {
+    fn drop(&mut self) {
+        println!("🔴 CloudflaredTunnel is being dropped");
+        if self.is_running() {
+            println!("  Killing cloudflared process...");
+            let _ = self.process.kill();
+            let _ = self.process.wait();
+        } else {
+            println!("  Cloudflared process was already terminated");
+        }
     }
 }
 

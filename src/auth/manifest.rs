@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 /// Slack App Manifest structure
 #[derive(Debug, Serialize, Deserialize)]
 pub struct AppManifest {
+    #[serde(rename = "_metadata")]
     pub _metadata: Metadata,
     pub display_information: DisplayInformation,
     pub features: Features,
@@ -82,28 +83,17 @@ pub fn generate_manifest(
     bot_scopes: &[String],
     user_scopes: &[String],
     redirect_uri: &str,
-    use_cloudflared: bool,
-    use_ngrok: bool,
+    _use_cloudflared: bool,
+    _use_ngrok: bool,
     profile_name: &str,
 ) -> Result<String, String> {
     // Determine redirect URLs based on whether cloudflared or ngrok is used
-    let redirect_urls = if use_cloudflared {
-        vec![
-            "https://*.trycloudflare.com/callback".to_string(),
-            redirect_uri.to_string(),
-        ]
-    } else if use_ngrok {
-        vec![
-            "https://*.ngrok-free.app/callback".to_string(),
-            redirect_uri.to_string(),
-        ]
-    } else {
-        vec![redirect_uri.to_string()]
-    };
+    // Note: Slack does not accept wildcard URLs in manifests, so we only include the actual redirect_uri
+    let redirect_urls = vec![redirect_uri.to_string()];
 
     let manifest = AppManifest {
         _metadata: Metadata {
-            major_version: 1,
+            major_version: 2,
             minor_version: 1,
         },
         display_information: DisplayInformation {
@@ -142,7 +132,19 @@ pub fn generate_manifest(
         },
     };
 
-    serde_yaml::to_string(&manifest).map_err(|e| format!("Failed to serialize manifest: {}", e))
+    // Serialize to YAML with explicit configuration
+    let yaml_string = serde_yaml::to_string(&manifest)
+        .map_err(|e| format!("Failed to serialize manifest: {}", e))?;
+
+    // Verify the YAML starts correctly
+    if !yaml_string.starts_with("_metadata:") && !yaml_string.starts_with("\"_metadata\":") {
+        return Err(format!(
+            "Generated YAML does not start with _metadata field. First line: {}",
+            yaml_string.lines().next().unwrap_or("(empty)")
+        ));
+    }
+
+    Ok(yaml_string)
 }
 
 #[cfg(test)]
@@ -165,13 +167,33 @@ mod tests {
 
         assert!(result.is_ok());
         let yaml = result.unwrap();
+
+        // Print YAML for debugging
+        println!("Generated YAML:\n{}", yaml);
+
+        // Verify YAML structure
+        assert!(yaml.contains("_metadata:"));
+        assert!(yaml.contains("major_version: 2"));
+        assert!(yaml.contains("minor_version: 1"));
+        assert!(yaml.contains("display_information:"));
+        assert!(yaml.contains("features:"));
+        assert!(yaml.contains("oauth_config:"));
+        assert!(yaml.contains("settings:"));
+
+        // Verify scopes
         assert!(yaml.contains("chat:write"));
         assert!(yaml.contains("users:read"));
         assert!(yaml.contains("http://localhost:8765/callback"));
         assert!(yaml.contains("slack-rs (default)"));
         assert!(yaml.contains("bot:"));
-        // Verify the structure - bot scopes should be under "scopes:" section
         assert!(yaml.contains("scopes:"));
+
+        // Verify YAML can be parsed back
+        let parsed: Result<AppManifest, _> = serde_yaml::from_str(&yaml);
+        assert!(
+            parsed.is_ok(),
+            "Generated YAML should be valid and parseable"
+        );
     }
 
     #[test]
@@ -190,7 +212,7 @@ mod tests {
 
         assert!(result.is_ok());
         let yaml = result.unwrap();
-        assert!(yaml.contains("https://*.trycloudflare.com/callback"));
+        // Wildcard URLs are not supported by Slack, so only the actual redirect_uri is included
         assert!(yaml.contains("http://localhost:8765/callback"));
         assert!(yaml.contains("chat:write"));
         assert!(yaml.contains("search:read"));
@@ -253,7 +275,7 @@ mod tests {
 
         assert!(result.is_ok());
         let yaml = result.unwrap();
-        assert!(yaml.contains("https://*.ngrok-free.app/callback"));
+        // Wildcard URLs are not supported by Slack, so only the actual redirect_uri is included
         assert!(yaml.contains("http://localhost:8765/callback"));
         assert!(yaml.contains("chat:write"));
         assert!(yaml.contains("search:read"));
