@@ -33,7 +33,7 @@ This document defines security measures to prevent accidental data exposure and 
 - **Error if missing**:
   ```
   Error: Write operations require --allow-write flag.
-  Example: slackcli --profile myworkspace --allow-write msg post --channel C123 --text "Hello"
+  Example: slack-rs --profile myworkspace --allow-write msg post --channel C123 --text "Hello"
   ```
 - **Exit code**: 1
 
@@ -82,7 +82,7 @@ fn execute_write_command(allow_write: bool, needs_confirmation: bool, yes: bool)
 - **Error if missing**:
   ```
   Error: --profile is required.
-  Run 'slackcli auth list' to see available profiles.
+  Run 'slack-rs auth list' to see available profiles.
   ```
 
 ### Output Context
@@ -147,7 +147,7 @@ let delay = base_delay * (1.0 + jitter);
 
 ### Provide Actionable Guidance
 - ❌ Bad: `Error: 403`
-- ✅ Good: `Error: Insufficient permissions. Required scope: chat:write. Run 'slackcli auth status --profile myworkspace' to check current scopes.`
+- ✅ Good: `Error: Insufficient permissions. Required scope: chat:write. Run 'slack-rs auth status --profile myworkspace' to check current scopes.`
 
 ### Localize User-Facing Messages
 - Error messages, prompts, and instructions should respect `--lang` flag
@@ -157,5 +157,5 @@ let delay = base_delay * (1.0 + jitter);
 - Optional audit log for write operations
 - Format: JSON lines
 - Fields: timestamp, profile, command, channel, result
-- Location: `~/.local/share/slackcli/audit.log`
+- Location: `~/.local/share/slack-rs/audit.log`
 - Disabled by default; enable with `SLACKRS_AUDIT=1`

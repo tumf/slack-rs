@@ -16,7 +16,7 @@ All commands support these global flags:
 ## Command Structure
 
 ```
-slackcli [GLOBAL_FLAGS] <COMMAND> [SUBCOMMAND] [OPTIONS]
+slack-rs [GLOBAL_FLAGS] <COMMAND> [SUBCOMMAND] [OPTIONS]
 ```
 
 ## Commands
@@ -28,7 +28,7 @@ Authenticate with a Slack workspace via OAuth.
 
 **Usage:**
 ```bash
-slackcli auth login --profile <name>
+slack-rs auth login --profile <name>
 ```
 
 **Options:**
@@ -61,7 +61,7 @@ Show authentication status for a profile.
 
 **Usage:**
 ```bash
-slackcli auth status --profile <name>
+slack-rs auth status --profile <name>
 ```
 
 **Output (JSON):**
@@ -86,7 +86,7 @@ List all configured profiles.
 
 **Usage:**
 ```bash
-slackcli auth list
+slack-rs auth list
 ```
 
 **Output (JSON):**
@@ -118,7 +118,7 @@ Rename a profile.
 
 **Usage:**
 ```bash
-slackcli auth rename --profile <old> --to <new>
+slack-rs auth rename --profile <old> --to <new>
 ```
 
 **Options:**
@@ -136,7 +136,7 @@ Remove authentication for a profile.
 
 **Usage:**
 ```bash
-slackcli auth logout --profile <name>
+slack-rs auth logout --profile <name>
 ```
 
 **Behavior:**
@@ -152,7 +152,7 @@ Call any Slack Web API method.
 
 **Usage:**
 ```bash
-slackcli --profile <name> api call <method> [key=value...] [--json '{...}']
+slack-rs --profile <name> api call <method> [key=value...] [--json '{...}']
 ```
 
 **Arguments:**
@@ -166,16 +166,16 @@ slackcli --profile <name> api call <method> [key=value...] [--json '{...}']
 **Examples:**
 ```bash
 # Form parameters (default)
-slackcli --profile acme api call search.messages query="invoice" count=20
+slack-rs --profile acme api call search.messages query="invoice" count=20
 
 # JSON body
-slackcli --profile acme api call chat.postMessage --json '{
+slack-rs --profile acme api call chat.postMessage --json '{
   "channel": "C123",
   "text": "Hello"
 }'
 
 # GET request
-slackcli --profile acme api call users.info --get user=U456
+slack-rs --profile acme api call users.info --get user=U456
 ```
 
 **Output:**
@@ -202,7 +202,7 @@ Raw Slack API response wrapped with metadata:
 
 **Usage:**
 ```bash
-slackcli --profile <name> search <query> [OPTIONS]
+slack-rs --profile <name> search <query> [OPTIONS]
 ```
 
 **Arguments:**
@@ -215,7 +215,7 @@ slackcli --profile <name> search <query> [OPTIONS]
 
 **Example:**
 ```bash
-slackcli --profile acme search "invoice in:#finance" --limit 50 --sort timestamp
+slack-rs --profile acme search "invoice in:#finance" --limit 50 --sort timestamp
 ```
 
 ---
@@ -227,7 +227,7 @@ List conversations (channels, DMs, etc.).
 
 **Usage:**
 ```bash
-slackcli --profile <name> conv list [OPTIONS]
+slack-rs --profile <name> conv list [OPTIONS]
 ```
 
 **Options:**
@@ -241,7 +241,7 @@ Fetch conversation history.
 
 **Usage:**
 ```bash
-slackcli --profile <name> conv history --channel <id> [OPTIONS]
+slack-rs --profile <name> conv history --channel <id> [OPTIONS]
 ```
 
 **Options:**
@@ -259,7 +259,7 @@ Get user information.
 
 **Usage:**
 ```bash
-slackcli --profile <name> users info --user <id>
+slack-rs --profile <name> users info --user <id>
 ```
 
 **Options:**
@@ -276,7 +276,7 @@ Post a new message.
 
 **Usage:**
 ```bash
-slackcli --profile <name> --allow-write msg post --channel <id> --text <text> [OPTIONS]
+slack-rs --profile <name> --allow-write msg post --channel <id> --text <text> [OPTIONS]
 ```
 
 **Options:**
@@ -291,7 +291,7 @@ Update an existing message.
 
 **Usage:**
 ```bash
-slackcli --profile <name> --allow-write msg update --channel <id> --ts <ts> --text <text>
+slack-rs --profile <name> --allow-write msg update --channel <id> --ts <ts> --text <text>
 ```
 
 **Options:**
@@ -306,7 +306,7 @@ Delete a message (destructive operation).
 
 **Usage:**
 ```bash
-slackcli --profile <name> --allow-write msg delete --channel <id> --ts <ts> [--yes]
+slack-rs --profile <name> --allow-write msg delete --channel <id> --ts <ts> [--yes]
 ```
 
 **Options:**
@@ -329,7 +329,7 @@ Add a reaction to a message.
 
 **Usage:**
 ```bash
-slackcli --profile <name> --allow-write react add --channel <id> --ts <ts> --emoji <emoji>
+slack-rs --profile <name> --allow-write react add --channel <id> --ts <ts> --emoji <emoji>
 ```
 
 **Options:**
@@ -344,7 +344,7 @@ Remove a reaction from a message.
 
 **Usage:**
 ```bash
-slackcli --profile <name> --allow-write react remove --channel <id> --ts <ts> --emoji <emoji>
+slack-rs --profile <name> --allow-write react remove --channel <id> --ts <ts> --emoji <emoji>
 ```
 
 **Options:**

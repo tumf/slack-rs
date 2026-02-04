@@ -6,7 +6,7 @@ This CLI uses OAuth 2.0 with PKCE (Proof Key for Code Exchange) to obtain user t
 ## OAuth Flow
 
 ### 1. Initiate Login
-User runs: `slackcli auth login --profile myworkspace`
+User runs: `slack-rs auth login --profile myworkspace`
 
 ### 2. Generate PKCE Parameters
 - **code_verifier**: Random 128-character string (base64url-encoded)

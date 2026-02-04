@@ -29,9 +29,9 @@ gog のように「プロファイル切替 + サブコマンド + JSON出力 + 
 
 ### 1.1 ゴール
 - **Slack Web API の任意メソッドを呼び出せる**（網羅性）
-  - 例: `slackcli --profile acme api call conversations.history channel=C123 limit=200`
+  - 例: `slack-rs --profile acme api call conversations.history channel=C123 limit=200`
 - 主要なよく使う操作は **人間向けの薄いラッパーコマンド**として提供
-  - 例: `slackcli search ...`, `slackcli conv history ...`, `slackcli msg post ...`
+  - 例: `slack-rs search ...`, `slack-rs conv history ...`, `slack-rs msg post ...`
 - 出力は **JSON優先**（textはサマリ用途）
 - **複数ワークスペース**を profile として扱う
 - 認証は **OAuth（PKCE + localhost callback）**
@@ -60,7 +60,7 @@ gog のように「プロファイル切替 + サブコマンド + JSON出力 + 
 
 ## 3. 認証方式（OAuth）
 
-- `slackcli auth login --profile <name>`
+- `slack-rs auth login --profile <name>`
   - ブラウザを起動して OAuth
   - `oauth.v2.access` で token を取得
   - `team.id` / `team.name` を profile に保存
@@ -95,7 +95,7 @@ gog のように「プロファイル切替 + サブコマンド + JSON出力 + 
   - 取引先WSでは通らない前提で別扱い
 
 CLI側は
-- `slackcli auth status` で現在のスコープを可視化
+- `slack-rs auth status` で現在のスコープを可視化
 - 目的コマンド実行時に「不足スコープ」を表示
 
 ---
@@ -109,31 +109,31 @@ CLI側は
 - `--debug`（HTTPログはマスク）
 
 ### 5.2 auth
-- `slackcli auth login --profile <name>`
-- `slackcli auth status [--profile <name>]`
-- `slackcli auth logout --profile <name>`
+- `slack-rs auth login --profile <name>`
+- `slack-rs auth status [--profile <name>]`
+- `slack-rs auth logout --profile <name>`
 
 ### 5.3 api（網羅の核）
-- `slackcli api call <method> [key=value ...] [--json '{...}']`
+- `slack-rs api call <method> [key=value ...] [--json '{...}']`
   - method例: `search.messages`, `conversations.history`, `users.info`
   - `key=value` は form-urlencoded を基本、`--json` で JSON body も可能に
   - Slackの仕様に合わせて GET/POST を切替（原則POSTでも可）
 
-- `slackcli api methods`（任意：メタ取り込みができたら）
+- `slack-rs api methods`（任意：メタ取り込みができたら）
   - メソッド一覧表示、fuzzy検索
 
 ### 5.4 よく使うラッパー（最初に実装する候補）
-- `slackcli search "<query>" [--limit N] [--sort timestamp|score] [--order asc|desc]`
-- `slackcli conv list [--types public,private,im,mpim] [--limit N]`
-- `slackcli conv history --channel <C...> [--oldest <ts>] [--latest <ts>] [--limit N]`
-- `slackcli users info --user <U...>`
+- `slack-rs search "<query>" [--limit N] [--sort timestamp|score] [--order asc|desc]`
+- `slack-rs conv list [--types public,private,im,mpim] [--limit N]`
+- `slack-rs conv history --channel <C...> [--oldest <ts>] [--latest <ts>] [--limit N]`
+- `slack-rs users info --user <U...>`
 
 Write（今回入れる）
-- `slackcli msg post --channel <C...> --text "..." [--thread-ts <ts>]`
-- `slackcli msg update --channel <C...> --ts <ts> --text "..."`
-- `slackcli msg delete --channel <C...> --ts <ts>`
-- `slackcli react add --channel <C...> --ts <ts> --emoji ":white_check_mark:"`
-- `slackcli react remove --channel <C...> --ts <ts> --emoji ":white_check_mark:"`
+- `slack-rs msg post --channel <C...> --text "..." [--thread-ts <ts>]`
+- `slack-rs msg update --channel <C...> --ts <ts> --text "..."`
+- `slack-rs msg delete --channel <C...> --ts <ts>`
+- `slack-rs react add --channel <C...> --ts <ts> --emoji ":white_check_mark:"`
+- `slack-rs react remove --channel <C...> --ts <ts> --emoji ":white_check_mark:"`
 
 ---
 
@@ -235,14 +235,14 @@ Write（今回入れる）
 
 ```bash
 # OAuth（WSごと）
-slackcli auth login --profile acme
-slackcli auth login --profile partner
+slack-rs auth login --profile acme
+slack-rs auth login --profile partner
 
 # 網羅：任意メソッド
-slackcli --profile acme api call search.messages query="invoice in:#finance" sort=timestamp count=20
-slackcli --profile acme api call conversations.history channel=C123 limit=50
+slack-rs --profile acme api call search.messages query="invoice in:#finance" sort=timestamp count=20
+slack-rs --profile acme api call conversations.history channel=C123 limit=50
 
 # ラッパー
-slackcli --profile acme search "invoice in:#finance" --limit 20
-slackcli --profile partner conv history --channel C123 --limit 200
+slack-rs --profile acme search "invoice in:#finance" --limit 20
+slack-rs --profile partner conv history --channel C123 --limit 200
 ```

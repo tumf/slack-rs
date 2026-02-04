@@ -14,7 +14,7 @@ tags:
 # Slack Web API CLI（Rust）- 認証情報 Export/Import（Keyring互換）仕様
 
 ## 目的
-- `slackcli` の **profile（=ワークスペースごとのOAuth認証情報）** を、端末間で移行/バックアップできるようにする。
+- `slack-rs` の **profile（=ワークスペースごとのOAuth認証情報）** を、端末間で移行/バックアップできるようにする。
 - 通常運用は OS の secure store（Keychain/SecretService等）に保存しつつ、
   **gog の keyring export/import に相当する“暗号化エクスポート”**を提供する。
 
@@ -48,7 +48,7 @@ tags:
 ### 1) Export
 
 #### 単一profile
-- `slackcli auth export --profile <name> --out <path>`
+- `slack-rs auth export --profile <name> --out <path>`
 
 オプション:
 - `--passphrase-env SLACKRS_KEYRING_PASSWORD`（既定）
@@ -62,12 +62,12 @@ tags:
 - 既存が 0600 以外なら警告/失敗（要検討）
 
 #### 全profile
-- `slackcli auth export --all --out <path>`
+- `slack-rs auth export --all --out <path>`
 
 ### 2) Import
 
 #### 単一profile
-- `slackcli auth import --profile <name> --in <path>`
+- `slack-rs auth import --profile <name> --in <path>`
 
 オプション:
 - `--passphrase-env SLACKRS_KEYRING_PASSWORD`（既定）
@@ -82,7 +82,7 @@ tags:
   - `--yes` + `--force` で上書き可能（要検討）
 
 #### 全profile
-- `slackcli auth import --all --in <path>`
+- `slack-rs auth import --all --in <path>`
 
 ---
 

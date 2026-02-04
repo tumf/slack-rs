@@ -97,7 +97,7 @@ This document defines the exact schema and storage mechanisms for profiles and t
 
 ## Profile Resolution Flow
 
-1. User runs: `slackcli --profile acme-work search "query"`
+1. User runs: `slack-rs --profile acme-work search "query"`
 2. CLI reads `~/.config/slack-rs/profiles.json`
 3. Find profile with `profile_name == "acme-work"`
 4. Extract `team_id` and `user_id`
@@ -109,11 +109,11 @@ This document defines the exact schema and storage mechanisms for profiles and t
 ## Error Handling
 
 ### Profile Not Found
-- Error: `Profile 'xyz' not found. Run 'slackcli auth list' to see available profiles.`
+- Error: `Profile 'xyz' not found. Run 'slack-rs auth list' to see available profiles.`
 - Exit code: 1
 
 ### Token Not Found in Storage
-- Error: `Token not found for profile 'xyz'. Run 'slackcli auth login --profile xyz' to re-authenticate.`
+- Error: `Token not found for profile 'xyz'. Run 'slack-rs auth login --profile xyz' to re-authenticate.`
 - Exit code: 1
 
 ### Config File Corruption
