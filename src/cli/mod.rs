@@ -100,18 +100,32 @@ pub async fn run_users_info(args: &[String]) -> Result<(), String> {
 
 pub async fn run_msg_post(args: &[String]) -> Result<(), String> {
     if args.len() < 5 {
-        return Err("Usage: msg post <channel> <text> --allow-write [--profile=NAME]".to_string());
+        return Err("Usage: msg post <channel> <text> --allow-write [--thread-ts=TS] [--reply-broadcast] [--profile=NAME]".to_string());
     }
 
     let channel = args[3].clone();
     let text = args[4].clone();
     let allow_write = has_flag(args, "--allow-write");
+    let thread_ts = get_option(args, "--thread-ts=");
+    let reply_broadcast = has_flag(args, "--reply-broadcast");
     let profile = get_option(args, "--profile=");
 
+    // Validate: --reply-broadcast requires --thread-ts
+    if reply_broadcast && thread_ts.is_none() {
+        return Err("Error: --reply-broadcast requires --thread-ts".to_string());
+    }
+
     let client = get_api_client(profile).await?;
-    let response = commands::msg_post(&client, channel, text, allow_write)
-        .await
-        .map_err(|e| e.to_string())?;
+    let response = commands::msg_post(
+        &client,
+        channel,
+        text,
+        allow_write,
+        thread_ts,
+        reply_broadcast,
+    )
+    .await
+    .map_err(|e| e.to_string())?;
 
     println!("{}", serde_json::to_string_pretty(&response).unwrap());
     Ok(())
@@ -229,7 +243,7 @@ pub fn print_users_usage(prog: &str) {
 pub fn print_msg_usage(prog: &str) {
     println!("Msg command usage:");
     println!(
-        "  {} msg post <channel> <text> --allow-write [--profile=NAME]",
+        "  {} msg post <channel> <text> --allow-write [--thread-ts=TS] [--reply-broadcast] [--profile=NAME]",
         prog
     );
     println!(

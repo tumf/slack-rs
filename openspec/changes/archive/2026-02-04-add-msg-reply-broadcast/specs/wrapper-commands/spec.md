@@ -1,6 +1,6 @@
 # wrapper-commands Specification
 
-## MODIFIED Requirements
+## ADDED Requirements
 ### Requirement: msg post はスレッド返信を指定できる
 `msg post` は `--thread-ts` が指定された場合に `chat.postMessage` へ `thread_ts` を渡さなければならない。(MUST)
 #### Scenario: thread_ts を指定してスレッド返信を送る

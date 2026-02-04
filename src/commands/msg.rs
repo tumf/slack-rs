@@ -12,6 +12,8 @@ use std::collections::HashMap;
 /// * `channel` - Channel ID
 /// * `text` - Message text
 /// * `allow_write` - Whether write operations are allowed
+/// * `thread_ts` - Optional thread timestamp to reply to
+/// * `reply_broadcast` - Whether to broadcast thread reply to channel
 ///
 /// # Returns
 /// * `Ok(ApiResponse)` with posted message information
@@ -21,12 +23,21 @@ pub async fn msg_post(
     channel: String,
     text: String,
     allow_write: bool,
+    thread_ts: Option<String>,
+    reply_broadcast: bool,
 ) -> Result<ApiResponse, ApiError> {
     check_write_allowed(allow_write)?;
 
     let mut params = HashMap::new();
     params.insert("channel".to_string(), json!(channel));
     params.insert("text".to_string(), json!(text));
+
+    if let Some(ts) = thread_ts {
+        params.insert("thread_ts".to_string(), json!(ts));
+        if reply_broadcast {
+            params.insert("reply_broadcast".to_string(), json!(true));
+        }
+    }
 
     client.call_method(ApiMethod::ChatPostMessage, params).await
 }
@@ -103,6 +114,8 @@ mod tests {
             &client,
             "C123456".to_string(),
             "test message".to_string(),
+            false,
+            None,
             false,
         )
         .await;
