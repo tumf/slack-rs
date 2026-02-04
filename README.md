@@ -142,6 +142,76 @@ Profile 'my-workspace' saved.
 - 🔒 Client secret prompted each time (not saved for security)
 - 🔄 Subsequent logins reuse saved client ID automatically
 
+#### Using Tunneling Services for Remote Authentication
+
+When authenticating from a remote server or environment where `localhost` is not accessible (e.g., SSH, Docker, cloud instances), you can use tunneling services like **ngrok** or **Cloudflare Tunnel (cloudflared)** to expose the local OAuth callback server.
+
+**Method A: Using ngrok**
+
+1. **Install ngrok**: Download from [ngrok.com](https://ngrok.com/)
+
+2. **Start ngrok tunnel**:
+   ```bash
+   ngrok http 3000
+   ```
+   
+   This will output a public URL like `https://abc123.ngrok.io`
+
+3. **Configure Slack App**:
+   - Go to https://api.slack.com/apps → Your App → OAuth & Permissions
+   - Add redirect URL: `https://abc123.ngrok.io/callback`
+   - Click "Save URLs"
+
+4. **Authenticate with custom redirect URI**:
+   ```bash
+   export SLACKRS_REDIRECT_URI="https://abc123.ngrok.io/callback"
+   slack-rs auth login my-workspace --client-id 123456789012.1234567890123
+   ```
+
+**Method B: Using Cloudflare Tunnel (cloudflared)**
+
+1. **Install cloudflared**: Download from [Cloudflare](https://developers.cloudflare.com/cloudflare-one/connections/connect-apps/install-and-setup/installation/)
+
+2. **Start tunnel**:
+   ```bash
+   cloudflared tunnel --url http://localhost:3000
+   ```
+   
+   This will output a public URL like `https://xyz-def-ghi.trycloudflare.com`
+
+3. **Configure Slack App**:
+   - Go to https://api.slack.com/apps → Your App → OAuth & Permissions
+   - Add redirect URL: `https://xyz-def-ghi.trycloudflare.com/callback`
+   - Click "Save URLs"
+
+4. **Authenticate with custom redirect URI**:
+   ```bash
+   export SLACKRS_REDIRECT_URI="https://xyz-def-ghi.trycloudflare.com/callback"
+   slack-rs auth login my-workspace --client-id 123456789012.1234567890123
+   ```
+
+**Security Notes:**
+- ⚠️ Tunnel URLs are temporary and change each time you restart the service
+- ⚠️ Anyone with the tunnel URL can access your callback endpoint during authentication
+- ✅ Use ngrok's authentication features (`--auth`) for production scenarios
+- ✅ Close the tunnel immediately after successful authentication
+- ✅ Remove the tunnel redirect URL from your Slack app after authentication
+
+**Per-Profile Redirect URI:**
+
+You can also save custom redirect URIs to profiles for convenience:
+
+```bash
+# Save redirect URI to profile configuration
+slack-rs config oauth set my-workspace \
+  --client-id 123456789012.1234567890123 \
+  --redirect-uri https://abc123.ngrok.io/callback \
+  --scopes "chat:write,users:read"
+
+# Subsequent logins will use saved redirect URI
+slack-rs auth login my-workspace
+```
+
 ### 3. Make API Calls
 
 **Generic API call:**
