@@ -1025,6 +1025,64 @@ pub async fn login_with_credentials_extended(
         user_scopes: final_user_scopes.clone(),
     };
 
+    // Generate and save manifest BEFORE starting OAuth flow
+    println!("\nGenerating Slack App Manifest...");
+    match generate_manifest(
+        &final_client_id,
+        &final_bot_scopes,
+        &final_user_scopes,
+        &final_redirect_uri,
+        use_cloudflared,
+        use_ngrok,
+        &profile_name,
+    ) {
+        Ok(manifest_yaml) => {
+            // Determine manifest file path
+            let manifest_path = get_manifest_path(&profile_name)?;
+
+            // Save manifest to file
+            match std::fs::write(&manifest_path, manifest_yaml) {
+                Ok(_) => {
+                    println!("✓ Manifest saved to: {}", manifest_path.display());
+                    println!("\nPlease install this manifest in your Slack App:");
+                    println!("  1. Opening Slack App management page...");
+
+                    // Try to open browser
+                    let app_management_url = "https://api.slack.com/apps";
+                    if let Err(e) = open_browser(app_management_url) {
+                        println!("     Failed to open browser: {}", e);
+                        println!("     Please open this URL manually: {}", app_management_url);
+                    } else {
+                        println!("     ✓ Opened: {}", app_management_url);
+                    }
+
+                    println!("  2. Create or select your app");
+                    println!("  3. Navigate to 'App Manifest' and paste the contents from:");
+                    println!("     {}", manifest_path.display());
+                    println!("\nPress Enter to continue after installing the manifest...");
+
+                    // Wait for user confirmation
+                    let mut input = String::new();
+                    io::stdin().read_line(&mut input).map_err(|e| {
+                        OAuthError::ConfigError(format!("Failed to read input: {}", e))
+                    })?;
+                }
+                Err(e) => {
+                    return Err(OAuthError::ConfigError(format!(
+                        "Failed to save manifest file: {}",
+                        e
+                    )));
+                }
+            }
+        }
+        Err(e) => {
+            return Err(OAuthError::ConfigError(format!(
+                "Failed to generate manifest: {}",
+                e
+            )));
+        }
+    }
+
     // Perform login flow (existing implementation)
     let (team_id, team_name, user_id, bot_token, user_token) =
         perform_oauth_flow(&config, base_url.as_deref()).await?;
@@ -1064,42 +1122,6 @@ pub async fn login_with_credentials_extended(
 
     println!("✓ Authentication successful!");
     println!("Profile '{}' saved.", profile_name);
-
-    // Generate and save manifest
-    println!("\nGenerating Slack App Manifest...");
-    match generate_manifest(
-        &final_client_id,
-        &final_bot_scopes,
-        &final_user_scopes,
-        &final_redirect_uri,
-        use_cloudflared,
-        use_ngrok,
-        &profile_name,
-    ) {
-        Ok(manifest_yaml) => {
-            // Determine manifest file path
-            let manifest_path = get_manifest_path(&profile_name)?;
-
-            // Save manifest to file
-            match std::fs::write(&manifest_path, manifest_yaml) {
-                Ok(_) => {
-                    println!("✓ Manifest saved to: {}", manifest_path.display());
-                    println!("\nYou can upload this manifest to your Slack App configuration:");
-                    println!("  https://api.slack.com/apps");
-                }
-                Err(e) => {
-                    eprintln!("Warning: Failed to save manifest file: {}", e);
-                    eprintln!(
-                        "OAuth authentication was successful, but manifest could not be saved."
-                    );
-                }
-            }
-        }
-        Err(e) => {
-            eprintln!("Warning: Failed to generate manifest: {}", e);
-            eprintln!("OAuth authentication was successful, but manifest could not be generated.");
-        }
-    }
 
     Ok(())
 }

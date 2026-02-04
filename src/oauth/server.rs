@@ -29,11 +29,16 @@ pub async fn run_callback_server(
     expected_state: String,
     timeout_secs: u64,
 ) -> Result<CallbackResult, OAuthError> {
-    let listener = TcpListener::bind(format!("127.0.0.1:{}", port))
+    let bind_addr = format!("127.0.0.1:{}", port);
+    let listener = TcpListener::bind(&bind_addr)
         .await
         .map_err(|e| OAuthError::ServerError(format!("Failed to bind to port {}: {}", port, e)))?;
 
-    println!("Listening for OAuth callback on http://127.0.0.1:{}", port);
+    let actual_port = listener.local_addr().map(|a| a.port()).unwrap_or(port);
+    println!(
+        "Listening for OAuth callback on http://127.0.0.1:{}",
+        actual_port
+    );
 
     let result: Arc<Mutex<Option<Result<CallbackResult, OAuthError>>>> = Arc::new(Mutex::new(None));
 
