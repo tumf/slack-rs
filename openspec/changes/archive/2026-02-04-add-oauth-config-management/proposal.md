@@ -1,5 +1,30 @@
 # 変更提案: プロファイル別OAuth設定の管理と環境変数の廃止
 
+## Why
+
+現状では、OAuth認証に必要な `client_id` や `client_secret` がログインのたびに入力を求められ、ユーザー体験が低下しています。また、環境変数による設定案が提示されたものの、複数プロファイルを扱う構成では不適切であり、設計上の混乱を招いていました。
+
+この変更により、OAuth設定をプロファイルごとに永続化し、再利用可能にすることで、ログイン操作を簡素化します。また、`client_secret` の安全な管理を維持しつつ、設定の優先順位を明確化し、環境変数への依存を排除します。
+
+## What Changes
+
+### プロファイル設定の拡張
+- `profiles.json` に OAuth非機密情報（`client_id`, `redirect_uri`, `scopes`）を保存する機能を追加
+- `client_secret` はKeyringに保存し、設定ファイルには含めない
+
+### 新しいCLIコマンド
+- `slackrs config oauth set --profile <name>`: OAuth設定を保存
+- `slackrs config oauth show --profile <name>`: 保存されたOAuth設定を表示
+- `slackrs config oauth delete --profile <name>`: OAuth設定を削除
+
+### 設定解決の優先順位
+- CLI引数 > プロファイル設定 > 対話入力（エラーではなく入力を促す）
+- 環境変数による設定解決は廃止
+
+### 既存機能への影響
+- `slack-rs login` コマンドは、保存済みの設定を優先的に使用し、欠落している項目のみ対話入力を促す
+- 既存のプロファイル設定（`client_id` 未設定）も引き続き読み込み可能
+
 ## 背景
 - 現状の対話内容では、`client_id` がログインごとに設定される一方で、環境変数による単一設定案が混乱を招く。
 - OAuth設定はプロファイルごとに保持するのが自然であり、環境変数は不要という結論。

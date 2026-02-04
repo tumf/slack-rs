@@ -2,14 +2,16 @@
 
 ## Purpose
 Defines how slack-rs persists profile configurations and manages access tokens securely using OS-level storage mechanisms.
-
 ## Requirements
 ### Requirement: Profile configuration can be persisted
-Profile non-secret information MUST be saved in `profiles.json` and MUST be retrievable with identical content after restart. (MUST)
-#### Scenario: Save and reload a new profile
-- Given an empty configuration file exists
-- When profile information (profile_name, team_id, user_id, scopes) is saved
-- Then the same values can be retrieved on reload
+
+Non-sensitive information in a Profile MUST be saved to `profiles.json` and retrievable with the same content after restart.
+OAuth non-sensitive information (`client_id`, `redirect_uri`, `scopes`) is also subject to persistence.
+
+#### Scenario: Profiles containing OAuth non-sensitive information can be saved and reloaded
+- Save a profile containing `client_id`, `redirect_uri`, `scopes`
+- Reload `profiles.json`
+- All values can be retrieved with the same content
 
 ### Requirement: Configuration file has a version field
 `profiles.json` MUST contain a `version` field. (MUST)

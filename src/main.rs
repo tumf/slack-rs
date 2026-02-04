@@ -91,6 +91,46 @@ async fn main() {
                 }
             }
         }
+        "config" => {
+            if args.len() < 3 {
+                print_config_usage(&args[0]);
+                return;
+            }
+            match args[2].as_str() {
+                "oauth" => {
+                    if args.len() < 4 {
+                        print_config_oauth_usage(&args[0]);
+                        std::process::exit(1);
+                    }
+                    match args[3].as_str() {
+                        "set" => {
+                            if let Err(e) = run_config_oauth_set(&args[4..]) {
+                                eprintln!("OAuth config set failed: {}", e);
+                                std::process::exit(1);
+                            }
+                        }
+                        "show" => {
+                            if let Err(e) = run_config_oauth_show(&args[4..]) {
+                                eprintln!("OAuth config show failed: {}", e);
+                                std::process::exit(1);
+                            }
+                        }
+                        "delete" => {
+                            if let Err(e) = run_config_oauth_delete(&args[4..]) {
+                                eprintln!("OAuth config delete failed: {}", e);
+                                std::process::exit(1);
+                            }
+                        }
+                        _ => {
+                            print_config_oauth_usage(&args[0]);
+                        }
+                    }
+                }
+                _ => {
+                    print_config_usage(&args[0]);
+                }
+            }
+        }
         "search" => {
             if args.len() < 3 {
                 eprintln!(
@@ -229,19 +269,8 @@ async fn main() {
         "demo" => {
             println!("Slack CLI - OAuth authentication flow");
             println!();
-
-            // Demonstrate profile storage integration
-            demonstrate_profile_storage();
-
-            // Demonstrate token storage integration
-            demonstrate_token_storage();
-
-            // Demonstrate profile persistence (save and reload)
-            demonstrate_profile_persistence();
-
-            // Demonstrate keyring token storage
-            demonstrate_keyring_token_storage();
         }
+
         "--help" | "-h" => {
             print_help();
         }
@@ -272,6 +301,9 @@ fn print_help() {
     println!("    auth list                        List all profiles");
     println!("    auth rename <old> <new>          Rename a profile");
     println!("    auth logout [profile_name]       Remove authentication");
+    println!("    config oauth set <profile>       Set OAuth configuration for a profile");
+    println!("    config oauth show <profile>      Show OAuth configuration for a profile");
+    println!("    config oauth delete <profile>    Delete OAuth configuration for a profile");
     println!("    search <query>                   Search messages");
     println!("    conv list                        List conversations");
     println!("    conv history <channel>           Get conversation history");
@@ -308,6 +340,9 @@ fn print_usage() {
     println!("  auth logout [profile_name]     - Remove authentication");
     println!("  auth export [options]          - Export profiles to encrypted file");
     println!("  auth import [options]          - Import profiles from encrypted file");
+    println!("  config oauth set <profile>     - Set OAuth configuration for a profile");
+    println!("  config oauth show <profile>    - Show OAuth configuration for a profile");
+    println!("  config oauth delete <profile>  - Delete OAuth configuration for a profile");
     println!("  search <query>                 - Search messages (supports --count, --page, --sort, --sort_dir)");
     println!("  conv list                      - List conversations");
     println!("  conv history <channel>         - Get conversation history");
@@ -371,6 +406,37 @@ fn print_auth_usage() {
     println!("  --force                             - Overwrite existing profiles");
 }
 
+fn print_config_usage(prog: &str) {
+    println!("Config command usage:");
+    println!(
+        "  {} config oauth set <profile> --client-id <id> --redirect-uri <uri> --scopes <scopes>",
+        prog
+    );
+    println!("  {} config oauth show <profile>", prog);
+    println!("  {} config oauth delete <profile>", prog);
+}
+
+fn print_config_oauth_usage(prog: &str) {
+    println!("OAuth config command usage:");
+    println!(
+        "  {} config oauth set <profile> --client-id <id> --redirect-uri <uri> --scopes <scopes>",
+        prog
+    );
+    println!("      Set OAuth configuration for a profile");
+    println!("      Will prompt for client secret (not stored in config file)");
+    println!();
+    println!("  {} config oauth show <profile>", prog);
+    println!("      Show OAuth configuration for a profile");
+    println!();
+    println!("  {} config oauth delete <profile>", prog);
+    println!("      Delete OAuth configuration for a profile");
+    println!();
+    println!("Examples:");
+    println!("  {} config oauth set work --client-id 123.456 --redirect-uri http://127.0.0.1:3000/callback --scopes \"chat:write,users:read\"", prog);
+    println!("  {} config oauth show work", prog);
+    println!("  {} config oauth delete work", prog);
+}
+
 /// Run the auth login command with argument parsing
 async fn run_auth_login(args: &[String]) -> Result<(), String> {
     let mut profile_name: Option<String> = None;
@@ -400,22 +466,96 @@ async fn run_auth_login(args: &[String]) -> Result<(), String> {
         i += 1;
     }
 
-    // Get redirect_uri and scopes from environment (with defaults)
-    let redirect_uri = std::env::var("SLACKRS_REDIRECT_URI")
-        .unwrap_or_else(|_| "http://127.0.0.1:3000/callback".to_string());
+    // Use default redirect_uri and scopes (can be overridden via config oauth set)
+    let redirect_uri = "http://127.0.0.1:3000/callback".to_string();
 
-    let scopes = std::env::var("SLACKRS_SCOPES")
-        .unwrap_or_else(|_| "chat:write,users:read".to_string())
+    let scopes: Vec<String> = "chat:write,users:read"
         .split(',')
         .map(|s| s.trim().to_string())
         .collect();
 
+    // Keep base_url from environment for testing purposes only
     let base_url = std::env::var("SLACK_OAUTH_BASE_URL").ok();
 
     // Call login with the client_id argument
     auth::login_with_credentials(client_id, profile_name, redirect_uri, scopes, base_url)
         .await
         .map_err(|e| e.to_string())
+}
+
+/// Run config oauth set command
+fn run_config_oauth_set(args: &[String]) -> Result<(), String> {
+    let mut profile_name: Option<String> = None;
+    let mut client_id: Option<String> = None;
+    let mut redirect_uri: Option<String> = None;
+    let mut scopes: Option<String> = None;
+
+    let mut i = 0;
+    while i < args.len() {
+        if args[i].starts_with("--") {
+            match args[i].as_str() {
+                "--client-id" => {
+                    i += 1;
+                    if i < args.len() {
+                        client_id = Some(args[i].clone());
+                    } else {
+                        return Err("--client-id requires a value".to_string());
+                    }
+                }
+                "--redirect-uri" => {
+                    i += 1;
+                    if i < args.len() {
+                        redirect_uri = Some(args[i].clone());
+                    } else {
+                        return Err("--redirect-uri requires a value".to_string());
+                    }
+                }
+                "--scopes" => {
+                    i += 1;
+                    if i < args.len() {
+                        scopes = Some(args[i].clone());
+                    } else {
+                        return Err("--scopes requires a value".to_string());
+                    }
+                }
+                _ => {
+                    return Err(format!("Unknown option: {}", args[i]));
+                }
+            }
+        } else if profile_name.is_none() {
+            profile_name = Some(args[i].clone());
+        } else {
+            return Err(format!("Unexpected argument: {}", args[i]));
+        }
+        i += 1;
+    }
+
+    let profile = profile_name.ok_or_else(|| "Profile name is required".to_string())?;
+    let client = client_id.ok_or_else(|| "--client-id is required".to_string())?;
+    let redirect = redirect_uri.ok_or_else(|| "--redirect-uri is required".to_string())?;
+    let scope_str = scopes.ok_or_else(|| "--scopes is required".to_string())?;
+
+    commands::oauth_set(profile, client, redirect, scope_str).map_err(|e| e.to_string())
+}
+
+/// Run config oauth show command
+fn run_config_oauth_show(args: &[String]) -> Result<(), String> {
+    if args.is_empty() {
+        return Err("Profile name is required".to_string());
+    }
+
+    let profile_name = args[0].clone();
+    commands::oauth_show(profile_name).map_err(|e| e.to_string())
+}
+
+/// Run config oauth delete command
+fn run_config_oauth_delete(args: &[String]) -> Result<(), String> {
+    if args.is_empty() {
+        return Err("Profile name is required".to_string());
+    }
+
+    let profile_name = args[0].clone();
+    commands::oauth_delete(profile_name).map_err(|e| e.to_string())
 }
 
 async fn handle_export_command(args: &[String]) {
@@ -720,6 +860,7 @@ async fn run_api_call(args: Vec<String>) -> Result<(), Box<dyn std::error::Error
 }
 
 /// Demonstrates the profile storage functionality
+#[allow(dead_code)]
 fn demonstrate_profile_storage() {
     println!("=== Profile Storage Demo ===");
 
@@ -774,6 +915,7 @@ fn demonstrate_profile_storage() {
 }
 
 /// Demonstrates the token storage functionality
+#[allow(dead_code)]
 fn demonstrate_token_storage() {
     println!("=== Token Storage Demo ===");
 
@@ -819,6 +961,8 @@ fn example_profile_management() {
         team_name: Some("Example Team".to_string()),
         user_name: Some("Example User".to_string()),
         client_id: None,
+        redirect_uri: None,
+        scopes: None,
     };
 
     // Use add() to prevent duplicates
@@ -835,6 +979,7 @@ fn example_profile_management() {
 }
 
 /// Demonstrates profile persistence (save and reload)
+#[allow(dead_code)]
 fn demonstrate_profile_persistence() {
     println!("=== Profile Persistence Demo ===");
 
@@ -848,6 +993,8 @@ fn demonstrate_profile_persistence() {
         team_name: Some("Example Team".to_string()),
         user_name: Some("Example User".to_string()),
         client_id: None,
+        redirect_uri: None,
+        scopes: None,
     };
 
     let profile2 = Profile {
@@ -856,6 +1003,8 @@ fn demonstrate_profile_persistence() {
         team_name: Some("Another Team".to_string()),
         user_name: Some("Another User".to_string()),
         client_id: None,
+        redirect_uri: None,
+        scopes: None,
     };
 
     // Demonstrate add() - should succeed for new profile
@@ -877,6 +1026,8 @@ fn demonstrate_profile_persistence() {
         team_name: Some("Updated Team Name".to_string()),
         user_name: Some("Updated User Name".to_string()),
         client_id: None,
+        redirect_uri: None,
+        scopes: None,
     };
     match config.set_or_update("personal".to_string(), updated_profile2) {
         Ok(_) => println!("Updated 'personal' profile using set_or_update()"),
@@ -933,6 +1084,7 @@ fn demonstrate_profile_persistence() {
 }
 
 /// Demonstrates keyring token storage using KeyringTokenStore
+#[allow(dead_code)]
 fn demonstrate_keyring_token_storage() {
     println!("=== Keyring Token Storage Demo ===");
 

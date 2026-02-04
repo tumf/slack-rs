@@ -23,6 +23,8 @@ fn test_export_import_single_profile() {
             team_name: Some("Test Team".to_string()),
             user_name: Some("Test User".to_string()),
             client_id: None,
+            redirect_uri: None,
+            scopes: None,
         },
     );
     save_config(&config_path, &config).unwrap();

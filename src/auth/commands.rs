@@ -16,8 +16,8 @@ use std::process::Command;
 /// # Arguments
 /// * `client_id` - Optional OAuth client ID from CLI
 /// * `profile_name` - Optional profile name (defaults to "default")
-/// * `redirect_uri` - OAuth redirect URI
-/// * `scopes` - OAuth scopes
+/// * `redirect_uri` - OAuth redirect URI (used as fallback if not in profile)
+/// * `scopes` - OAuth scopes (used as fallback if not in profile)
 /// * `base_url` - Optional base URL for testing
 pub async fn login_with_credentials(
     client_id: Option<String>,
@@ -28,48 +28,84 @@ pub async fn login_with_credentials(
 ) -> Result<(), OAuthError> {
     let profile_name = profile_name.unwrap_or_else(|| "default".to_string());
 
-    // Load existing config to check for saved client_id
+    // Load existing config to check for saved OAuth settings
     let config_path = default_config_path()
         .map_err(|e| OAuthError::ConfigError(format!("Failed to get config path: {}", e)))?;
     let existing_config = load_config(&config_path).ok();
 
-    // Determine client_id: CLI arg > saved in profile > prompt
-    let final_client_id = match client_id {
-        Some(id) => id,
-        None => {
-            // Check if profile has client_id
-            if let Some(config) = &existing_config {
-                if let Some(profile) = config.get(&profile_name) {
+    // Resolve OAuth config with priority: CLI arg > saved in profile > prompt (not fallback)
+    let (final_client_id, final_redirect_uri, final_scopes) = if let Some(config) = &existing_config
+    {
+        if let Some(profile) = config.get(&profile_name) {
+            // Client ID: CLI arg > profile > prompt
+            let resolved_client_id = match client_id {
+                Some(id) => id,
+                None => {
                     if let Some(saved_id) = &profile.client_id {
                         saved_id.clone()
                     } else {
                         prompt_for_client_id()?
                     }
-                } else {
-                    prompt_for_client_id()?
                 }
+            };
+
+            // Redirect URI: profile > prompt (not fallback)
+            let resolved_redirect_uri = if let Some(saved_uri) = &profile.redirect_uri {
+                saved_uri.clone()
             } else {
-                prompt_for_client_id()?
-            }
+                prompt_for_redirect_uri(&redirect_uri)?
+            };
+
+            // Scopes: profile > prompt (not fallback)
+            let resolved_scopes = if let Some(saved_scopes) = &profile.scopes {
+                saved_scopes.clone()
+            } else {
+                prompt_for_scopes(&scopes)?
+            };
+
+            (resolved_client_id, resolved_redirect_uri, resolved_scopes)
+        } else {
+            // Profile doesn't exist, prompt for all OAuth config
+            let resolved_client_id = client_id.unwrap_or_else(|| prompt_for_client_id().unwrap());
+            let resolved_redirect_uri = prompt_for_redirect_uri(&redirect_uri)?;
+            let resolved_scopes = prompt_for_scopes(&scopes)?;
+            (resolved_client_id, resolved_redirect_uri, resolved_scopes)
         }
+    } else {
+        // No config file exists, prompt for all OAuth config
+        let resolved_client_id = client_id.unwrap_or_else(|| prompt_for_client_id().unwrap());
+        let resolved_redirect_uri = prompt_for_redirect_uri(&redirect_uri)?;
+        let resolved_scopes = prompt_for_scopes(&scopes)?;
+        (resolved_client_id, resolved_redirect_uri, resolved_scopes)
     };
 
-    // Always prompt for client_secret (security: not saved, always entered)
-    let client_secret = prompt_for_client_secret()?;
+    // Client secret resolution: Keyring > prompt
+    let token_store = KeyringTokenStore::default_service();
+    let final_client_secret =
+        match crate::profile::get_oauth_client_secret(&token_store, &profile_name) {
+            Ok(secret) => {
+                println!("Using saved client secret from keyring.");
+                secret
+            }
+            Err(_) => {
+                // Not found in keyring, prompt for it
+                prompt_for_client_secret()?
+            }
+        };
 
     // Create OAuth config
     let config = OAuthConfig {
         client_id: final_client_id.clone(),
-        client_secret: client_secret.clone(),
-        redirect_uri,
-        scopes,
+        client_secret: final_client_secret.clone(),
+        redirect_uri: final_redirect_uri.clone(),
+        scopes: final_scopes.clone(),
     };
 
     // Perform login flow (existing implementation)
     let (team_id, team_name, user_id, token) =
         perform_oauth_flow(&config, base_url.as_deref()).await?;
 
-    // Save profile with client_id and client_secret to Keyring
+    // Save profile with OAuth config and client_secret to Keyring
     save_profile_and_credentials(SaveCredentials {
         config_path: &config_path,
         profile_name: &profile_name,
@@ -78,7 +114,9 @@ pub async fn login_with_credentials(
         user_id: &user_id,
         token: &token,
         client_id: &final_client_id,
-        client_secret: &client_secret,
+        client_secret: &final_client_secret,
+        redirect_uri: &final_redirect_uri,
+        scopes: &final_scopes,
     })?;
 
     println!("✓ Authentication successful!");
@@ -119,6 +157,47 @@ fn prompt_for_client_secret() -> Result<String, OAuthError> {
             return Ok(trimmed.to_string());
         }
         eprintln!("Client secret cannot be empty. Please try again.");
+    }
+}
+
+/// Prompt user for OAuth redirect URI with default option
+fn prompt_for_redirect_uri(default: &str) -> Result<String, OAuthError> {
+    print!("Enter OAuth redirect URI [{}]: ", default);
+    io::stdout()
+        .flush()
+        .map_err(|e| OAuthError::ConfigError(format!("Failed to flush stdout: {}", e)))?;
+
+    let mut input = String::new();
+    io::stdin()
+        .read_line(&mut input)
+        .map_err(|e| OAuthError::ConfigError(format!("Failed to read input: {}", e)))?;
+
+    let trimmed = input.trim();
+    if trimmed.is_empty() {
+        Ok(default.to_string())
+    } else {
+        Ok(trimmed.to_string())
+    }
+}
+
+/// Prompt user for OAuth scopes with default option
+fn prompt_for_scopes(default: &[String]) -> Result<Vec<String>, OAuthError> {
+    let default_str = default.join(",");
+    print!("Enter OAuth scopes (comma-separated) [{}]: ", default_str);
+    io::stdout()
+        .flush()
+        .map_err(|e| OAuthError::ConfigError(format!("Failed to flush stdout: {}", e)))?;
+
+    let mut input = String::new();
+    io::stdin()
+        .read_line(&mut input)
+        .map_err(|e| OAuthError::ConfigError(format!("Failed to read input: {}", e)))?;
+
+    let trimmed = input.trim();
+    if trimmed.is_empty() {
+        Ok(default.to_vec())
+    } else {
+        Ok(trimmed.split(',').map(|s| s.trim().to_string()).collect())
     }
 }
 
@@ -193,6 +272,8 @@ struct SaveCredentials<'a> {
     token: &'a str,
     client_id: &'a str,
     client_secret: &'a str,
+    redirect_uri: &'a str,
+    scopes: &'a [String],
 }
 
 /// Save profile and credentials (including client_id and client_secret)
@@ -201,13 +282,15 @@ fn save_profile_and_credentials(creds: SaveCredentials) -> Result<(), OAuthError
     let mut profiles_config =
         load_config(creds.config_path).unwrap_or_else(|_| ProfilesConfig::new());
 
-    // Create profile with client_id
+    // Create profile with OAuth config (client_id, redirect_uri, scopes)
     let profile = Profile {
         team_id: creds.team_id.to_string(),
         user_id: creds.user_id.to_string(),
         team_name: creds.team_name.clone(),
         user_name: None,
         client_id: Some(creds.client_id.to_string()),
+        redirect_uri: Some(creds.redirect_uri.to_string()),
+        scopes: Some(creds.scopes.to_vec()),
     };
 
     profiles_config
@@ -317,6 +400,8 @@ pub async fn login(
         team_name,
         user_name: None, // We don't get user name from OAuth response
         client_id: None, // OAuth client ID not stored in legacy login flow
+        redirect_uri: None,
+        scopes: None,
     };
 
     config
@@ -520,6 +605,7 @@ mod tests {
         let config_path = temp_dir.path().join("profiles.json");
 
         // Save profile with client_id and client_secret to Keyring
+        let scopes = vec!["chat:write".to_string(), "users:read".to_string()];
         save_profile_and_credentials(SaveCredentials {
             config_path: &config_path,
             profile_name: "test",
@@ -529,6 +615,8 @@ mod tests {
             token: "xoxb-test-token",
             client_id: "test-client-id",
             client_secret: "test-client-secret",
+            redirect_uri: "http://127.0.0.1:3000/callback",
+            scopes: &scopes,
         })
         .unwrap();
 
@@ -563,6 +651,8 @@ mod tests {
                 team_name: Some("Legacy Team".to_string()),
                 user_name: Some("Legacy User".to_string()),
                 client_id: None,
+                redirect_uri: None,
+                scopes: None,
             },
         );
         save_config(&config_path, &config).unwrap();

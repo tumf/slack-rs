@@ -217,6 +217,8 @@ pub fn import_profiles<T: TokenStore>(token_store: &T, options: &ImportOptions) 
             team_name: export_profile.team_name,
             user_name: export_profile.user_name,
             client_id: export_profile.client_id.clone(),
+            redirect_uri: None, // Not exported/imported for security
+            scopes: None,       // Not exported/imported for security
         };
 
         config.set(name.clone(), profile);
@@ -368,6 +370,8 @@ mod tests {
                 team_name: Some("Test Team".to_string()),
                 user_name: Some("Test User".to_string()),
                 client_id: None,
+                redirect_uri: None,
+                scopes: None,
             },
         );
         save_config(&config_path, &config).unwrap();
