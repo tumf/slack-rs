@@ -5,13 +5,29 @@ TBD - created by archiving change add-per-profile-oauth-credentials. Update Purp
 ## Requirements
 ### Requirement: OAuth credentials retrieval at login prioritizes interactive input
 
-Client information at login MUST prioritize saved profile configuration and Keyring, prompting for interactive input only for missing items.
+login 開始時のクライアント情報は、プロファイルに保存された設定および Keyring を優先して利用し、不足している項目のみ対話入力で補完しなければならない (MUST)。
 
-#### Scenario: Prompts are skipped when saved configuration exists
-- `client_id`/`redirect_uri`/`scopes` are saved in `profiles.json`
-- `client_secret` is saved in Keyring
-- When `slack-rs login` is executed, each value is resolved from saved configuration without interactive input
-- Input is prompted only for items that are missing
+redirect_uri はクライアント情報とは別に解決しなければならない (MUST)。`--cloudflared` が指定されない場合、`auth login` は redirect_uri をユーザーにプロンプトして取得しなければならない (MUST)。`--cloudflared [path]` が指定される場合は tunnel 公開 URL から `{public_url}/callback` を解決しなければならない (MUST)。このとき `path` が省略された場合は `cloudflared`（PATH から探索）を実行ファイルとして使用しなければならない (MUST)。
+
+スコープについては、明示的な CLI 引数が指定されていない場合、対話入力してよい (MAY)。その場合、デフォルト入力値は `all` でなければならない (MUST)。
+
+#### Scenario: クライアント情報は不足分のみプロンプトされる
+- Given `client_id` が未設定である
+- And `client_secret` が Keyring に存在しない
+- When `auth login` を実行する
+- Then `client_id` と `client_secret` の入力が求められる
+
+#### Scenario: スコープが CLI 引数で指定されていない場合に `all` をデフォルトとしてプロンプトできる
+- Given `--bot-scopes` と `--user-scopes` が指定されていない
+- When `auth login` を実行する
+- Then スコープ入力プロンプトが表示される
+- And デフォルト入力値が `all` である
+
+#### Scenario: `--cloudflared` 未指定時に redirect_uri がプロンプトされる
+- Given `auth login` を実行する
+- And `--cloudflared` が指定されていない
+- When OAuth フローを開始する
+- Then redirect_uri の入力が求められる
 
 ### Requirement: Store `client_id` in profile and `client_secret` in Keyring
 

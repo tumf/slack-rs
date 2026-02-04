@@ -1,3 +1,12 @@
+## Why
+- 現状は `scope=` のみで `user_scope` を扱えず、user 用の権限が混在すると `invalid_scope` で失敗しやすい。
+- `auth login` の redirect_uri は実行環境やネットワーク構成に依存し、毎回同じ値を固定できないことがある。
+- cloudflared tunnel を使える環境では動的に公開 URL を生成して楽に OAuth 認証を完了できるが、導入できない環境もある。
+- 保存した設定値をそのまま Slack App の Manifest に反映できると運用が単純化する。
+
+## What Changes
+Slack OAuth の `user_scope` を設定できるようにし、`slack-rs auth login` で redirect URL（redirect_uri）の解決方法を選べるようにする（cloudflared tunnel は任意）。保存した OAuth 設定（redirect_uri と bot/user scopes）から Slack App Manifest を生成できるようにする。
+
 ## 概要
 Slack OAuth の `user_scope` を設定できるようにし、`slack-rs auth login` で redirect URL（redirect_uri）の解決方法を選べるようにする（cloudflared tunnel は任意）。保存した OAuth 設定（redirect_uri と bot/user scopes）から Slack App Manifest を生成できるようにする。
 

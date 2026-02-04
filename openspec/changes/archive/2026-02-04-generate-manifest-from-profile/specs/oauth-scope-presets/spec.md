@@ -2,7 +2,7 @@
 
 ## MODIFIED Requirements
 
-### Requirement: スコープ入力でプリセット名を受け付ける
+### Requirement: OAuthスコープ入力でプリセット名を受け付ける
 
 スコープ入力は `bot:all` と `user:all` のプリセット名を受け付けなければならない (MUST)。
 

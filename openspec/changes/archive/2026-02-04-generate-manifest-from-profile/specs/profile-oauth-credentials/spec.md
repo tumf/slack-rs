@@ -2,7 +2,7 @@
 
 ## MODIFIED Requirements
 
-### Requirement: login 開始時の OAuth クライアント情報は不足分のみ対話入力する
+### Requirement: OAuth credentials retrieval at login prioritizes interactive input
 
 login 開始時のクライアント情報は、プロファイルに保存された設定および Keyring を優先して利用し、不足している項目のみ対話入力で補完しなければならない (MUST)。
 
