@@ -6,12 +6,15 @@
 //! - Authorization URL generation
 //! - Token exchange with oauth.v2.access
 //! - Local callback server for receiving authorization codes
+//! - OAuth scope presets and expansion utilities
 
 pub mod pkce;
+pub mod scopes;
 pub mod server;
 pub mod types;
 
 pub use pkce::{generate_pkce, generate_state};
+pub use scopes::{all_scopes, expand_scopes};
 pub use server::run_callback_server;
 pub use types::{OAuthConfig, OAuthError, OAuthResponse};
 
