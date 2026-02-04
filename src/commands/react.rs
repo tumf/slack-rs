@@ -65,8 +65,10 @@ pub async fn react_remove(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serial_test::serial;
 
     #[tokio::test]
+    #[serial]
     async fn test_react_add_with_env_false() {
         std::env::set_var("SLACKCLI_ALLOW_WRITE", "false");
         let client = ApiClient::with_token("test_token".to_string());
@@ -83,6 +85,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_react_remove_with_env_false() {
         std::env::set_var("SLACKCLI_ALLOW_WRITE", "false");
         let client = ApiClient::with_token("test_token".to_string());

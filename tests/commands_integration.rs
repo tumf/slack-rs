@@ -2,6 +2,7 @@
 //!
 //! Tests that each command calls the correct Slack API methods with proper parameters
 
+use serial_test::serial;
 use slack_rs::api::ApiClient;
 use slack_rs::commands;
 use std::collections::HashMap;
@@ -176,6 +177,7 @@ async fn test_users_info_calls_correct_api() {
 }
 
 #[tokio::test]
+#[serial]
 async fn test_msg_post_requires_allow_write() {
     std::env::set_var("SLACKCLI_ALLOW_WRITE", "false");
     let mock_server = MockServer::start().await;
@@ -200,6 +202,7 @@ async fn test_msg_post_requires_allow_write() {
 }
 
 #[tokio::test]
+#[serial]
 async fn test_msg_post_calls_correct_api_with_allow_write() {
     std::env::remove_var("SLACKCLI_ALLOW_WRITE"); // Default is allow
     let mock_server = MockServer::start().await;
@@ -230,6 +233,7 @@ async fn test_msg_post_calls_correct_api_with_allow_write() {
 }
 
 #[tokio::test]
+#[serial]
 async fn test_msg_update_requires_allow_write() {
     std::env::set_var("SLACKCLI_ALLOW_WRITE", "false");
     let mock_server = MockServer::start().await;
@@ -253,6 +257,7 @@ async fn test_msg_update_requires_allow_write() {
 }
 
 #[tokio::test]
+#[serial]
 async fn test_msg_update_calls_correct_api() {
     std::env::remove_var("SLACKCLI_ALLOW_WRITE"); // Default is allow
     let mock_server = MockServer::start().await;
@@ -282,6 +287,7 @@ async fn test_msg_update_calls_correct_api() {
 }
 
 #[tokio::test]
+#[serial]
 async fn test_msg_delete_requires_allow_write() {
     std::env::set_var("SLACKCLI_ALLOW_WRITE", "false");
     let mock_server = MockServer::start().await;
@@ -304,6 +310,7 @@ async fn test_msg_delete_requires_allow_write() {
 }
 
 #[tokio::test]
+#[serial]
 async fn test_msg_delete_calls_correct_api() {
     std::env::remove_var("SLACKCLI_ALLOW_WRITE"); // Default is allow
     let mock_server = MockServer::start().await;
@@ -332,6 +339,7 @@ async fn test_msg_delete_calls_correct_api() {
 }
 
 #[tokio::test]
+#[serial]
 async fn test_react_add_requires_allow_write() {
     std::env::set_var("SLACKCLI_ALLOW_WRITE", "false");
     let mock_server = MockServer::start().await;
@@ -354,6 +362,7 @@ async fn test_react_add_requires_allow_write() {
 }
 
 #[tokio::test]
+#[serial]
 async fn test_react_add_calls_correct_api() {
     std::env::remove_var("SLACKCLI_ALLOW_WRITE"); // Default is allow
     let mock_server = MockServer::start().await;
@@ -382,6 +391,7 @@ async fn test_react_add_calls_correct_api() {
 }
 
 #[tokio::test]
+#[serial]
 async fn test_react_remove_requires_allow_write() {
     std::env::set_var("SLACKCLI_ALLOW_WRITE", "false");
     let mock_server = MockServer::start().await;
@@ -405,6 +415,7 @@ async fn test_react_remove_requires_allow_write() {
 }
 
 #[tokio::test]
+#[serial]
 async fn test_react_remove_calls_correct_api() {
     std::env::remove_var("SLACKCLI_ALLOW_WRITE"); // Default is allow
     let mock_server = MockServer::start().await;
@@ -434,6 +445,7 @@ async fn test_react_remove_calls_correct_api() {
 }
 
 #[tokio::test]
+#[serial]
 async fn test_file_upload_requires_allow_write() {
     // Set env var to deny write
     std::env::set_var("SLACKCLI_ALLOW_WRITE", "false");
@@ -454,6 +466,7 @@ async fn test_file_upload_requires_allow_write() {
 }
 
 #[tokio::test]
+#[serial]
 async fn test_file_upload_external_flow() {
     use std::io::Write;
     use tempfile::NamedTempFile;
@@ -529,6 +542,7 @@ async fn test_file_upload_external_flow() {
 }
 
 #[tokio::test]
+#[serial]
 async fn test_file_upload_nonexistent_file() {
     // Ensure write is allowed
     std::env::remove_var("SLACKCLI_ALLOW_WRITE");

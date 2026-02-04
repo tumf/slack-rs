@@ -597,74 +597,9 @@ slack-rs auth import --all --in all-profiles.enc
 
 **⚠️ Warning**: Exported files contain sensitive credentials including access tokens and potentially client secrets. Treat them like passwords and store securely.
 
-## Development
-
-### Building
-
-```bash
-cargo build              # Debug build
-cargo build --release    # Optimized build
-```
-
-### Testing
-
-```bash
-cargo test                                    # Run all tests
-cargo test test_api_call_with_form_data      # Run specific test
-cargo test --test api_integration_tests       # Run integration tests
-cargo test -- --nocapture                     # Show println! output
-```
-
-### Linting and Formatting
-
-```bash
-cargo fmt                    # Format code
-cargo fmt -- --check         # Check formatting
-cargo clippy                 # Run linter
-cargo clippy -- -D warnings  # Fail on warnings (CI standard)
-```
-
-### Code Coverage
-
-```bash
-cargo install cargo-tarpaulin
-cargo tarpaulin --verbose --all-features --workspace --timeout 120
-```
-
-## Project Structure
-
-```
-slack-rs/
-├── src/
-│   ├── main.rs           # CLI entry point
-│   ├── lib.rs            # Library root
-│   ├── api/              # Slack API client
-│   ├── auth/             # Auth commands
-│   ├── cli/              # CLI helpers
-│   ├── commands/         # Wrapper commands
-│   ├── oauth/            # OAuth flow (PKCE)
-│   └── profile/          # Profile management
-├── tests/                # Integration tests
-├── Cargo.toml            # Dependencies
-└── AGENTS.md             # Developer guidelines
-```
-
 ## Contributing
 
-Contributions are welcome! Please:
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'feat: add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-Please ensure:
-- Code passes `cargo fmt -- --check` and `cargo clippy -- -D warnings`
-- All tests pass with `cargo test`
-- New features include tests
-
-See [AGENTS.md](AGENTS.md) for detailed coding guidelines.
+Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, coding guidelines, and submission process.
 
 ## Roadmap
 
