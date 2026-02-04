@@ -1,11 +1,13 @@
 # 変更提案: msg post のスレッド返信ブロードキャスト対応
 
-## 背景
+## Why
 現状の `msg post` はチャンネルへの通常投稿のみを想定しており、スレッド返信や reply_broadcast を指定できない。
+Slack のスレッド機能を活用した投稿を行うには、これらのオプションが必要。
 
-## 目的
-- `msg post` でスレッド返信を指定できるようにする
-- 必要に応じて reply_broadcast を指定できるようにする
+## What Changes
+- `msg post` の CLI オプション追加（`--thread-ts`, `--reply-broadcast`）
+- `chat.postMessage` へのパラメータ送信
+- usage 表示と関連ヘルプの更新
 
 ## 対象範囲
 - `msg post` の CLI オプション追加（`--thread-ts`, `--reply-broadcast`）
