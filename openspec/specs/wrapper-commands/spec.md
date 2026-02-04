@@ -1,61 +1,82 @@
 # wrapper-commands Specification
 
 ## Purpose
-TBD - created by archiving change add-wrapper-commands. Update Purpose after archive.
+Provides high-level wrapper commands for common Slack API operations, enabling quick message searches, conversation management, user information retrieval, and message/reaction operations without manually constructing API calls.
+
 ## Requirements
-### Requirement: search コマンドでメッセージ検索ができる
-`search` は `search.messages` を呼び出し、`query`, `count`, `sort`, `sort_dir` を渡さなければならない。(MUST)
-#### Scenario: query を渡して検索する
-- Given 有効な profile と token が存在する
-- When `search "invoice"` を実行する
-- Then `search.messages` に `query` が渡される
+### Requirement: Search command enables message searching
+The `search` command MUST call `search.messages` and pass `query`, `count`, `sort`, and `sort_dir` parameters.
 
-### Requirement: conv list で会話一覧を取得できる
-`conv list` は `conversations.list` を呼び出し、`types` と `limit` を渡さなければならない。(MUST)
-#### Scenario: types と limit を指定する
-- Given types と limit が指定されている
-- When `conv list` を実行する
-- Then `conversations.list` に `types` と `limit` が渡される
+#### Scenario: Execute search with query parameter
+- Given valid profile and token exist
+- When `search "invoice"` is executed
+- Then `query` is passed to `search.messages`
 
-### Requirement: conv history で履歴を取得できる
-`conv history` は `conversations.history` を呼び出し、`channel`, `oldest`, `latest`, `limit` を渡さなければならない。(MUST)
-#### Scenario: channel を指定して履歴を取得する
-- Given channel id が指定されている
-- When `conv history --channel C123` を実行する
-- Then `conversations.history` に `channel` が渡される
+### Requirement: Conv list retrieves conversation list
+The `conv list` command MUST call `conversations.list` and pass `types` and `limit` parameters.
 
-### Requirement: users info でユーザ情報を取得できる
-`users info` は `users.info` を呼び出し、`user` を渡さなければならない。(MUST)
-#### Scenario: user id を指定する
-- Given user id が指定されている
-- When `users info --user U123` を実行する
-- Then `users.info` に `user` が渡される
+#### Scenario: Specify types and limit
+- Given types and limit are specified
+- When `conv list` is executed
+- Then `types` and `limit` are passed to `conversations.list`
 
-### Requirement: msg コマンドでメッセージ操作ができる
-`msg post/update/delete` は `chat.postMessage` / `chat.update` / `chat.delete` を呼び出さなければならない。(MUST)
-#### Scenario: msg post を実行する
-- Given channel と text が指定されている
-- When `msg post` を実行する
-- Then `chat.postMessage` が呼ばれる
+### Requirement: Conv history retrieves conversation history
+The `conv history` command MUST call `conversations.history` and pass `channel`, `oldest`, `latest`, and `limit` parameters.
 
-### Requirement: react コマンドでリアクション操作ができる
-`react add/remove` は `reactions.add` / `reactions.remove` を呼び出さなければならない。(MUST)
-#### Scenario: react add を実行する
-- Given channel と ts と emoji が指定されている
-- When `react add` を実行する
-- Then `reactions.add` が呼ばれる
+#### Scenario: Retrieve history by specifying channel
+- Given channel id is specified
+- When `conv history --channel C123` is executed
+- Then `channel` is passed to `conversations.history`
 
-### Requirement: write 操作は `--allow-write` が必須
-write 操作は `--allow-write` が無い場合に拒否されなければならない。(MUST)
-#### Scenario: `msg post` を `--allow-write` なしで実行する
-- Given write 操作を実行する
-- When `--allow-write` が指定されていない
-- Then エラーで終了する
+### Requirement: Users info retrieves user information
+The `users info` command MUST call `users.info` and pass the `user` parameter.
 
-### Requirement: 破壊操作は `--yes` なしだと確認が入る
-`msg delete` は `--yes` が無い場合に確認を表示しなければならない。(MUST)
-#### Scenario: `msg delete` を `--yes` なしで実行する
-- Given `msg delete` を実行する
-- When `--yes` が指定されていない
-- Then 確認が求められる
+#### Scenario: Specify user id
+- Given user id is specified
+- When `users info --user U123` is executed
+- Then `user` is passed to `users.info`
+
+### Requirement: Msg command enables message operations
+The `msg post/update/delete` commands MUST call `chat.postMessage` / `chat.update` / `chat.delete` respectively.
+
+#### Scenario: Execute msg post
+- Given channel and text are specified
+- When `msg post` is executed
+- Then `chat.postMessage` is called
+
+### Requirement: React command enables reaction operations
+The `react add/remove` commands MUST call `reactions.add` / `reactions.remove` respectively.
+
+#### Scenario: Execute react add
+- Given channel, ts, and emoji are specified
+- When `react add` is executed
+- Then `reactions.add` is called
+
+### Requirement: Destructive operations require confirmation without --yes flag
+The `msg delete` command MUST display confirmation when the `--yes` flag is not provided.
+
+#### Scenario: Execute msg delete without --yes flag
+- Given `msg delete` is executed
+- When `--yes` flag is not specified
+- Then confirmation is required
+
+### Requirement: Write operations are controlled by environment variable
+Write operations MUST determine permission/denial based on the `SLACKCLI_ALLOW_WRITE` environment variable value.
+When `SLACKCLI_ALLOW_WRITE` is unset, write operations MUST be allowed.
+The `--allow-write` flag MUST NOT be required, and if specified MUST NOT affect behavior.
+
+#### Scenario: Execute msg post with SLACKCLI_ALLOW_WRITE unset
+- Given executing a write operation
+- When `SLACKCLI_ALLOW_WRITE` is unset
+- Then write operation is allowed
+
+#### Scenario: Execute msg post with SLACKCLI_ALLOW_WRITE=false
+- Given executing a write operation
+- When `SLACKCLI_ALLOW_WRITE` is set to `false` or `0`
+- Then exit with error
+
+#### Scenario: Execute msg post with --allow-write flag
+- Given `SLACKCLI_ALLOW_WRITE` is unset
+- When `--allow-write` flag is specified
+- Then write operation is allowed
 
