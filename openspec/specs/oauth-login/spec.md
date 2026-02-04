@@ -12,11 +12,11 @@ The OAuth authorization URL MUST include `client_id`, `redirect_uri`, `state`, `
 
 ### Requirement: Do not start if required configuration is missing
 
-ログイン開始時にOAuthクライアント情報が不足している場合、対話入力で補完できることがMUST。
+When OAuth client information is missing at login start, it MUST be supplemented through interactive input.
 
 #### Scenario: Required configuration is missing
-- `--client-id` が未指定かつプロファイルに `client_id` が無い場合は対話入力で補完する
-- `client_secret` は常に対話入力で取得する
+- When `--client-id` is not specified and `client_id` is not in the profile, supplement through interactive input
+- `client_secret` is always obtained through interactive input
 
 ### Requirement: Validate state in localhost callback
 The authorization code MUST NOT be accepted if the callback `state` does not match. (MUST NOT)
@@ -52,4 +52,13 @@ When the same `(team_id, user_id)` exists, existing token/metadata MUST be updat
 - Given multiple profiles are saved
 - When executing `auth list`
 - Then a list of profiles is returned
+
+### Requirement: Do not use environment variables for OAuth configuration resolution
+
+OAuth configuration MUST be resolved from CLI arguments or profile configuration files, and MUST NOT reference environment variables.
+
+#### Scenario: Environment variables are ignored even when set
+- Environment variables such as `SLACKRS_CLIENT_ID` are set
+- `client_id` exists in profile configuration
+- When `slack-rs login` is executed, environment variables are not referenced and profile configuration is used
 
