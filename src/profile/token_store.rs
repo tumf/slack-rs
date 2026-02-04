@@ -223,6 +223,7 @@ impl KeyringTokenStore {
 
     /// Create a KeyringTokenStore with the default service name "slackcli"
     /// This is the recommended way to create a KeyringTokenStore for production use
+    /// Note: Service name kept as "slackcli" for backward compatibility with existing keyring entries
     pub fn default_service() -> Self {
         Self {
             service: "slackcli".to_string(),

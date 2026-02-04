@@ -1086,7 +1086,7 @@ fn demonstrate_token_storage() {
     println!("  // Stores tokens in ~/.config/slack-rs/tokens.json with 0600 permissions");
     println!("\nKeyringTokenStore is also available:");
     println!("  let store = KeyringTokenStore::default_service();");
-    println!("  // Uses OS keyring with service='slackcli'");
+    println!("  // Uses OS keyring with service='slackcli' (kept for backward compatibility)");
 
     println!();
 }
@@ -1188,7 +1188,7 @@ fn demonstrate_profile_persistence() {
     if let Ok(_config_path) = default_config_path() {
         // Create a test path in a temp directory
         let temp_dir = std::env::temp_dir();
-        let test_config_path = temp_dir.join("slackcli_test_profiles.json");
+        let test_config_path = temp_dir.join("slack-rs_test_profiles.json");
 
         match save_config(&test_config_path, &config) {
             Ok(_) => {
@@ -1240,7 +1240,7 @@ fn demonstrate_keyring_token_storage() {
 
     // Create KeyringTokenStore with default service name
     let keyring_store = KeyringTokenStore::default_service();
-    println!("Created KeyringTokenStore with service='slackcli'");
+    println!("Created KeyringTokenStore with service='slackcli' (kept for backward compatibility)");
 
     // Create a test token key
     let key = make_token_key("T123ABC", "U456DEF");
