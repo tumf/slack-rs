@@ -25,6 +25,7 @@ pub enum ExportImportError {
     ProfileExists(String),
     #[error("Empty passphrase not allowed")]
     EmptyPassphrase,
+    #[cfg(unix)]
     #[error("File permission error: {0}")]
     PermissionError(String),
     #[error("IO error: {0}")]
