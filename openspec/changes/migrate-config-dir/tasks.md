@@ -8,3 +8,6 @@
    - 検証: `README.md` の設定パスが `~/.config/slack-rs/profiles.json` になっていることを確認する
 5. [x] 全てのテストとlintが通ることを確認する
    - 検証: `cargo test` と `cargo clippy -- -D warnings` が成功することを確認する
+
+## Acceptance #1 Failure Follow-up
+- [x] `src/profile/storage.rs` の `legacy_config_path` を `slack-cli` の旧パスに一致させ、旧パスの `profiles.json` を検出・移行できるようにする

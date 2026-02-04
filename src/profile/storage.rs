@@ -16,9 +16,9 @@ pub enum StorageError {
 
 pub type Result<T> = std::result::Result<T, StorageError>;
 
-/// Get the legacy config file path (slackcli) for migration purposes
+/// Get the legacy config file path (slack-cli) for migration purposes
 fn legacy_config_path() -> Result<PathBuf> {
-    directories::ProjectDirs::from("", "", "slackcli")
+    directories::ProjectDirs::from("", "", "slack-cli")
         .map(|dirs| dirs.config_dir().join("profiles.json"))
         .ok_or(StorageError::ConfigDirNotFound)
 }
