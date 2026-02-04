@@ -21,7 +21,7 @@ User runs: `slackcli auth login --profile myworkspace`
 ### 4. Build Authorization URL
 ```
 https://slack.com/oauth/v2/authorize?
-  client_id={SLACKCLI_CLIENT_ID}
+  client_id={SLACKRS_CLIENT_ID}
   &scope={scopes}
   &redirect_uri=http://127.0.0.1:{port}/auth/callback
   &state={state}
@@ -45,8 +45,8 @@ https://slack.com/oauth/v2/authorize?
 POST to `https://slack.com/api/oauth.v2.access`:
 ```json
 {
-  "client_id": "{SLACKCLI_CLIENT_ID}",
-  "client_secret": "{SLACKCLI_CLIENT_SECRET}",
+  "client_id": "{SLACKRS_CLIENT_ID}",
+  "client_secret": "{SLACKRS_CLIENT_SECRET}",
   "code": "{code}",
   "redirect_uri": "http://127.0.0.1:{port}/auth/callback",
   "code_verifier": "{code_verifier}"
@@ -80,8 +80,8 @@ Expected response:
 - Save updated `profiles.json`
 
 ## Required Environment Variables
-- `SLACKCLI_CLIENT_ID`: Slack OAuth client ID
-- `SLACKCLI_CLIENT_SECRET`: Slack OAuth client secret
+- `SLACKRS_CLIENT_ID`: Slack OAuth client ID
+- `SLACKRS_CLIENT_SECRET`: Slack OAuth client secret
 
 ## Recommended Scopes
 
@@ -114,7 +114,7 @@ admin.users:read
 ## Error Handling
 
 ### Missing Environment Variables
-- Error: `SLACKCLI_CLIENT_ID not set. Please configure OAuth credentials.`
+- Error: `SLACKRS_CLIENT_ID not set. Please configure OAuth credentials.`
 - Exit code: 1
 
 ### State Mismatch (CSRF)

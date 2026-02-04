@@ -46,30 +46,30 @@ async fn main() {
             match args[2].as_str() {
                 "login" => {
                     // Load OAuth config from environment variables
-                    let client_id = match std::env::var("SLACKCLI_CLIENT_ID") {
+                    let client_id = match std::env::var("SLACKRS_CLIENT_ID") {
                         Ok(val) => val,
                         Err(_) => {
-                            eprintln!("Error: SLACKCLI_CLIENT_ID environment variable is required");
+                            eprintln!("Error: SLACKRS_CLIENT_ID environment variable is required");
                             eprintln!("Please set it with your Slack OAuth client ID");
                             std::process::exit(1);
                         }
                     };
 
-                    let client_secret = match std::env::var("SLACKCLI_CLIENT_SECRET") {
+                    let client_secret = match std::env::var("SLACKRS_CLIENT_SECRET") {
                         Ok(val) => val,
                         Err(_) => {
                             eprintln!(
-                                "Error: SLACKCLI_CLIENT_SECRET environment variable is required"
+                                "Error: SLACKRS_CLIENT_SECRET environment variable is required"
                             );
                             eprintln!("Please set it with your Slack OAuth client secret");
                             std::process::exit(1);
                         }
                     };
 
-                    let redirect_uri = std::env::var("SLACKCLI_REDIRECT_URI")
+                    let redirect_uri = std::env::var("SLACKRS_REDIRECT_URI")
                         .unwrap_or_else(|_| "http://127.0.0.1:3000/callback".to_string());
 
-                    let scopes = std::env::var("SLACKCLI_SCOPES")
+                    let scopes = std::env::var("SLACKRS_SCOPES")
                         .unwrap_or_else(|_| "chat:write,users:read".to_string())
                         .split(',')
                         .map(|s| s.trim().to_string())

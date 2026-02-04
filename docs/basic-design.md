@@ -71,8 +71,8 @@
 - OAuth uses PKCE + state to mitigate interception and CSRF.
 - Callback server binds to loopback (recommended: `127.0.0.1`) and an ephemeral free port.
 - **Required runtime configuration** (do not hardcode):
-  - `SLACKCLI_CLIENT_ID`
-  - `SLACKCLI_CLIENT_SECRET`
+  - `SLACKRS_CLIENT_ID`
+  - `SLACKRS_CLIENT_SECRET`
 - **Redirect URL pattern**:
   - `http://127.0.0.1:{port}/auth/callback`
 
