@@ -11,9 +11,9 @@ OAuth 認可 URL には `client_id`, `redirect_uri`, `state`, `code_challenge`, 
 - Then 必須パラメータがすべて含まれる
 
 ### Requirement: 必須設定が未設定の場合は開始しない
-`SLACKCLI_CLIENT_ID` または `SLACKCLI_CLIENT_SECRET` が未設定の場合、OAuth フローを開始してはならない。(MUST NOT)
+`SLACKRS_CLIENT_ID` または `SLACKRS_CLIENT_SECRET` が未設定の場合、OAuth フローを開始してはならない。(MUST NOT)
 #### Scenario: 必須環境変数が不足している
-- Given `SLACKCLI_CLIENT_ID` が未設定である
+- Given `SLACKRS_CLIENT_ID` が未設定である
 - When `auth login` を実行する
 - Then エラーで終了する
 

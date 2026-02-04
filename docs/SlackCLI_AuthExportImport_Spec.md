@@ -51,7 +51,7 @@ tags:
 - `slackcli auth export --profile <name> --out <path>`
 
 オプション:
-- `--passphrase-env SLACKCLI_KEYRING_PASSWORD`（既定）
+- `--passphrase-env SLACKRS_KEYRING_PASSWORD`（既定）
 - `--passphrase-prompt`（環境変数が無い時の対話入力）
 - `--force`（既存ファイル上書き）
 - `--yes`（危険操作の同意）
@@ -70,7 +70,7 @@ tags:
 - `slackcli auth import --profile <name> --in <path>`
 
 オプション:
-- `--passphrase-env SLACKCLI_KEYRING_PASSWORD`（既定）
+- `--passphrase-env SLACKRS_KEYRING_PASSWORD`（既定）
 - `--passphrase-prompt`
 - `--yes`（上書き等の同意）
 

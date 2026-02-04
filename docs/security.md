@@ -158,4 +158,4 @@ let delay = base_delay * (1.0 + jitter);
 - Format: JSON lines
 - Fields: timestamp, profile, command, channel, result
 - Location: `~/.local/share/slackcli/audit.log`
-- Disabled by default; enable with `SLACKCLI_AUDIT=1`
+- Disabled by default; enable with `SLACKRS_AUDIT=1`
