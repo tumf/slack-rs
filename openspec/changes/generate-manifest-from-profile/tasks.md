@@ -66,3 +66,6 @@
 
 ## Acceptance #2 Failure Follow-up
 - [x] bot トークンの Keyring 保存キーを `team_id:user_id`（`make_token_key`）に戻し、user トークンは別キーで保存する（`src/auth/commands.rs` の `save_profile_and_credentials` を修正）。
+
+## Acceptance #3 Failure Follow-up
+- [x] Keyring の service 名が仕様の `slackcli` ではなく `slack-rs` のため、保存キー要件（service=slackcli）に未達（`KeyringTokenStore::default_service` が `slack-rs`、`src/profile/token_store.rs:95-100`；`save_profile_and_credentials` が `default_service` を使用、`src/auth/commands.rs:402`）。

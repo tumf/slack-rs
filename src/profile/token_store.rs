@@ -92,11 +92,11 @@ impl KeyringTokenStore {
         }
     }
 
-    /// Create a KeyringTokenStore with the default service name "slack-rs"
+    /// Create a KeyringTokenStore with the default service name "slackcli"
     /// This is the recommended way to create a KeyringTokenStore for production use
     pub fn default_service() -> Self {
         Self {
-            service: "slack-rs".to_string(),
+            service: "slackcli".to_string(),
         }
     }
 }
@@ -241,7 +241,7 @@ mod tests {
     #[test]
     fn test_keyring_token_store_default_service() {
         let store = KeyringTokenStore::default_service();
-        assert_eq!(store.service, "slack-rs");
+        assert_eq!(store.service, "slackcli");
     }
 
     #[test]
