@@ -135,6 +135,7 @@ pub async fn login_with_credentials(
         };
 
     // Create OAuth config
+    // For backward compatibility, treat final_scopes as bot_scopes
     let config = OAuthConfig {
         client_id: final_client_id.clone(),
         client_secret: final_client_secret.clone(),
@@ -148,6 +149,7 @@ pub async fn login_with_credentials(
         perform_oauth_flow(&config, base_url.as_deref()).await?;
 
     // Save profile with OAuth config and client_secret to Keyring
+    // For backward compatibility, treat final_scopes as bot_scopes
     save_profile_and_credentials(SaveCredentials {
         config_path: &config_path,
         profile_name: &profile_name,

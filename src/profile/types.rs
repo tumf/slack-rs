@@ -43,6 +43,31 @@ impl Profile {
     pub fn get_user_scopes(&self) -> Option<Vec<String>> {
         self.user_scopes.clone()
     }
+
+    /// Create a new profile with bot and user scopes
+    #[allow(clippy::too_many_arguments)]
+    pub fn with_scopes(
+        team_id: String,
+        user_id: String,
+        team_name: Option<String>,
+        user_name: Option<String>,
+        client_id: Option<String>,
+        redirect_uri: Option<String>,
+        bot_scopes: Option<Vec<String>>,
+        user_scopes: Option<Vec<String>>,
+    ) -> Self {
+        Self {
+            team_id,
+            user_id,
+            team_name,
+            user_name,
+            client_id,
+            redirect_uri,
+            scopes: None, // Deprecated field, kept for backward compatibility
+            bot_scopes,
+            user_scopes,
+        }
+    }
 }
 
 /// Root configuration structure with versioning for future migration
@@ -764,5 +789,99 @@ mod tests {
         // Both profiles should exist
         assert!(config.get("existing").is_some());
         assert!(config.get("new").is_some());
+    }
+}
+
+#[cfg(test)]
+mod backward_compat_tests {
+    use super::*;
+
+    #[test]
+    fn test_get_bot_scopes_from_legacy_scopes() {
+        // Test that scopes field is treated as bot_scopes for backward compatibility
+        let profile = Profile {
+            team_id: "T123".to_string(),
+            user_id: "U456".to_string(),
+            team_name: None,
+            user_name: None,
+            client_id: None,
+            redirect_uri: None,
+            scopes: Some(vec!["chat:write".to_string(), "users:read".to_string()]),
+            bot_scopes: None,
+            user_scopes: None,
+        };
+
+        let bot_scopes = profile.get_bot_scopes();
+        assert_eq!(
+            bot_scopes,
+            Some(vec!["chat:write".to_string(), "users:read".to_string()])
+        );
+    }
+
+    #[test]
+    fn test_get_bot_scopes_prefers_bot_scopes_over_scopes() {
+        // Test that bot_scopes takes precedence over scopes
+        let profile = Profile {
+            team_id: "T123".to_string(),
+            user_id: "U456".to_string(),
+            team_name: None,
+            user_name: None,
+            client_id: None,
+            redirect_uri: None,
+            scopes: Some(vec!["old:scope".to_string()]),
+            bot_scopes: Some(vec!["new:scope".to_string()]),
+            user_scopes: None,
+        };
+
+        let bot_scopes = profile.get_bot_scopes();
+        assert_eq!(bot_scopes, Some(vec!["new:scope".to_string()]));
+    }
+
+    #[test]
+    fn test_get_user_scopes_returns_none_for_legacy() {
+        // Test that user_scopes returns None for legacy profiles
+        let profile = Profile {
+            team_id: "T123".to_string(),
+            user_id: "U456".to_string(),
+            team_name: None,
+            user_name: None,
+            client_id: None,
+            redirect_uri: None,
+            scopes: Some(vec!["chat:write".to_string()]),
+            bot_scopes: None,
+            user_scopes: None,
+        };
+
+        let user_scopes = profile.get_user_scopes();
+        assert_eq!(user_scopes, None);
+    }
+
+    #[test]
+    fn test_deserialize_old_profile_format() {
+        // Test that old profile.json without bot_scopes/user_scopes can be deserialized
+        let json = r#"{
+            "team_id": "T123",
+            "user_id": "U456",
+            "team_name": "Test Team",
+            "user_name": "Test User",
+            "scopes": ["chat:write", "users:read"]
+        }"#;
+
+        let profile: Profile = serde_json::from_str(json).unwrap();
+        assert_eq!(profile.team_id, "T123");
+        assert_eq!(profile.user_id, "U456");
+        assert_eq!(
+            profile.scopes,
+            Some(vec!["chat:write".to_string(), "users:read".to_string()])
+        );
+        assert_eq!(profile.bot_scopes, None);
+        assert_eq!(profile.user_scopes, None);
+
+        // Verify backward compatibility: scopes should be accessible as bot_scopes
+        let bot_scopes = profile.get_bot_scopes();
+        assert_eq!(
+            bot_scopes,
+            Some(vec!["chat:write".to_string(), "users:read".to_string()])
+        );
     }
 }
