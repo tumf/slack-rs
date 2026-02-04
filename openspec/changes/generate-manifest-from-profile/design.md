@@ -24,17 +24,20 @@
 #### 概要
 cloudflared は OPTIONAL とし、`auth login` は次の 2 つの redirect_uri 解決方法を提供する。
 
-- **cloudflared を使う場合**: `--cloudflared <path>` が指定されたとき、cloudflared tunnel を起動し、生成された公開 URL を redirect_uri として使用する。
+- **cloudflared を使う場合**: `--cloudflared [path]` が指定されたとき、cloudflared tunnel を起動し、生成された公開 URL を redirect_uri として使用する。
+  - `path` が省略された場合、実行ファイル名 `cloudflared`（PATH から探索）を使用する。
+  - `path` が指定された場合、指定されたパスを実行ファイルとして使用する。
 - **cloudflared を使わない場合**: `--cloudflared` が指定されないとき、ユーザーに redirect_uri をプロンプトして決定する。
 
 #### 処理フロー
-`--cloudflared <path>` が指定された場合:
+`--cloudflared [path]` が指定された場合:
 
-1. **Tunnel 起動**: 指定されたパスの cloudflared を用いて `tunnel --url http://localhost:8765` を実行
-2. **URL 抽出**: cloudflared の標準出力から公開 URL（例: `https://xxx.trycloudflare.com`）を抽出
-3. **redirect_uri 設定**: 抽出した URL に `/callback` を付加して redirect_uri とする（例: `https://xxx.trycloudflare.com/callback`）
-4. **OAuth フロー実行**: 生成した redirect_uri を使用して OAuth 認証を実行
-5. **Tunnel 停止**: OAuth フロー完了後、cloudflared プロセスを終了
+1. **実行ファイル解決**: `path` が指定されていればその `path` を使用し、未指定であれば `cloudflared` を使用する
+2. **Tunnel 起動**: 解決した cloudflared を用いて `tunnel --url http://localhost:8765` を実行
+3. **URL 抽出**: cloudflared の標準出力から公開 URL（例: `https://xxx.trycloudflare.com`）を抽出
+4. **redirect_uri 設定**: 抽出した URL に `/callback` を付加して redirect_uri とする（例: `https://xxx.trycloudflare.com/callback`）
+5. **OAuth フロー実行**: 生成した redirect_uri を使用して OAuth 認証を実行
+6. **Tunnel 停止**: OAuth フロー完了後、cloudflared プロセスを終了
 
 `--cloudflared` が指定されない場合:
 

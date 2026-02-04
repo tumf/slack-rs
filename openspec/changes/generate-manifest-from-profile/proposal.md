@@ -11,7 +11,9 @@ Slack OAuth の `user_scope` を設定できるようにし、`slack-rs auth log
 - `user_scope` を OAuth 認可 URL に反映できる。
 - `auth login` で bot/user スコープを対話的に入力できる（デフォルト入力値は両方とも `all`）。
 - 生成する Slack App Manifest は、`auth login` で選択されたスコープ（bot/user）に基づく。
-- cloudflared は OPTIONAL とし、`auth login` に `--cloudflared <path>` オプションで cloudflared 実行ファイルのパスを指定できる。
+- cloudflared は OPTIONAL とし、`auth login` に `--cloudflared [path]` オプションで cloudflared 実行ファイルを指定できる（`path` は省略可能）。
+  - `--cloudflared` が存在し `path` が省略された場合、CLI は `cloudflared`（PATH から探索）を実行ファイルとして使用する。
+  - `--cloudflared <path>` が存在する場合、CLI はその `path` を実行ファイルとして使用する。
 - `--cloudflared` が指定されない場合、`auth login` は redirect_uri をユーザーにプロンプトして決定する。
 - `--cloudflared` が指定される場合、OAuth は cloudflared tunnel の公開 URL を用いた `{public_url}/callback` を redirect_uri として使用する。
 - `auth login` 実行時に入力情報から自動的に Slack App Manifest を生成する。

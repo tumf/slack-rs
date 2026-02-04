@@ -13,21 +13,23 @@
    - 検証: URL 生成テストで `user_scope` が含まれることを確認する。
 
 4. cloudflared tunnel の起動・停止機能を実装する。
-   - `--cloudflared <path>` で指定されたパスの cloudflared をサブプロセスとして起動（cloudflared は OPTIONAL）
+   - `--cloudflared [path]` が指定された場合に cloudflared をサブプロセスとして起動（cloudflared は OPTIONAL）
+     - `--cloudflared` だけが指定された場合は実行ファイル名 `cloudflared`（PATH から探索）を使用する
+     - `--cloudflared <path>` が指定された場合はその `path` を使用する
    - `--cloudflared` が未指定の場合は本タスクの機能は使用しない
    - プロセスの標準出力から公開 URL を抽出する機能を実装
    - OAuth フロー完了後に cloudflared プロセスを終了する機能を実装
    - 検証: モックプロセスを使用して、URL 抽出と終了処理が正しく動作することを確認する。
 
 5. `auth login` に redirect_uri 解決の分岐を追加する（cloudflared は OPTIONAL）。
-   - `--cloudflared <path>` が指定されている場合:
-     - Tunnel 起動時に公開 URL を抽出し、`/callback` を付加して redirect_uri とする
-     - 生成した redirect_uri を OAuth フローで使用する
-     - OAuth コールバック受信後に tunnel を停止する
-     - エラーハンドリング: 指定パスの cloudflared が実行できない場合や起動失敗時の適切なエラーメッセージ
+   - `--cloudflared [path]` が指定されている場合:
+      - Tunnel 起動時に公開 URL を抽出し、`/callback` を付加して redirect_uri とする
+      - 生成した redirect_uri を OAuth フローで使用する
+      - OAuth コールバック受信後に tunnel を停止する
+      - エラーハンドリング: 指定 `path` の cloudflared が実行できない場合、または `cloudflared`（PATH 解決）が実行できない場合や起動失敗時の適切なエラーメッセージ
    - `--cloudflared` が指定されていない場合:
-     - redirect_uri をユーザーにプロンプトして取得し、OAuth フローで使用する
-     - cloudflared を起動しない
+      - redirect_uri をユーザーにプロンプトして取得し、OAuth フローで使用する
+      - cloudflared を起動しない
    - 検証（モックファースト、実 Slack 資格情報不要）:
      - 既存の `base_url` 上書きを使用して OAuth エンドポイント（認可コード交換など）をモックサーバに向ける。
      - cloudflared ありのケースはモックプロセス出力（例: `https://abc.trycloudflare.com`）で代替し、実プロセス起動を不要にする。

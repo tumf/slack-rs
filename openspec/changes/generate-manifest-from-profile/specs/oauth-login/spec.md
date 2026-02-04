@@ -20,16 +20,29 @@ OAuth 認可 URL には `client_id`、`redirect_uri`、`state`、`code_challenge
 
 ### Requirement: redirect_uri の解決（cloudflared は OPTIONAL）
 
-`auth login` は `--cloudflared <path>` オプションで cloudflared 実行ファイルのパスを受け付けなければならない (MUST)。
+`auth login` は `--cloudflared [path]` オプションで cloudflared 実行ファイルを受け付けなければならない (MUST)。
+
+`--cloudflared` が存在し `path` が省略された場合、`auth login` は実行ファイル名 `cloudflared`（PATH から探索）を使用しなければならない (MUST)。
+
+`--cloudflared <path>` が存在する場合、`auth login` は指定された `path` を使用しなければならない (MUST)。
 
 `--cloudflared` が指定された場合、`auth login` は cloudflared tunnel プロセスを起動し、生成された公開 URL を抽出し、それを OAuth フローの `redirect_uri` として使用しなければならない (MUST)。tunnel は OAuth フロー完了後に停止しなければならない (MUST)。
 
 `--cloudflared` が指定されない場合、`auth login` はユーザーに redirect_uri をプロンプトして取得し、その値を OAuth フローの `redirect_uri` として使用しなければならない (MUST)。この場合、cloudflared を起動してはならない (MUST NOT)。
 
-#### Scenario: `--cloudflared` 指定時に tunnel を起動し公開 URL を redirect_uri に使用する
+#### Scenario: `--cloudflared <path>` 指定時に tunnel を起動し公開 URL を redirect_uri に使用する
 - Given `auth login --cloudflared <path>` を実行する
 - When OAuth フローを開始する
 - Then 指定された cloudflared を `tunnel --url http://localhost:8765` で起動する
+- And cloudflared の出力から公開 URL（例: `https://xxx.trycloudflare.com`）を抽出する
+- And redirect_uri を `{public_url}/callback` に設定する
+- And OAuth コールバック受信後に tunnel を停止する
+
+#### Scenario: `--cloudflared`（path 省略）指定時にデフォルト実行ファイル名で tunnel を起動する
+- Given `auth login --cloudflared` を実行する
+- When OAuth フローを開始する
+- Then cloudflared 実行ファイルとして `cloudflared` を使用する
+- And `tunnel --url http://localhost:8765` で起動する
 - And cloudflared の出力から公開 URL（例: `https://xxx.trycloudflare.com`）を抽出する
 - And redirect_uri を `{public_url}/callback` に設定する
 - And OAuth コールバック受信後に tunnel を停止する
@@ -43,8 +56,8 @@ OAuth 認可 URL には `client_id`、`redirect_uri`、`state`、`code_challenge
 - And cloudflared tunnel を起動しない
 
 #### Scenario: `--cloudflared` 指定時に cloudflared が実行できない場合のエラーハンドリング
-- Given `auth login --cloudflared <path>` を実行する
-- And 指定パスの cloudflared が未存在、または実行できない
+- Given `auth login --cloudflared [path]` を実行する
+- And cloudflared 実行ファイルが未存在、または実行できない
 - When OAuth フローを開始する
 - Then cloudflared が実行できないことが分かる明確なエラーメッセージを表示する
 - And OAuth フローを開始しない
