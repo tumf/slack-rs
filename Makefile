@@ -116,17 +116,17 @@ pre-commit-hooks:
 # Bump patch version (0.1.0 -> 0.1.1) and create git tag
 bump-patch:
 	@echo "Bumping patch version..."
-	@cargo release patch --execute
+	@cargo release patch --execute --no-confirm
 	@echo "Patch version bumped and tagged successfully"
 
 # Bump minor version (0.1.0 -> 0.2.0) and create git tag
 bump-minor:
 	@echo "Bumping minor version..."
-	@cargo release minor --execute
+	@cargo release minor --execute --no-confirm
 	@echo "Minor version bumped and tagged successfully"
 
 # Bump major version (0.1.0 -> 1.0.0) and create git tag
 bump-major:
 	@echo "Bumping major version..."
-	@cargo release major --execute
+	@cargo release major --execute --no-confirm
 	@echo "Major version bumped and tagged successfully"
