@@ -12,7 +12,8 @@ use api::{execute_api_call, ApiCallArgs, ApiCallContext, ApiClient};
 use cli::*;
 use profile::{
     default_config_path, load_config, make_token_key, resolve_profile, resolve_profile_full,
-    save_config, InMemoryTokenStore, KeyringTokenStore, Profile, ProfilesConfig, TokenStore,
+    save_config, FileTokenStore, InMemoryTokenStore, KeyringTokenStore, Profile, ProfilesConfig,
+    TokenStore,
 };
 
 #[tokio::main]
@@ -553,25 +554,71 @@ async fn run_auth_login(args: &[String]) -> Result<(), String> {
         return Err("Cannot specify both --cloudflared and --ngrok at the same time".to_string());
     }
 
-    // Use default redirect_uri (will be overridden if cloudflared or ngrok is used)
+    // Use default redirect_uri
     let redirect_uri = "http://127.0.0.1:8765/callback".to_string();
 
     // Keep base_url from environment for testing purposes only
     let base_url = std::env::var("SLACK_OAUTH_BASE_URL").ok();
 
-    // Call login with cloudflared and ngrok parameters
-    auth::login_with_credentials_extended(auth::ExtendedLoginOptions {
-        client_id,
-        profile_name,
-        redirect_uri,
-        bot_scopes,
-        user_scopes,
-        cloudflared_path,
-        ngrok_path,
-        base_url,
-    })
-    .await
-    .map_err(|e| e.to_string())
+    // If cloudflared or ngrok is specified, use extended login flow
+    if cloudflared_path.is_some() || ngrok_path.is_some() {
+        // Prompt for client_id if not provided
+        let client_id = if let Some(id) = client_id {
+            id
+        } else {
+            use std::io::{self, Write};
+            print!("Enter Slack Client ID: ");
+            io::stdout().flush().unwrap();
+            let mut input = String::new();
+            io::stdin().read_line(&mut input).unwrap();
+            input.trim().to_string()
+        };
+
+        // Use default scopes if not provided
+        let bot_scopes = bot_scopes.unwrap_or_else(oauth::bot_all_scopes);
+        let user_scopes = user_scopes.unwrap_or_else(oauth::user_all_scopes);
+
+        // Debug: Show scopes before prompting for client_secret
+        eprintln!("🔍 Debug - main.rs preparing to call login_with_credentials_extended:");
+        eprintln!("  Bot scopes count: {}", bot_scopes.len());
+        eprintln!("  User scopes count: {}", user_scopes.len());
+        if !bot_scopes.is_empty() {
+            eprintln!("  Bot scopes: {}", bot_scopes.join(", "));
+        }
+        if !user_scopes.is_empty() {
+            eprintln!("  User scopes: {}", user_scopes.join(", "));
+        }
+
+        // Prompt for client_secret
+        let client_secret = auth::prompt_for_client_secret()
+            .map_err(|e| format!("Failed to read client secret: {}", e))?;
+
+        // Call extended login with cloudflared support
+        auth::login_with_credentials_extended(
+            client_id,
+            client_secret,
+            bot_scopes,
+            user_scopes,
+            profile_name,
+            cloudflared_path.is_some(),
+        )
+        .await
+        .map_err(|e| e.to_string())
+    } else {
+        // Call standard login with credentials
+        // This will prompt for client_secret and other missing OAuth config
+        auth::login_with_credentials(
+            client_id,
+            profile_name,
+            redirect_uri,
+            vec![], // Legacy scopes parameter (unused)
+            bot_scopes,
+            user_scopes,
+            base_url,
+        )
+        .await
+        .map_err(|e| e.to_string())
+    }
 }
 
 /// Run config oauth set command
@@ -766,7 +813,7 @@ async fn handle_export_command(args: &[String]) {
         yes,
     };
 
-    let token_store = KeyringTokenStore::default_service();
+    let token_store = FileTokenStore::new().expect("Failed to create token store");
     match auth::export_profiles(&token_store, &options) {
         Ok(_) => {
             println!("{}", messages.get("success.export"));
@@ -880,7 +927,7 @@ async fn handle_import_command(args: &[String]) {
         force,
     };
 
-    let token_store = KeyringTokenStore::default_service();
+    let token_store = FileTokenStore::new().expect("Failed to create token store");
     match auth::import_profiles(&token_store, &options) {
         Ok(_) => {
             println!("{}", messages.get("success.import"));
@@ -918,18 +965,19 @@ async fn run_api_call(args: Vec<String>) -> Result<(), Box<dyn std::error::Error
     let token_key = make_token_key(&profile.team_id, &profile.user_id);
 
     // Retrieve token from token store
-    // Try keyring first, fall back to environment variable
+    // Try file store first, fall back to environment variable
     let token = {
-        let keyring_store = KeyringTokenStore::default_service();
-        match keyring_store.get(&token_key) {
+        let file_store =
+            FileTokenStore::new().map_err(|e| format!("Failed to create token store: {}", e))?;
+        match file_store.get(&token_key) {
             Ok(t) => t,
             Err(_) => {
-                // If keyring fails, check if there's a token in environment
+                // If file store fails, check if there's a token in environment
                 if let Ok(env_token) = std::env::var("SLACK_TOKEN") {
                     env_token
                 } else {
                     return Err(format!(
-                        "No token found for profile '{}' ({}:{}). Set SLACK_TOKEN environment variable or store token in keyring.",
+                        "No token found for profile '{}' ({}:{}). Set SLACK_TOKEN environment variable or store token in file store.",
                         profile_name, profile.team_id, profile.user_id
                     ).into());
                 }
@@ -1032,8 +1080,11 @@ fn demonstrate_token_storage() {
     // Check if token exists
     println!("Token exists: {}", store.exists(&key));
 
-    // Note about KeyringTokenStore
-    println!("\nNote: KeyringTokenStore is available for production use:");
+    // Note about FileTokenStore and KeyringTokenStore
+    println!("\nNote: FileTokenStore is the default for production use:");
+    println!("  let store = FileTokenStore::new().unwrap();");
+    println!("  // Stores tokens in ~/.config/slack-rs/tokens.json with 0600 permissions");
+    println!("\nKeyringTokenStore is also available:");
     println!("  let store = KeyringTokenStore::default_service();");
     println!("  // Uses OS keyring with service='slackcli'");
 

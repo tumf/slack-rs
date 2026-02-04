@@ -1,14 +1,12 @@
 //! Auth command implementations
 
 use crate::auth::cloudflared::{CloudflaredError, CloudflaredTunnel};
-use crate::auth::manifest::generate_manifest;
-use crate::auth::ngrok::{NgrokError, NgrokTunnel};
 use crate::oauth::{
     build_authorization_url, exchange_code, generate_pkce, generate_state, resolve_callback_port,
     run_callback_server, OAuthConfig, OAuthError,
 };
 use crate::profile::{
-    default_config_path, load_config, make_token_key, save_config, KeyringTokenStore, Profile,
+    default_config_path, load_config, make_token_key, save_config, FileTokenStore, Profile,
     ProfilesConfig, TokenStore,
 };
 use std::io::{self, Write};
@@ -121,16 +119,17 @@ pub async fn login_with_credentials(
             )
         };
 
-    // Client secret resolution: Keyring > prompt
-    let token_store = KeyringTokenStore::default_service();
+    // Client secret resolution: File store > prompt
+    let token_store = FileTokenStore::new()
+        .map_err(|e| OAuthError::ConfigError(format!("Failed to create token store: {}", e)))?;
     let final_client_secret =
         match crate::profile::get_oauth_client_secret(&token_store, &profile_name) {
             Ok(secret) => {
-                println!("Using saved client secret from keyring.");
+                println!("Using saved client secret from file store.");
                 secret
             }
             Err(_) => {
-                // Not found in keyring, prompt for it
+                // Not found in file store, prompt for it
                 prompt_for_client_secret()?
             }
         };
@@ -195,13 +194,15 @@ fn prompt_for_client_id() -> Result<String, OAuthError> {
 }
 
 /// Prompt user for OAuth client secret (hidden input)
-fn prompt_for_client_secret() -> Result<String, OAuthError> {
+pub fn prompt_for_client_secret() -> Result<String, OAuthError> {
     loop {
         let input = rpassword::prompt_password("Enter OAuth client secret: ")
             .map_err(|e| OAuthError::ConfigError(format!("Failed to read password: {}", e)))?;
 
         let trimmed = input.trim();
         if !trimmed.is_empty() {
+            // Add newline after successful password input for better UX
+            println!();
             return Ok(trimmed.to_string());
         }
         eprintln!("Client secret cannot be empty. Please try again.");
@@ -348,6 +349,18 @@ async fn perform_oauth_flow(
         .as_ref()
         .and_then(|u| u.access_token.clone());
 
+    eprintln!(
+        "DEBUG: OAuth response - bot_token present: {}",
+        bot_token.is_some()
+    );
+    eprintln!(
+        "DEBUG: OAuth response - user_token present: {}",
+        user_token.is_some()
+    );
+    if let Some(ref token) = user_token {
+        eprintln!("DEBUG: User token length: {}", token.len());
+    }
+
     // Ensure at least one token is present
     if bot_token.is_none() && user_token.is_none() {
         return Err(OAuthError::SlackError(
@@ -401,8 +414,9 @@ fn save_profile_and_credentials(creds: SaveCredentials) -> Result<(), OAuthError
     save_config(creds.config_path, &profiles_config)
         .map_err(|e| OAuthError::ConfigError(format!("Failed to save config: {}", e)))?;
 
-    // Save tokens to keyring
-    let token_store = KeyringTokenStore::default_service();
+    // Save tokens to file store
+    let token_store = FileTokenStore::new()
+        .map_err(|e| OAuthError::ConfigError(format!("Failed to create token store: {}", e)))?;
 
     // Save bot token to team_id:user_id key (make_token_key format)
     if let Some(bot_token) = creds.bot_token {
@@ -415,12 +429,17 @@ fn save_profile_and_credentials(creds: SaveCredentials) -> Result<(), OAuthError
     // Save user token to separate key (team_id:user_id:user)
     if let Some(user_token) = creds.user_token {
         let user_token_key = format!("{}:{}:user", creds.team_id, creds.user_id);
+        eprintln!("DEBUG: Saving user token with key: {}", user_token_key);
+        eprintln!("DEBUG: User token length: {}", user_token.len());
         token_store
             .set(&user_token_key, user_token)
             .map_err(|e| OAuthError::ConfigError(format!("Failed to save user token: {}", e)))?;
+        eprintln!("DEBUG: User token saved successfully");
+    } else {
+        eprintln!("DEBUG: No user token to save (user_token is None)");
     }
 
-    // Save client_secret to keyring (per design: service=slack-rs, username=oauth-client-secret:<profile_name>)
+    // Save client_secret to file store
     let client_secret_key = format!("oauth-client-secret:{}", creds.profile_name);
     token_store
         .set(&client_secret_key, creds.client_secret)
@@ -528,7 +547,8 @@ pub async fn login(
         .map_err(|e| OAuthError::ConfigError(format!("Failed to save config: {}", e)))?;
 
     // Save token
-    let token_store = KeyringTokenStore::default_service();
+    let token_store = FileTokenStore::new()
+        .map_err(|e| OAuthError::ConfigError(format!("Failed to create token store: {}", e)))?;
     let token_key = make_token_key(&team_id, &user_id);
     token_store
         .set(&token_key, &token)
@@ -568,9 +588,10 @@ pub fn status(profile_name: Option<String>) -> Result<(), String> {
     }
 
     // Check if token exists
-    let token_store = KeyringTokenStore::default_service();
+    let token_store = FileTokenStore::new().map_err(|e| e.to_string())?;
     let token_key = make_token_key(&profile.team_id, &profile.user_id);
     let has_token = token_store.exists(&token_key);
+
     println!("Token: {}", if has_token { "Present" } else { "Missing" });
 
     Ok(())
@@ -647,7 +668,7 @@ pub fn logout(profile_name: Option<String>) -> Result<(), String> {
         .clone();
 
     // Delete token
-    let token_store = KeyringTokenStore::default_service();
+    let token_store = FileTokenStore::new().map_err(|e| e.to_string())?;
     let token_key = make_token_key(&profile.team_id, &profile.user_id);
     let _ = token_store.delete(&token_key); // Ignore error if token doesn't exist
 
@@ -720,16 +741,24 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let config_path = temp_dir.path().join("profiles.json");
 
-        // Save profile with client_id and client_secret to Keyring
+        let team_id = "T123";
+        let user_id = "U456";
+        let profile_name = "test";
+
+        // Use a temporary token store file
+        let tokens_path = temp_dir.path().join("tokens.json");
+        std::env::set_var("SLACK_RS_TOKENS_PATH", tokens_path.to_str().unwrap());
+
+        // Save profile with client_id and client_secret to file store
         let scopes = vec!["chat:write".to_string(), "users:read".to_string()];
         let bot_scopes = vec!["chat:write".to_string()];
         let user_scopes = vec!["users:read".to_string()];
         save_profile_and_credentials(SaveCredentials {
             config_path: &config_path,
-            profile_name: "test",
-            team_id: "T123",
+            profile_name,
+            team_id,
             team_name: &Some("Test Team".to_string()),
-            user_id: "U456",
+            user_id,
             bot_token: Some("xoxb-test-bot-token"),
             user_token: Some("xoxp-test-user-token"),
             client_id: "test-client-id",
@@ -743,16 +772,20 @@ mod tests {
 
         // Verify profile was saved with client_id
         let config = load_config(&config_path).unwrap();
-        let profile = config.get("test").unwrap();
+        let profile = config.get(profile_name).unwrap();
         assert_eq!(profile.client_id, Some("test-client-id".to_string()));
-        assert_eq!(profile.team_id, "T123");
-        assert_eq!(profile.user_id, "U456");
+        assert_eq!(profile.team_id, team_id);
+        assert_eq!(profile.user_id, user_id);
 
-        // Verify client_secret was saved to keyring
-        let _token_store = KeyringTokenStore::default_service();
-        let _client_secret_key = format!("oauth-client-secret:{}", "test");
-        // Note: In CI/test environments without keyring, this may fail
-        // In production, client_secret is stored in keyring for later use
+        // Verify tokens were saved to file store
+        let token_store = FileTokenStore::with_path(tokens_path).unwrap();
+        let bot_token_key = make_token_key(team_id, user_id);
+        let user_token_key = format!("{}:{}:user", team_id, user_id);
+        let client_secret_key = format!("oauth-client-secret:{}", profile_name);
+
+        assert!(token_store.exists(&bot_token_key));
+        assert!(token_store.exists(&user_token_key));
+        assert!(token_store.exists(&client_secret_key));
     }
 
     #[test]
@@ -820,7 +853,77 @@ mod tests {
     }
 }
 
+/// Find cloudflared executable in PATH or common locations
+fn find_cloudflared() -> Option<String> {
+    // Try "cloudflared" in PATH first
+    if Command::new("cloudflared")
+        .arg("--version")
+        .output()
+        .is_ok()
+    {
+        return Some("cloudflared".to_string());
+    }
+
+    // Try common installation paths
+    let common_paths = [
+        "/usr/local/bin/cloudflared",
+        "/opt/homebrew/bin/cloudflared",
+        "/usr/bin/cloudflared",
+    ];
+
+    for path in &common_paths {
+        if std::path::Path::new(path).exists() {
+            return Some(path.to_string());
+        }
+    }
+
+    None
+}
+
+/// Generate and save manifest file for Slack app creation
+fn generate_and_save_manifest(
+    client_id: &str,
+    redirect_uri: &str,
+    bot_scopes: &[String],
+    user_scopes: &[String],
+    profile_name: &str,
+) -> Result<PathBuf, OAuthError> {
+    use crate::auth::manifest::generate_manifest;
+    use std::fs;
+
+    // Generate manifest YAML
+    let manifest_yaml = generate_manifest(
+        client_id,
+        bot_scopes,
+        user_scopes,
+        redirect_uri,
+        false, // use_cloudflared - not needed for manifest
+        false, // use_ngrok - not needed for manifest
+        profile_name,
+    )
+    .map_err(|e| OAuthError::ConfigError(format!("Failed to generate manifest: {}", e)))?;
+
+    // Determine save path
+    let manifest_path = if let Some(config_dir) = directories::ProjectDirs::from("", "", "slack-rs")
+    {
+        let dir = config_dir.config_dir();
+        fs::create_dir_all(dir).map_err(|e| {
+            OAuthError::ConfigError(format!("Failed to create config directory: {}", e))
+        })?;
+        dir.join(format!("{}_manifest.yml", profile_name))
+    } else {
+        PathBuf::from(format!("{}_manifest.yml", profile_name))
+    };
+
+    // Write manifest to file
+    fs::write(&manifest_path, manifest_yaml)
+        .map_err(|e| OAuthError::ConfigError(format!("Failed to write manifest file: {}", e)))?;
+
+    Ok(manifest_path)
+}
+
 /// Extended login options
+#[allow(dead_code)]
 pub struct ExtendedLoginOptions {
     pub client_id: Option<String>,
     pub profile_name: Option<String>,
@@ -832,123 +935,67 @@ pub struct ExtendedLoginOptions {
     pub base_url: Option<String>,
 }
 
-/// Extended login command with cloudflared/ngrok support and manifest generation
+/// Extended login with cloudflared tunnel support
 ///
-/// # Arguments
-/// * `options` - Extended login options
+/// This function handles OAuth flow with cloudflared tunnel for public redirect URIs.
 pub async fn login_with_credentials_extended(
-    options: ExtendedLoginOptions,
+    client_id: String,
+    client_secret: String,
+    bot_scopes: Vec<String>,
+    user_scopes: Vec<String>,
+    profile_name: Option<String>,
+    use_cloudflared: bool,
 ) -> Result<(), OAuthError> {
-    let ExtendedLoginOptions {
-        client_id,
-        profile_name,
-        redirect_uri,
-        bot_scopes,
-        user_scopes,
-        cloudflared_path,
-        ngrok_path,
-        base_url,
-    } = options;
     let profile_name = profile_name.unwrap_or_else(|| "default".to_string());
 
-    // Load existing config to check for saved OAuth settings
-    let config_path = default_config_path()
-        .map_err(|e| OAuthError::ConfigError(format!("Failed to get config path: {}", e)))?;
-    let existing_config = load_config(&config_path).ok();
+    // Debug: Show scopes being used
+    println!("🔍 Debug - login_with_credentials_extended called:");
+    println!("  Profile: {}", profile_name);
+    println!("  Bot scopes count: {}", bot_scopes.len());
+    println!("  User scopes count: {}", user_scopes.len());
+    if !bot_scopes.is_empty() {
+        println!("  Bot scopes: {}", bot_scopes.join(", "));
+    }
+    if !user_scopes.is_empty() {
+        println!("  User scopes: {}", user_scopes.join(", "));
+    } else {
+        println!("  ⚠️  WARNING: No user scopes provided!");
+    }
 
-    // Resolve OAuth config with priority: CLI arg > saved in profile > prompt (not fallback)
-    let (final_client_id, mut final_redirect_uri, final_bot_scopes, final_user_scopes) =
-        if let Some(config) = &existing_config {
-            if let Some(profile) = config.get(&profile_name) {
-                // Client ID: CLI arg > profile > prompt
-                let resolved_client_id = match client_id {
-                    Some(id) => id,
-                    None => {
-                        if let Some(saved_id) = &profile.client_id {
-                            saved_id.clone()
-                        } else {
-                            prompt_for_client_id()?
-                        }
-                    }
-                };
+    // Resolve port early
+    let port = resolve_callback_port()?;
 
-                // Redirect URI: Will be resolved later (cloudflared or prompt)
-                let resolved_redirect_uri = if let Some(saved_uri) = &profile.redirect_uri {
-                    saved_uri.clone()
-                } else {
-                    redirect_uri.clone()
-                };
+    let final_redirect_uri: String;
+    let mut cloudflared_tunnel: Option<CloudflaredTunnel> = None;
 
-                // Bot scopes: CLI arg > profile.bot_scopes > profile.scopes (legacy) > prompt
-                let resolved_bot_scopes = if let Some(cli_bot_scopes) = bot_scopes {
-                    cli_bot_scopes
-                } else if let Some(saved_bot_scopes) = profile.get_bot_scopes() {
-                    saved_bot_scopes
-                } else {
-                    prompt_for_bot_scopes()?
-                };
-
-                // User scopes: CLI arg > profile.user_scopes > prompt
-                let resolved_user_scopes = if let Some(cli_user_scopes) = user_scopes {
-                    cli_user_scopes
-                } else if let Some(saved_user_scopes) = profile.get_user_scopes() {
-                    saved_user_scopes
-                } else {
-                    prompt_for_user_scopes()?
-                };
-
-                (
-                    resolved_client_id,
-                    resolved_redirect_uri,
-                    resolved_bot_scopes,
-                    resolved_user_scopes,
-                )
-            } else {
-                // Profile doesn't exist, prompt for all OAuth config
-                let resolved_client_id =
-                    client_id.unwrap_or_else(|| prompt_for_client_id().unwrap());
-                let resolved_redirect_uri = redirect_uri.clone();
-                let resolved_bot_scopes =
-                    bot_scopes.unwrap_or_else(|| prompt_for_bot_scopes().unwrap());
-                let resolved_user_scopes =
-                    user_scopes.unwrap_or_else(|| prompt_for_user_scopes().unwrap());
-                (
-                    resolved_client_id,
-                    resolved_redirect_uri,
-                    resolved_bot_scopes,
-                    resolved_user_scopes,
-                )
+    if use_cloudflared {
+        // Check if cloudflared is installed
+        let path = match find_cloudflared() {
+            Some(p) => p,
+            None => {
+                return Err(OAuthError::ConfigError(
+                    "cloudflared not found. Please install it first:\n  \
+                     macOS: brew install cloudflare/cloudflare/cloudflared\n  \
+                     Linux: See https://developers.cloudflare.com/cloudflare-one/connections/connect-apps/install-and-setup/installation/"
+                        .to_string(),
+                ));
             }
-        } else {
-            // No config file exists, prompt for all OAuth config
-            let resolved_client_id = client_id.unwrap_or_else(|| prompt_for_client_id().unwrap());
-            let resolved_redirect_uri = redirect_uri.clone();
-            let resolved_bot_scopes =
-                bot_scopes.unwrap_or_else(|| prompt_for_bot_scopes().unwrap());
-            let resolved_user_scopes =
-                user_scopes.unwrap_or_else(|| prompt_for_user_scopes().unwrap());
-            (
-                resolved_client_id,
-                resolved_redirect_uri,
-                resolved_bot_scopes,
-                resolved_user_scopes,
-            )
         };
 
-    // Resolve redirect_uri: cloudflared, ngrok, or prompt
-    let mut cloudflared_tunnel: Option<CloudflaredTunnel> = None;
-    let mut ngrok_tunnel: Option<NgrokTunnel> = None;
-    let use_cloudflared = cloudflared_path.is_some();
-    let use_ngrok = ngrok_path.is_some();
-
-    if let Some(path) = cloudflared_path {
-        // Start cloudflared tunnel
         println!("Starting cloudflared tunnel...");
-        let local_url = "http://localhost:8765";
-        match CloudflaredTunnel::start(&path, local_url, 30) {
-            Ok(t) => {
-                let public_url = t.public_url();
+        let local_url = format!("http://localhost:{}", port);
+        match CloudflaredTunnel::start(&path, &local_url, 30) {
+            Ok(mut t) => {
+                let public_url = t.public_url().to_string();
                 println!("✓ Tunnel started: {}", public_url);
+                println!("  Tunneling {} -> {}", public_url, local_url);
+
+                if !t.is_running() {
+                    return Err(OAuthError::ConfigError(
+                        "Cloudflared tunnel started but process is not running".to_string(),
+                    ));
+                }
+
                 final_redirect_uri = format!("{}/callback", public_url);
                 println!("Using redirect URI: {}", final_redirect_uri);
                 cloudflared_tunnel = Some(t);
@@ -966,177 +1013,110 @@ pub async fn login_with_credentials_extended(
                 )));
             }
             Err(e) => {
-                return Err(OAuthError::ConfigError(format!("Cloudflared error: {}", e)));
-            }
-        }
-    } else if let Some(path) = ngrok_path {
-        // Start ngrok tunnel
-        println!("Starting ngrok tunnel...");
-        let port = 8765;
-        match NgrokTunnel::start(&path, port, 30) {
-            Ok(t) => {
-                let public_url = t.public_url();
-                println!("✓ Tunnel started: {}", public_url);
-                final_redirect_uri = format!("{}/callback", public_url);
-                println!("Using redirect URI: {}", final_redirect_uri);
-                ngrok_tunnel = Some(t);
-            }
-            Err(NgrokError::StartError(msg)) => {
                 return Err(OAuthError::ConfigError(format!(
-                    "Failed to start ngrok: {}",
-                    msg
+                    "Cloudflared error: {:?}",
+                    e
                 )));
-            }
-            Err(NgrokError::UrlExtractionError(msg)) => {
-                return Err(OAuthError::ConfigError(format!(
-                    "Failed to extract ngrok URL: {}",
-                    msg
-                )));
-            }
-            Err(e) => {
-                return Err(OAuthError::ConfigError(format!("Ngrok error: {}", e)));
             }
         }
     } else {
-        // Always prompt for redirect_uri when neither cloudflared nor ngrok is used
-        final_redirect_uri = prompt_for_redirect_uri(&final_redirect_uri)?;
+        final_redirect_uri = format!("http://localhost:{}/callback", port);
     }
 
-    // Client secret resolution: Keyring > prompt
-    let token_store = KeyringTokenStore::default_service();
-    let final_client_secret =
-        match crate::profile::get_oauth_client_secret(&token_store, &profile_name) {
-            Ok(secret) => {
-                println!("Using saved client secret from keyring.");
-                secret
-            }
-            Err(_) => {
-                // Not found in keyring, prompt for it
-                prompt_for_client_secret()?
-            }
-        };
+    // Generate and save manifest
+    let manifest_path = generate_and_save_manifest(
+        &client_id,
+        &final_redirect_uri,
+        &bot_scopes,
+        &user_scopes,
+        &profile_name,
+    )?;
 
-    // Create OAuth config
+    println!("\n📋 Slack App Manifest saved to:");
+    println!("   {}", manifest_path.display());
+    println!("\n🔧 Setup Instructions:");
+    println!("   1. Go to https://api.slack.com/apps");
+    println!("   2. Click 'Create New App' → 'From an app manifest'");
+    println!("   3. Select your workspace");
+    println!("   4. Copy and paste the manifest from the file above");
+    println!("   5. Click 'Create'");
+    println!("   6. ⚠️  IMPORTANT: Do NOT click 'Install to Workspace' yet!");
+    println!("      The OAuth flow will start automatically after you press Enter.");
+    println!("\n⏸️  Press Enter when you've created the app (but NOT installed it yet)...");
+
+    let mut input = String::new();
+    std::io::stdin()
+        .read_line(&mut input)
+        .map_err(|e| OAuthError::ConfigError(format!("Failed to read input: {}", e)))?;
+
+    // Verify tunnel is still running
+    if let Some(ref mut tunnel) = cloudflared_tunnel {
+        if !tunnel.is_running() {
+            return Err(OAuthError::ConfigError(
+                "Cloudflared tunnel stopped unexpectedly".to_string(),
+            ));
+        }
+        println!("✓ Tunnel is running");
+    }
+
+    // Build OAuth config
     let config = OAuthConfig {
-        client_id: final_client_id.clone(),
-        client_secret: final_client_secret.clone(),
+        client_id: client_id.clone(),
+        client_secret: client_secret.clone(),
         redirect_uri: final_redirect_uri.clone(),
-        scopes: final_bot_scopes.clone(),
-        user_scopes: final_user_scopes.clone(),
+        scopes: bot_scopes.clone(),
+        user_scopes: user_scopes.clone(),
     };
 
-    // Generate and save manifest BEFORE starting OAuth flow
-    println!("\nGenerating Slack App Manifest...");
-    match generate_manifest(
-        &final_client_id,
-        &final_bot_scopes,
-        &final_user_scopes,
-        &final_redirect_uri,
-        use_cloudflared,
-        use_ngrok,
-        &profile_name,
-    ) {
-        Ok(manifest_yaml) => {
-            // Determine manifest file path
-            let manifest_path = get_manifest_path(&profile_name)?;
-
-            // Save manifest to file
-            match std::fs::write(&manifest_path, manifest_yaml) {
-                Ok(_) => {
-                    println!("✓ Manifest saved to: {}", manifest_path.display());
-                    println!("\nPlease install this manifest in your Slack App:");
-                    println!("  1. Opening Slack App management page...");
-
-                    // Try to open browser
-                    let app_management_url = "https://api.slack.com/apps";
-                    if let Err(e) = open_browser(app_management_url) {
-                        println!("     Failed to open browser: {}", e);
-                        println!("     Please open this URL manually: {}", app_management_url);
-                    } else {
-                        println!("     ✓ Opened: {}", app_management_url);
-                    }
-
-                    println!("  2. Create or select your app");
-                    println!("  3. Navigate to 'App Manifest' and paste the contents from:");
-                    println!("     {}", manifest_path.display());
-                    println!("\nPress Enter to continue after installing the manifest...");
-
-                    // Wait for user confirmation
-                    let mut input = String::new();
-                    io::stdin().read_line(&mut input).map_err(|e| {
-                        OAuthError::ConfigError(format!("Failed to read input: {}", e))
-                    })?;
-                }
-                Err(e) => {
-                    return Err(OAuthError::ConfigError(format!(
-                        "Failed to save manifest file: {}",
-                        e
-                    )));
-                }
-            }
-        }
-        Err(e) => {
-            return Err(OAuthError::ConfigError(format!(
-                "Failed to generate manifest: {}",
-                e
-            )));
-        }
-    }
-
-    // Perform login flow (existing implementation)
+    // Perform OAuth flow (handles browser opening, callback server, token exchange)
+    println!("🔄 Starting OAuth flow...");
     let (team_id, team_name, user_id, bot_token, user_token) =
-        perform_oauth_flow(&config, base_url.as_deref()).await?;
+        perform_oauth_flow(&config, None).await?;
 
-    // Stop cloudflared tunnel if running
-    if let Some(t) = cloudflared_tunnel {
-        println!("Stopping cloudflared tunnel...");
-        if let Err(e) = t.stop() {
-            eprintln!("Warning: Failed to stop cloudflared: {}", e);
-        }
+    // Debug: Print token info
+    println!("🔍 Debug - OAuth flow completed:");
+    println!("  Team ID: {}", team_id);
+    println!("  User ID: {}", user_id);
+    println!("  Team Name: {:?}", team_name);
+    println!("  Bot token present: {}", bot_token.is_some());
+    println!("  User token present: {}", user_token.is_some());
+    if let Some(ref token) = bot_token {
+        println!(
+            "  Bot token prefix: {}...",
+            &token.chars().take(10).collect::<String>()
+        );
+    }
+    if let Some(ref token) = user_token {
+        println!(
+            "  User token prefix: {}...",
+            &token.chars().take(10).collect::<String>()
+        );
     }
 
-    // Stop ngrok tunnel if running
-    if let Some(t) = ngrok_tunnel {
-        println!("Stopping ngrok tunnel...");
-        if let Err(e) = t.stop() {
-            eprintln!("Warning: Failed to stop ngrok: {}", e);
-        }
-    }
-
-    // Save profile with OAuth config and client_secret to Keyring
+    // Save profile
+    println!("💾 Saving profile and credentials...");
     save_profile_and_credentials(SaveCredentials {
-        config_path: &config_path,
+        config_path: &default_config_path()
+            .map_err(|e| OAuthError::ConfigError(format!("Failed to get config path: {}", e)))?,
         profile_name: &profile_name,
         team_id: &team_id,
         team_name: &team_name,
         user_id: &user_id,
         bot_token: bot_token.as_deref(),
         user_token: user_token.as_deref(),
-        client_id: &final_client_id,
-        client_secret: &final_client_secret,
+        client_id: &client_id,
+        client_secret: &client_secret,
         redirect_uri: &final_redirect_uri,
-        scopes: &final_bot_scopes, // Legacy field, now stores bot scopes
-        bot_scopes: &final_bot_scopes,
-        user_scopes: &final_user_scopes,
+        scopes: &bot_scopes,
+        bot_scopes: &bot_scopes,
+        user_scopes: &user_scopes,
     })?;
 
-    println!("✓ Authentication successful!");
-    println!("Profile '{}' saved.", profile_name);
+    println!("\n✅ Login successful!");
+    println!("Profile '{}' has been saved.", profile_name);
+
+    // Cleanup
+    drop(cloudflared_tunnel);
 
     Ok(())
-}
-
-/// Get manifest file path for a profile
-fn get_manifest_path(profile_name: &str) -> Result<PathBuf, OAuthError> {
-    let config_dir = directories::BaseDirs::new()
-        .ok_or_else(|| OAuthError::ConfigError("Failed to determine config directory".to_string()))?
-        .config_dir()
-        .join("slack-rs");
-
-    // Create directory if it doesn't exist
-    std::fs::create_dir_all(&config_dir).map_err(|e| {
-        OAuthError::ConfigError(format!("Failed to create config directory: {}", e))
-    })?;
-
-    Ok(config_dir.join(format!("{}_manifest.yml", profile_name)))
 }

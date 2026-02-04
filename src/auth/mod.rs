@@ -20,8 +20,8 @@ pub mod ngrok;
 
 pub use cloudflared::{CloudflaredError, CloudflaredTunnel};
 pub use commands::{
-    list, login_with_credentials, login_with_credentials_extended, logout, rename, status,
-    ExtendedLoginOptions,
+    list, login_with_credentials, login_with_credentials_extended, logout,
+    prompt_for_client_secret, rename, status, ExtendedLoginOptions,
 };
 pub use export_import::{export_profiles, import_profiles, ExportOptions, ImportOptions};
 pub use i18n::{Language, Messages};
