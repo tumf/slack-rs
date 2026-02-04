@@ -100,12 +100,11 @@ pub async fn run_users_info(args: &[String]) -> Result<(), String> {
 
 pub async fn run_msg_post(args: &[String]) -> Result<(), String> {
     if args.len() < 5 {
-        return Err("Usage: msg post <channel> <text> --allow-write [--thread-ts=TS] [--reply-broadcast] [--profile=NAME]".to_string());
+        return Err("Usage: msg post <channel> <text> [--thread-ts=TS] [--reply-broadcast] [--profile=NAME]".to_string());
     }
 
     let channel = args[3].clone();
     let text = args[4].clone();
-    let allow_write = has_flag(args, "--allow-write");
     let thread_ts = get_option(args, "--thread-ts=");
     let reply_broadcast = has_flag(args, "--reply-broadcast");
     let profile = get_option(args, "--profile=");
@@ -116,16 +115,9 @@ pub async fn run_msg_post(args: &[String]) -> Result<(), String> {
     }
 
     let client = get_api_client(profile).await?;
-    let response = commands::msg_post(
-        &client,
-        channel,
-        text,
-        allow_write,
-        thread_ts,
-        reply_broadcast,
-    )
-    .await
-    .map_err(|e| e.to_string())?;
+    let response = commands::msg_post(&client, channel, text, thread_ts, reply_broadcast)
+        .await
+        .map_err(|e| e.to_string())?;
 
     println!("{}", serde_json::to_string_pretty(&response).unwrap());
     Ok(())
@@ -133,21 +125,17 @@ pub async fn run_msg_post(args: &[String]) -> Result<(), String> {
 
 pub async fn run_msg_update(args: &[String]) -> Result<(), String> {
     if args.len() < 6 {
-        return Err(
-            "Usage: msg update <channel> <ts> <text> --allow-write [--yes] [--profile=NAME]"
-                .to_string(),
-        );
+        return Err("Usage: msg update <channel> <ts> <text> [--yes] [--profile=NAME]".to_string());
     }
 
     let channel = args[3].clone();
     let ts = args[4].clone();
     let text = args[5].clone();
-    let allow_write = has_flag(args, "--allow-write");
     let yes = has_flag(args, "--yes");
     let profile = get_option(args, "--profile=");
 
     let client = get_api_client(profile).await?;
-    let response = commands::msg_update(&client, channel, ts, text, allow_write, yes)
+    let response = commands::msg_update(&client, channel, ts, text, yes)
         .await
         .map_err(|e| e.to_string())?;
 
@@ -157,19 +145,16 @@ pub async fn run_msg_update(args: &[String]) -> Result<(), String> {
 
 pub async fn run_msg_delete(args: &[String]) -> Result<(), String> {
     if args.len() < 5 {
-        return Err(
-            "Usage: msg delete <channel> <ts> --allow-write [--yes] [--profile=NAME]".to_string(),
-        );
+        return Err("Usage: msg delete <channel> <ts> [--yes] [--profile=NAME]".to_string());
     }
 
     let channel = args[3].clone();
     let ts = args[4].clone();
-    let allow_write = has_flag(args, "--allow-write");
     let yes = has_flag(args, "--yes");
     let profile = get_option(args, "--profile=");
 
     let client = get_api_client(profile).await?;
-    let response = commands::msg_delete(&client, channel, ts, allow_write, yes)
+    let response = commands::msg_delete(&client, channel, ts, yes)
         .await
         .map_err(|e| e.to_string())?;
 
@@ -179,19 +164,16 @@ pub async fn run_msg_delete(args: &[String]) -> Result<(), String> {
 
 pub async fn run_react_add(args: &[String]) -> Result<(), String> {
     if args.len() < 6 {
-        return Err(
-            "Usage: react add <channel> <ts> <emoji> --allow-write [--profile=NAME]".to_string(),
-        );
+        return Err("Usage: react add <channel> <ts> <emoji> [--profile=NAME]".to_string());
     }
 
     let channel = args[3].clone();
     let ts = args[4].clone();
     let emoji = args[5].clone();
-    let allow_write = has_flag(args, "--allow-write");
     let profile = get_option(args, "--profile=");
 
     let client = get_api_client(profile).await?;
-    let response = commands::react_add(&client, channel, ts, emoji, allow_write)
+    let response = commands::react_add(&client, channel, ts, emoji)
         .await
         .map_err(|e| e.to_string())?;
 
@@ -202,20 +184,18 @@ pub async fn run_react_add(args: &[String]) -> Result<(), String> {
 pub async fn run_react_remove(args: &[String]) -> Result<(), String> {
     if args.len() < 6 {
         return Err(
-            "Usage: react remove <channel> <ts> <emoji> --allow-write [--yes] [--profile=NAME]"
-                .to_string(),
+            "Usage: react remove <channel> <ts> <emoji> [--yes] [--profile=NAME]".to_string(),
         );
     }
 
     let channel = args[3].clone();
     let ts = args[4].clone();
     let emoji = args[5].clone();
-    let allow_write = has_flag(args, "--allow-write");
     let yes = has_flag(args, "--yes");
     let profile = get_option(args, "--profile=");
 
     let client = get_api_client(profile).await?;
-    let response = commands::react_remove(&client, channel, ts, emoji, allow_write, yes)
+    let response = commands::react_remove(&client, channel, ts, emoji, yes)
         .await
         .map_err(|e| e.to_string())?;
 
@@ -243,15 +223,15 @@ pub fn print_users_usage(prog: &str) {
 pub fn print_msg_usage(prog: &str) {
     println!("Msg command usage:");
     println!(
-        "  {} msg post <channel> <text> --allow-write [--thread-ts=TS] [--reply-broadcast] [--profile=NAME]",
+        "  {} msg post <channel> <text> [--thread-ts=TS] [--reply-broadcast] [--profile=NAME]",
         prog
     );
     println!(
-        "  {} msg update <channel> <ts> <text> --allow-write [--yes] [--profile=NAME]",
+        "  {} msg update <channel> <ts> <text> [--yes] [--profile=NAME]",
         prog
     );
     println!(
-        "  {} msg delete <channel> <ts> --allow-write [--yes] [--profile=NAME]",
+        "  {} msg delete <channel> <ts> [--yes] [--profile=NAME]",
         prog
     );
 }
@@ -259,11 +239,11 @@ pub fn print_msg_usage(prog: &str) {
 pub fn print_react_usage(prog: &str) {
     println!("React command usage:");
     println!(
-        "  {} react add <channel> <ts> <emoji> --allow-write [--profile=NAME]",
+        "  {} react add <channel> <ts> <emoji> [--profile=NAME]",
         prog
     );
     println!(
-        "  {} react remove <channel> <ts> <emoji> --allow-write [--yes] [--profile=NAME]",
+        "  {} react remove <channel> <ts> <emoji> [--yes] [--profile=NAME]",
         prog
     );
 }
