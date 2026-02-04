@@ -5,7 +5,7 @@
 use slack_rs::api::ApiClient;
 use slack_rs::commands;
 use std::collections::HashMap;
-use wiremock::matchers::{header, method, path};
+use wiremock::matchers::{body_string_contains, header, method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
 #[tokio::test]
@@ -39,37 +39,92 @@ async fn test_search_calls_correct_api() {
 }
 
 #[tokio::test]
-async fn test_search_with_sort_parameters() {
-    // Start a mock server
+async fn test_msg_post_with_thread_ts() {
     let mock_server = MockServer::start().await;
 
-    // Setup mock response
     let mut response_data = HashMap::new();
     response_data.insert("ok".to_string(), serde_json::json!(true));
-    response_data.insert(
-        "messages".to_string(),
-        serde_json::json!({"total": 1, "matches": []}),
-    );
+    response_data.insert("ts".to_string(), serde_json::json!("1234567890.123456"));
 
     Mock::given(method("POST"))
-        .and(path("/search.messages"))
+        .and(path("/chat.postMessage"))
+        .and(header("authorization", "Bearer test_token"))
+        .and(body_string_contains("thread_ts"))
+        .and(body_string_contains("1234567890.111111"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(&response_data))
+        .expect(1)
+        .mount(&mock_server)
+        .await;
+
+    let client = ApiClient::new_with_base_url("test_token".to_string(), mock_server.uri());
+    let result = commands::msg_post(
+        &client,
+        "C123456".to_string(),
+        "thread reply".to_string(),
+        Some("1234567890.111111".to_string()),
+        false,
+    )
+    .await;
+
+    assert!(result.is_ok());
+}
+
+#[tokio::test]
+async fn test_msg_post_with_thread_ts_and_reply_broadcast() {
+    let mock_server = MockServer::start().await;
+
+    let mut response_data = HashMap::new();
+    response_data.insert("ok".to_string(), serde_json::json!(true));
+    response_data.insert("ts".to_string(), serde_json::json!("1234567890.123456"));
+
+    Mock::given(method("POST"))
+        .and(path("/chat.postMessage"))
+        .and(header("authorization", "Bearer test_token"))
+        .and(body_string_contains("thread_ts"))
+        .and(body_string_contains("1234567890.111111"))
+        .and(body_string_contains("reply_broadcast"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(&response_data))
+        .expect(1)
+        .mount(&mock_server)
+        .await;
+
+    let client = ApiClient::new_with_base_url("test_token".to_string(), mock_server.uri());
+    let result = commands::msg_post(
+        &client,
+        "C123456".to_string(),
+        "broadcast reply".to_string(),
+        Some("1234567890.111111".to_string()),
+        true, // reply_broadcast = true
+    )
+    .await;
+
+    assert!(result.is_ok());
+}
+
+#[tokio::test]
+async fn test_msg_post_without_thread_ts_ignores_reply_broadcast() {
+    let mock_server = MockServer::start().await;
+
+    let mut response_data = HashMap::new();
+    response_data.insert("ok".to_string(), serde_json::json!(true));
+    response_data.insert("ts".to_string(), serde_json::json!("1234567890.123456"));
+
+    // Mock should NOT expect reply_broadcast or thread_ts in the body
+    Mock::given(method("POST"))
+        .and(path("/chat.postMessage"))
         .and(header("authorization", "Bearer test_token"))
         .respond_with(ResponseTemplate::new(200).set_body_json(&response_data))
         .expect(1)
         .mount(&mock_server)
         .await;
 
-    // Create API client
     let client = ApiClient::new_with_base_url("test_token".to_string(), mock_server.uri());
-
-    // Call search command with sort parameters
-    let result = commands::search(
+    let result = commands::msg_post(
         &client,
-        "test query".to_string(),
-        Some(20),
-        Some(1),
-        Some("timestamp".to_string()),
-        Some("desc".to_string()),
+        "C123456".to_string(),
+        "normal message".to_string(),
+        None, // no thread_ts
+        true, // reply_broadcast = true (should be ignored)
     )
     .await;
 
@@ -122,14 +177,16 @@ async fn test_users_info_calls_correct_api() {
 
 #[tokio::test]
 async fn test_msg_post_requires_allow_write() {
+    std::env::set_var("SLACKCLI_ALLOW_WRITE", "false");
     let mock_server = MockServer::start().await;
     let client = ApiClient::new_with_base_url("test_token".to_string(), mock_server.uri());
 
-    // Should fail without --allow-write flag
+    // Should fail when SLACKCLI_ALLOW_WRITE=false
     let result = commands::msg_post(
         &client,
         "C123456".to_string(),
         "test message".to_string(),
+        None,
         false,
     )
     .await;
@@ -138,11 +195,13 @@ async fn test_msg_post_requires_allow_write() {
     assert!(result
         .unwrap_err()
         .to_string()
-        .contains("requires --allow-write"));
+        .contains("SLACKCLI_ALLOW_WRITE"));
+    std::env::remove_var("SLACKCLI_ALLOW_WRITE");
 }
 
 #[tokio::test]
 async fn test_msg_post_calls_correct_api_with_allow_write() {
+    std::env::remove_var("SLACKCLI_ALLOW_WRITE"); // Default is allow
     let mock_server = MockServer::start().await;
 
     let mut response_data = HashMap::new();
@@ -162,7 +221,8 @@ async fn test_msg_post_calls_correct_api_with_allow_write() {
         &client,
         "C123456".to_string(),
         "test message".to_string(),
-        true, // allow_write = true
+        None,
+        false,
     )
     .await;
 
@@ -171,6 +231,7 @@ async fn test_msg_post_calls_correct_api_with_allow_write() {
 
 #[tokio::test]
 async fn test_msg_update_requires_allow_write() {
+    std::env::set_var("SLACKCLI_ALLOW_WRITE", "false");
     let mock_server = MockServer::start().await;
     let client = ApiClient::new_with_base_url("test_token".to_string(), mock_server.uri());
 
@@ -179,8 +240,7 @@ async fn test_msg_update_requires_allow_write() {
         "C123456".to_string(),
         "1234567890.123456".to_string(),
         "updated text".to_string(),
-        false, // allow_write = false
-        true,  // yes = true (skip confirmation)
+        true, // yes = true (skip confirmation)
     )
     .await;
 
@@ -188,11 +248,13 @@ async fn test_msg_update_requires_allow_write() {
     assert!(result
         .unwrap_err()
         .to_string()
-        .contains("requires --allow-write"));
+        .contains("SLACKCLI_ALLOW_WRITE"));
+    std::env::remove_var("SLACKCLI_ALLOW_WRITE");
 }
 
 #[tokio::test]
 async fn test_msg_update_calls_correct_api() {
+    std::env::remove_var("SLACKCLI_ALLOW_WRITE"); // Default is allow
     let mock_server = MockServer::start().await;
 
     let mut response_data = HashMap::new();
@@ -212,7 +274,6 @@ async fn test_msg_update_calls_correct_api() {
         "C123456".to_string(),
         "1234567890.123456".to_string(),
         "updated text".to_string(),
-        true, // allow_write = true
         true, // yes = true (skip confirmation)
     )
     .await;
@@ -222,6 +283,7 @@ async fn test_msg_update_calls_correct_api() {
 
 #[tokio::test]
 async fn test_msg_delete_requires_allow_write() {
+    std::env::set_var("SLACKCLI_ALLOW_WRITE", "false");
     let mock_server = MockServer::start().await;
     let client = ApiClient::new_with_base_url("test_token".to_string(), mock_server.uri());
 
@@ -229,8 +291,7 @@ async fn test_msg_delete_requires_allow_write() {
         &client,
         "C123456".to_string(),
         "1234567890.123456".to_string(),
-        false, // allow_write = false
-        true,  // yes = true
+        true, // yes = true
     )
     .await;
 
@@ -238,11 +299,13 @@ async fn test_msg_delete_requires_allow_write() {
     assert!(result
         .unwrap_err()
         .to_string()
-        .contains("requires --allow-write"));
+        .contains("SLACKCLI_ALLOW_WRITE"));
+    std::env::remove_var("SLACKCLI_ALLOW_WRITE");
 }
 
 #[tokio::test]
 async fn test_msg_delete_calls_correct_api() {
+    std::env::remove_var("SLACKCLI_ALLOW_WRITE"); // Default is allow
     let mock_server = MockServer::start().await;
 
     let mut response_data = HashMap::new();
@@ -261,7 +324,6 @@ async fn test_msg_delete_calls_correct_api() {
         &client,
         "C123456".to_string(),
         "1234567890.123456".to_string(),
-        true, // allow_write = true
         true, // yes = true
     )
     .await;
@@ -271,6 +333,7 @@ async fn test_msg_delete_calls_correct_api() {
 
 #[tokio::test]
 async fn test_react_add_requires_allow_write() {
+    std::env::set_var("SLACKCLI_ALLOW_WRITE", "false");
     let mock_server = MockServer::start().await;
     let client = ApiClient::new_with_base_url("test_token".to_string(), mock_server.uri());
 
@@ -279,7 +342,6 @@ async fn test_react_add_requires_allow_write() {
         "C123456".to_string(),
         "1234567890.123456".to_string(),
         "thumbsup".to_string(),
-        false, // allow_write = false
     )
     .await;
 
@@ -287,11 +349,13 @@ async fn test_react_add_requires_allow_write() {
     assert!(result
         .unwrap_err()
         .to_string()
-        .contains("requires --allow-write"));
+        .contains("SLACKCLI_ALLOW_WRITE"));
+    std::env::remove_var("SLACKCLI_ALLOW_WRITE");
 }
 
 #[tokio::test]
 async fn test_react_add_calls_correct_api() {
+    std::env::remove_var("SLACKCLI_ALLOW_WRITE"); // Default is allow
     let mock_server = MockServer::start().await;
 
     let mut response_data = HashMap::new();
@@ -311,7 +375,6 @@ async fn test_react_add_calls_correct_api() {
         "C123456".to_string(),
         "1234567890.123456".to_string(),
         "thumbsup".to_string(),
-        true, // allow_write = true
     )
     .await;
 
@@ -320,6 +383,7 @@ async fn test_react_add_calls_correct_api() {
 
 #[tokio::test]
 async fn test_react_remove_requires_allow_write() {
+    std::env::set_var("SLACKCLI_ALLOW_WRITE", "false");
     let mock_server = MockServer::start().await;
     let client = ApiClient::new_with_base_url("test_token".to_string(), mock_server.uri());
 
@@ -328,8 +392,7 @@ async fn test_react_remove_requires_allow_write() {
         "C123456".to_string(),
         "1234567890.123456".to_string(),
         "thumbsup".to_string(),
-        false, // allow_write = false
-        true,  // yes = true
+        true, // yes = true
     )
     .await;
 
@@ -337,11 +400,13 @@ async fn test_react_remove_requires_allow_write() {
     assert!(result
         .unwrap_err()
         .to_string()
-        .contains("requires --allow-write"));
+        .contains("SLACKCLI_ALLOW_WRITE"));
+    std::env::remove_var("SLACKCLI_ALLOW_WRITE");
 }
 
 #[tokio::test]
 async fn test_react_remove_calls_correct_api() {
+    std::env::remove_var("SLACKCLI_ALLOW_WRITE"); // Default is allow
     let mock_server = MockServer::start().await;
 
     let mut response_data = HashMap::new();
@@ -361,7 +426,6 @@ async fn test_react_remove_calls_correct_api() {
         "C123456".to_string(),
         "1234567890.123456".to_string(),
         "thumbsup".to_string(),
-        true, // allow_write = true
         true, // yes = true
     )
     .await;
@@ -371,24 +435,22 @@ async fn test_react_remove_calls_correct_api() {
 
 #[tokio::test]
 async fn test_file_upload_requires_allow_write() {
+    // Set env var to deny write
+    std::env::set_var("SLACKCLI_ALLOW_WRITE", "false");
+
     let mock_server = MockServer::start().await;
     let client = ApiClient::new_with_base_url("test_token".to_string(), mock_server.uri());
 
-    let result = commands::file_upload(
-        &client,
-        "/tmp/test.txt".to_string(),
-        None,
-        None,
-        None,
-        false, // allow_write = false
-    )
-    .await;
+    let result =
+        commands::file_upload(&client, "/tmp/test.txt".to_string(), None, None, None).await;
 
     assert!(result.is_err());
     assert!(result
         .unwrap_err()
         .to_string()
-        .contains("requires --allow-write"));
+        .contains("Write operation denied"));
+
+    std::env::remove_var("SLACKCLI_ALLOW_WRITE");
 }
 
 #[tokio::test]
@@ -448,6 +510,9 @@ async fn test_file_upload_external_flow() {
     // Create API client
     let client = ApiClient::new_with_base_url("test_token".to_string(), mock_server.uri());
 
+    // Ensure write is allowed
+    std::env::remove_var("SLACKCLI_ALLOW_WRITE");
+
     // Call file_upload command
     let result = commands::file_upload(
         &client,
@@ -455,7 +520,6 @@ async fn test_file_upload_external_flow() {
         Some("C123456".to_string()),
         Some("Test File".to_string()),
         Some("Test comment".to_string()),
-        true, // allow_write = true
     )
     .await;
 
@@ -466,6 +530,9 @@ async fn test_file_upload_external_flow() {
 
 #[tokio::test]
 async fn test_file_upload_nonexistent_file() {
+    // Ensure write is allowed
+    std::env::remove_var("SLACKCLI_ALLOW_WRITE");
+
     let mock_server = MockServer::start().await;
     let client = ApiClient::new_with_base_url("test_token".to_string(), mock_server.uri());
 
@@ -475,7 +542,6 @@ async fn test_file_upload_nonexistent_file() {
         None,
         None,
         None,
-        true, // allow_write = true
     )
     .await;
 

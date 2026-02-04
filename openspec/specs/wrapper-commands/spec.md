@@ -3,54 +3,96 @@
 ## Purpose
 Provides user-friendly wrapper commands that abstract common Slack API operations with simplified interfaces and built-in safety mechanisms.
 ## Requirements
-### Requirement: search command can search messages
-`search` MUST call `search.messages` and pass `query`, `count`, `sort`, and `sort_dir`. (MUST)
-#### Scenario: Search by passing query
-- Given a valid profile and token exist
-- When executing `search "invoice"`
+### Requirement: Search command enables message searching
+The `search` command MUST call `search.messages` and pass `query`, `count`, `sort`, and `sort_dir` parameters.
+
+#### Scenario: Execute search with query parameter
+- Given valid profile and token exist
+- When `search "invoice"` is executed
 - Then `query` is passed to `search.messages`
 
-### Requirement: conv list can retrieve conversation list
-`conv list` MUST call `conversations.list` and pass `types` and `limit`. (MUST)
+### Requirement: Conv list retrieves conversation list
+The `conv list` command MUST call `conversations.list` and pass `types` and `limit` parameters.
+
 #### Scenario: Specify types and limit
 - Given types and limit are specified
-- When executing `conv list`
+- When `conv list` is executed
 - Then `types` and `limit` are passed to `conversations.list`
 
-### Requirement: conv history can retrieve history
-`conv history` MUST call `conversations.history` and pass `channel`, `oldest`, `latest`, and `limit`. (MUST)
+### Requirement: Conv history retrieves conversation history
+The `conv history` command MUST call `conversations.history` and pass `channel`, `oldest`, `latest`, and `limit` parameters.
+
 #### Scenario: Retrieve history by specifying channel
 - Given channel id is specified
-- When executing `conv history --channel C123`
+- When `conv history --channel C123` is executed
 - Then `channel` is passed to `conversations.history`
 
-### Requirement: users info can retrieve user information
-`users info` MUST call `users.info` and pass `user`. (MUST)
+### Requirement: Users info retrieves user information
+The `users info` command MUST call `users.info` and pass the `user` parameter.
+
 #### Scenario: Specify user id
 - Given user id is specified
-- When executing `users info --user U123`
+- When `users info --user U123` is executed
 - Then `user` is passed to `users.info`
 
-### Requirement: msg command can manipulate messages
-`msg post/update/delete` MUST call `chat.postMessage` / `chat.update` / `chat.delete`. (MUST)
+### Requirement: Msg command enables message operations
+The `msg post/update/delete` commands MUST call `chat.postMessage` / `chat.update` / `chat.delete` respectively.
+
 #### Scenario: Execute msg post
 - Given channel and text are specified
-- When executing `msg post`
+- When `msg post` is executed
 - Then `chat.postMessage` is called
 
-### Requirement: react command can manipulate reactions
-`react add/remove` MUST call `reactions.add` / `reactions.remove`. (MUST)
+### Requirement: React command enables reaction operations
+The `react add/remove` commands MUST call `reactions.add` / `reactions.remove` respectively.
+
 #### Scenario: Execute react add
 - Given channel, ts, and emoji are specified
-- When executing `react add`
+- When `react add` is executed
 - Then `reactions.add` is called
 
-### Requirement: write operations require `--allow-write`
-Write operations MUST be rejected if `--allow-write` is not present. (MUST)
-#### Scenario: Execute `msg post` without `--allow-write`
+### Requirement: Destructive operations require confirmation without --yes flag
+The `msg delete` command MUST display confirmation when the `--yes` flag is not provided.
+
+#### Scenario: Execute msg delete without --yes flag
+- Given `msg delete` is executed
+- When `--yes` flag is not specified
+- Then confirmation is required
+
+### Requirement: Write operations are controlled by environment variable
+Write operations MUST determine permission/denial based on the `SLACKCLI_ALLOW_WRITE` environment variable value.
+When `SLACKCLI_ALLOW_WRITE` is unset, write operations MUST be allowed.
+The `--allow-write` flag MUST NOT be required, and if specified MUST NOT affect behavior.
+
+#### Scenario: Execute msg post with SLACKCLI_ALLOW_WRITE unset
 - Given executing a write operation
-- When `--allow-write` is not specified
-- Then it exits with an error
+- When `SLACKCLI_ALLOW_WRITE` is unset
+- Then write operation is allowed
+
+#### Scenario: Execute msg post with SLACKCLI_ALLOW_WRITE=false
+- Given executing a write operation
+- When `SLACKCLI_ALLOW_WRITE` is set to `false` or `0`
+- Then exit with error
+
+#### Scenario: Execute msg post with --allow-write flag
+- Given `SLACKCLI_ALLOW_WRITE` is unset
+- When `--allow-write` flag is specified
+- Then write operation is allowed
+
+### Requirement: msg post supports thread replies
+`msg post` MUST pass `thread_ts` to `chat.postMessage` when `--thread-ts` is specified. (MUST)
+#### Scenario: Send thread reply with thread_ts
+- Given `--thread-ts` is specified
+- When executing `msg post`
+- Then `thread_ts` is passed to `chat.postMessage`
+
+### Requirement: reply_broadcast can only be specified with thread replies
+`msg post` MUST pass `reply_broadcast=true` when `--reply-broadcast` is specified. (MUST)
+`msg post` MUST exit with error when `--reply-broadcast` is specified without `--thread-ts`. (MUST)
+#### Scenario: Send thread reply with reply_broadcast
+- Given `--thread-ts` and `--reply-broadcast` are specified
+- When executing `msg post`
+- Then `reply_broadcast=true` is passed to `chat.postMessage`
 
 ### Requirement: Destructive operations require confirmation without `--yes`
 `msg delete` MUST display confirmation if `--yes` is not present. (MUST)

@@ -307,7 +307,7 @@ fn print_help() {
     println!("    conv list                        List conversations");
     println!("    conv history <channel>           Get conversation history");
     println!("    users info <user_id>             Get user information");
-    println!("    msg post <channel> <text>        Post a message");
+    println!("    msg post <channel> <text>        Post a message (supports --thread-ts and --reply-broadcast)");
     println!("    msg update <channel> <ts> <text> Update a message");
     println!("    msg delete <channel> <ts>        Delete a message");
     println!("    react add <channel> <ts> <emoji> Add a reaction");
@@ -341,12 +341,12 @@ fn print_usage() {
     println!("  conv list                      - List conversations");
     println!("  conv history <channel>         - Get conversation history");
     println!("  users info <user_id>           - Get user information");
-    println!("  msg post <channel> <text>      - Post a message (requires --allow-write)");
-    println!("  msg update <channel> <ts> <text> - Update a message (requires --allow-write)");
-    println!("  msg delete <channel> <ts>      - Delete a message (requires --allow-write)");
-    println!("  react add <channel> <ts> <emoji> - Add a reaction (requires --allow-write)");
-    println!("  react remove <channel> <ts> <emoji> - Remove a reaction (requires --allow-write)");
-    println!("  file upload <path>             - Upload a file using external upload method (requires --allow-write)");
+    println!("  msg post <channel> <text>      - Post a message (supports --thread-ts and --reply-broadcast)");
+    println!("  msg update <channel> <ts> <text> - Update a message");
+    println!("  msg delete <channel> <ts>      - Delete a message");
+    println!("  react add <channel> <ts> <emoji> - Add a reaction");
+    println!("  react remove <channel> <ts> <emoji> - Remove a reaction");
+    println!("  file upload <path>             - Upload a file using external upload method");
     println!("  demo                           - Run demonstration");
     println!("  --help, -h                     - Show help");
     println!("  --version, -v                  - Show version");

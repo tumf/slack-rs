@@ -40,7 +40,6 @@ struct CompleteUploadResponse {
 /// * `channels` - Optional channel IDs to share to (comma-separated)
 /// * `title` - Optional file title
 /// * `comment` - Optional initial comment
-/// * `allow_write` - Whether write operations are allowed
 ///
 /// # Returns
 /// * `Ok(serde_json::Value)` with upload result
@@ -51,9 +50,8 @@ pub async fn file_upload(
     channels: Option<String>,
     title: Option<String>,
     comment: Option<String>,
-    allow_write: bool,
 ) -> Result<serde_json::Value, ApiError> {
-    check_write_allowed(allow_write)?;
+    check_write_allowed()?;
 
     // Step 1: Read file and get metadata
     let path = Path::new(&file_path);
@@ -185,23 +183,20 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    async fn test_file_upload_without_write_flag() {
+    async fn test_file_upload_write_not_allowed() {
+        // Set env var to deny write
+        std::env::set_var("SLACKCLI_ALLOW_WRITE", "false");
         let client = ApiClient::with_token("test_token".to_string());
-        let result = file_upload(
-            &client,
-            "/tmp/test.txt".to_string(),
-            None,
-            None,
-            None,
-            false,
-        )
-        .await;
+        let result = file_upload(&client, "/tmp/test.txt".to_string(), None, None, None).await;
         assert!(result.is_err());
         assert!(matches!(result.unwrap_err(), ApiError::WriteNotAllowed));
+        std::env::remove_var("SLACKCLI_ALLOW_WRITE");
     }
 
     #[tokio::test]
     async fn test_file_upload_nonexistent_file() {
+        // Ensure write is allowed
+        std::env::remove_var("SLACKCLI_ALLOW_WRITE");
         let client = ApiClient::with_token("test_token".to_string());
         let result = file_upload(
             &client,
@@ -209,7 +204,6 @@ mod tests {
             None,
             None,
             None,
-            true,
         )
         .await;
         assert!(result.is_err());

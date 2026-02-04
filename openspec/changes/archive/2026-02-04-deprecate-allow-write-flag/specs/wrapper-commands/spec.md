@@ -1,6 +1,15 @@
 # wrapper-commands
 
-## MODIFIED Requirements
+## REMOVED Requirements
+
+### Requirement: write 操作は `--allow-write` が必須
+write 操作は `--allow-write` が無い場合に拒否されなければならない。(MUST)
+#### Scenario: `msg post` を `--allow-write` なしで実行する
+- Given write 操作を実行する
+- When `--allow-write` が指定されていない
+- Then エラーで終了する
+
+## ADDED Requirements
 
 ### Requirement: write 操作は環境変数で制御される
 write 操作は `SLACKCLI_ALLOW_WRITE` の値で許可/拒否を決定しなければならない。(MUST)
