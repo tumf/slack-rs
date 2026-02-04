@@ -20,6 +20,8 @@ pub mod types;
 pub use resolver::{list_profiles, resolve_profile, resolve_profile_full, ResolverError};
 pub use storage::{default_config_path, load_config, save_config, StorageError};
 pub use token_store::{
-    make_token_key, InMemoryTokenStore, KeyringTokenStore, TokenStore, TokenStoreError,
+    delete_oauth_client_secret, get_oauth_client_secret, make_oauth_client_secret_key,
+    make_token_key, store_oauth_client_secret, InMemoryTokenStore, KeyringTokenStore, TokenStore,
+    TokenStoreError,
 };
 pub use types::{Profile, ProfileError, ProfilesConfig};

@@ -2,7 +2,6 @@
 
 ## Purpose
 Enables secure backup and restoration of authentication profiles through encrypted export/import, allowing users to transfer credentials across machines or create secure backups.
-
 ## Requirements
 ### Requirement: Provide export/import via CLI
 Export/import of profiles MUST be executable from the CLI.
@@ -41,11 +40,11 @@ Saving MUST only be possible with secure file permissions. (MUST)
 - **THEN** an error is returned
 
 ### Requirement: Import writes back to keyring
-Decrypted authentication information MUST be saved to the OS keyring. (MUST)
+
+インポート時に復元対象の機密情報はKeyringへ保存されることがMUST。
+
 #### Scenario: Import decrypts and stores to keyring
-- **WHEN** `slackcli auth import --in <path>` is executed
-- **THEN** the encrypted file is decrypted
-- **AND** the profile is saved to the OS keyring
+- `slackcli auth import --in <path>` 実行時、OAuthクライアントシークレットが含まれていればKeyringへ保存される
 
 ### Requirement: Import applies safeguard on team_id conflict
 A safeguard MUST be applied when the same team_id exists. (MUST)
@@ -74,3 +73,19 @@ Warnings and prompts MUST be displayed in the specified language. (MUST)
 #### Scenario: Language switching for warnings and prompts
 - **WHEN** `--lang ja` or `--lang en` is specified
 - **THEN** warnings and prompts are displayed in the specified language
+
+### Requirement: Export/importにOAuthクレデンシャルを含める
+
+エクスポート対象のプロファイルにOAuthクレデンシャルが存在する場合、暗号化ペイロードに含めることがMUST。
+
+#### Scenario: Export includes OAuth credentials when available
+- `client_id` が存在する場合、エクスポートペイロードに含まれる
+- `client_secret` がKeyringに存在する場合、エクスポートペイロードに含まれる
+
+### Requirement: OAuthクレデンシャルは設定ファイルに平文で保存しない
+
+OAuthクライアントシークレットは設定ファイルに保存されないことがMUST。
+
+#### Scenario: Import stores client_secret only in keyring
+- import時に `client_secret` はKeyringへ保存され、設定ファイルには書き込まれない
+

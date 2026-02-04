@@ -146,11 +146,11 @@ mod tests {
         config.set(
             "default".to_string(),
             Profile {
-                client_id: None,
                 team_id: "T123".to_string(),
                 user_id: "U456".to_string(),
                 team_name: Some("Test Team".to_string()),
                 user_name: Some("Test User".to_string()),
+                client_id: None,
             },
         );
 
@@ -193,21 +193,21 @@ mod tests {
         config.set(
             "profile1".to_string(),
             Profile {
-                client_id: None,
                 team_id: "T1".to_string(),
                 user_id: "U1".to_string(),
                 team_name: None,
                 user_name: None,
+                client_id: None,
             },
         );
         config.set(
             "profile2".to_string(),
             Profile {
-                client_id: None,
                 team_id: "T2".to_string(),
                 user_id: "U2".to_string(),
                 team_name: Some("Team 2".to_string()),
                 user_name: Some("User 2".to_string()),
+                client_id: None,
             },
         );
 
@@ -243,11 +243,11 @@ mod tests {
         config.set(
             "legacy".to_string(),
             Profile {
-                client_id: None,
                 team_id: "T123".to_string(),
                 user_id: "U456".to_string(),
                 team_name: Some("Legacy Team".to_string()),
                 user_name: Some("Legacy User".to_string()),
+                client_id: None,
             },
         );
         fs::create_dir_all(legacy_path.parent().unwrap()).unwrap();
@@ -283,11 +283,11 @@ mod tests {
         config.set(
             "test".to_string(),
             Profile {
-                client_id: None,
                 team_id: "T999".to_string(),
                 user_id: "U888".to_string(),
                 team_name: None,
                 user_name: None,
+                client_id: None,
             },
         );
         fs::create_dir_all(legacy_path.parent().unwrap()).unwrap();

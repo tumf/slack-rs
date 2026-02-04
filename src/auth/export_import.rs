@@ -3,8 +3,8 @@
 use crate::auth::crypto::{self, KdfParams};
 use crate::auth::format::{self, ExportPayload, ExportProfile};
 use crate::profile::{
-    default_config_path, load_config, make_token_key, save_config, Profile, TokenStore,
-    TokenStoreError,
+    default_config_path, get_oauth_client_secret, load_config, make_token_key, save_config,
+    store_oauth_client_secret, Profile, TokenStore, TokenStoreError,
 };
 use std::fs;
 use std::io;
@@ -110,6 +110,10 @@ pub fn export_profiles<T: TokenStore>(token_store: &T, options: &ExportOptions) 
             .get(&token_key)
             .map_err(|_| ExportImportError::TokenNotFound(name.clone()))?;
 
+        // Try to get OAuth credentials (non-fatal if not found)
+        let client_id = profile.client_id.clone();
+        let client_secret = get_oauth_client_secret(token_store, &name).ok();
+
         payload.profiles.insert(
             name,
             ExportProfile {
@@ -118,6 +122,8 @@ pub fn export_profiles<T: TokenStore>(token_store: &T, options: &ExportOptions) 
                 team_name: profile.team_name.clone(),
                 user_name: profile.user_name.clone(),
                 token,
+                client_id,
+                client_secret,
             },
         );
     }
@@ -210,14 +216,19 @@ pub fn import_profiles<T: TokenStore>(token_store: &T, options: &ImportOptions) 
             user_id: export_profile.user_id.clone(),
             team_name: export_profile.team_name,
             user_name: export_profile.user_name,
-            client_id: None, // OAuth client ID not included in legacy exports
+            client_id: export_profile.client_id.clone(),
         };
 
-        config.set(name, profile);
+        config.set(name.clone(), profile);
 
         // Store token
         let token_key = make_token_key(&export_profile.team_id, &export_profile.user_id);
         token_store.set(&token_key, &export_profile.token)?;
+
+        // Store OAuth client secret if present
+        if let Some(client_secret) = export_profile.client_secret {
+            store_oauth_client_secret(token_store, &name, &client_secret)?;
+        }
     }
 
     // Save config

@@ -142,6 +142,36 @@ pub fn make_token_key(team_id: &str, user_id: &str) -> String {
     format!("{}:{}", team_id, user_id)
 }
 
+/// Helper function to create an OAuth client secret key for a profile
+pub fn make_oauth_client_secret_key(profile_name: &str) -> String {
+    format!("oauth-client-secret:{}", profile_name)
+}
+
+/// Store OAuth client secret in the keyring
+pub fn store_oauth_client_secret(
+    token_store: &impl TokenStore,
+    profile_name: &str,
+    client_secret: &str,
+) -> Result<()> {
+    let key = make_oauth_client_secret_key(profile_name);
+    token_store.set(&key, client_secret)
+}
+
+/// Retrieve OAuth client secret from the keyring
+pub fn get_oauth_client_secret(
+    token_store: &impl TokenStore,
+    profile_name: &str,
+) -> Result<String> {
+    let key = make_oauth_client_secret_key(profile_name);
+    token_store.get(&key)
+}
+
+/// Delete OAuth client secret from the keyring
+pub fn delete_oauth_client_secret(token_store: &impl TokenStore, profile_name: &str) -> Result<()> {
+    let key = make_oauth_client_secret_key(profile_name);
+    token_store.delete(&key)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -212,5 +242,35 @@ mod tests {
     fn test_keyring_token_store_default_service() {
         let store = KeyringTokenStore::default_service();
         assert_eq!(store.service, "slack-rs");
+    }
+
+    #[test]
+    fn test_make_oauth_client_secret_key() {
+        let key = make_oauth_client_secret_key("default");
+        assert_eq!(key, "oauth-client-secret:default");
+    }
+
+    #[test]
+    fn test_store_and_get_oauth_client_secret() {
+        let store = InMemoryTokenStore::new();
+        let profile_name = "test-profile";
+        let client_secret = "test-secret-123";
+
+        store_oauth_client_secret(&store, profile_name, client_secret).unwrap();
+        let retrieved = get_oauth_client_secret(&store, profile_name).unwrap();
+        assert_eq!(retrieved, client_secret);
+    }
+
+    #[test]
+    fn test_delete_oauth_client_secret() {
+        let store = InMemoryTokenStore::new();
+        let profile_name = "test-profile";
+        let client_secret = "test-secret-123";
+
+        store_oauth_client_secret(&store, profile_name, client_secret).unwrap();
+        assert!(get_oauth_client_secret(&store, profile_name).is_ok());
+
+        delete_oauth_client_secret(&store, profile_name).unwrap();
+        assert!(get_oauth_client_secret(&store, profile_name).is_err());
     }
 }

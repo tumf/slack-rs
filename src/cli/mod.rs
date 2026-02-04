@@ -98,6 +98,67 @@ pub async fn run_users_info(args: &[String]) -> Result<(), String> {
     Ok(())
 }
 
+pub async fn run_users_cache_update(args: &[String]) -> Result<(), String> {
+    let profile_name = get_option(args, "--profile=").unwrap_or_else(|| "default".to_string());
+    let force = has_flag(args, "--force");
+
+    let config_path = default_config_path().map_err(|e| e.to_string())?;
+    let config = load_config(&config_path).map_err(|e| e.to_string())?;
+
+    let profile = config
+        .get(&profile_name)
+        .ok_or_else(|| format!("Profile '{}' not found", profile_name))?;
+
+    let client = get_api_client(Some(profile_name.clone())).await?;
+
+    commands::update_cache(&client, profile.team_id.clone(), force)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    println!("Cache updated successfully for team {}", profile.team_id);
+    Ok(())
+}
+
+pub async fn run_users_resolve_mentions(args: &[String]) -> Result<(), String> {
+    if args.len() < 4 {
+        return Err(
+            "Usage: users resolve-mentions <text> [--profile=NAME] [--format=FORMAT]".to_string(),
+        );
+    }
+
+    let text = args[3].clone();
+    let profile_name = get_option(args, "--profile=").unwrap_or_else(|| "default".to_string());
+    let format_str = get_option(args, "--format=").unwrap_or_else(|| "display_name".to_string());
+
+    let format = format_str.parse::<commands::MentionFormat>().map_err(|_| {
+        format!(
+            "Invalid format: {}. Use display_name, real_name, or username",
+            format_str
+        )
+    })?;
+
+    let config_path = default_config_path().map_err(|e| e.to_string())?;
+    let config = load_config(&config_path).map_err(|e| e.to_string())?;
+
+    let profile = config
+        .get(&profile_name)
+        .ok_or_else(|| format!("Profile '{}' not found", profile_name))?;
+
+    let cache_path = commands::UsersCacheFile::default_path()?;
+    let cache_file = commands::UsersCacheFile::load(&cache_path)?;
+
+    let workspace_cache = cache_file.get_workspace(&profile.team_id).ok_or_else(|| {
+        format!(
+            "No cache found for team {}. Run 'users cache-update' first.",
+            profile.team_id
+        )
+    })?;
+
+    let result = commands::resolve_mentions(&text, workspace_cache, format);
+    println!("{}", result);
+    Ok(())
+}
+
 pub async fn run_msg_post(args: &[String]) -> Result<(), String> {
     if args.len() < 5 {
         return Err("Usage: msg post <channel> <text> [--thread-ts=TS] [--reply-broadcast] [--profile=NAME]".to_string());
@@ -243,6 +304,8 @@ pub fn print_conv_usage(prog: &str) {
 pub fn print_users_usage(prog: &str) {
     println!("Users command usage:");
     println!("  {} users info <user_id> [--profile=NAME]", prog);
+    println!("  {} users cache-update [--profile=NAME] [--force]", prog);
+    println!("  {} users resolve-mentions <text> [--profile=NAME] [--format=display_name|real_name|username]", prog);
 }
 
 pub fn print_msg_usage(prog: &str) {

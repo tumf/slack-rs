@@ -14,6 +14,8 @@ pub enum ApiMethod {
     ConversationsHistory,
     /// Get user info
     UsersInfo,
+    /// List users
+    UsersList,
     /// Post message
     ChatPostMessage,
     /// Update message
@@ -34,6 +36,7 @@ impl ApiMethod {
             ApiMethod::ConversationsList => "conversations.list",
             ApiMethod::ConversationsHistory => "conversations.history",
             ApiMethod::UsersInfo => "users.info",
+            ApiMethod::UsersList => "users.list",
             ApiMethod::ChatPostMessage => "chat.postMessage",
             ApiMethod::ChatUpdate => "chat.update",
             ApiMethod::ChatDelete => "chat.delete",
