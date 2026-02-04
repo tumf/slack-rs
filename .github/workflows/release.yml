@@ -37,7 +37,9 @@ jobs:
 
       - name: Get version from tag
         id: get_version
-        run: echo "version=${{ steps.get_tag.outputs.tag#v }}" >> $GITHUB_OUTPUT
+        run: |
+          TAG="${{ steps.get_tag.outputs.tag }}"
+          echo "version=${TAG#v}" >> $GITHUB_OUTPUT
       
       - name: Create Release
         id: create_release
