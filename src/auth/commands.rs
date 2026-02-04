@@ -559,7 +559,7 @@ fn open_browser(url: &str) -> Result<(), String> {
     let result = Command::new("xdg-open").arg(url).spawn();
 
     #[cfg(target_os = "windows")]
-    let result = Command::new("cmd").args(&["/C", "start", url]).spawn();
+    let result = Command::new("cmd").args(["/C", "start", url]).spawn();
 
     #[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
     let result: Result<std::process::Child, std::io::Error> = Err(std::io::Error::new(
