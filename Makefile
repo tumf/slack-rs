@@ -22,9 +22,9 @@ help:
 	@echo "  make index             - Build Serena symbol index (.serena/cache)"
 	@echo "  make setup             - Setup development environment"
 	@echo "  make pre-commit-hooks  - Install git pre-commit hooks"
-	@echo "  make bump-patch        - Bump patch version (0.1.0 -> 0.1.1)"
-	@echo "  make bump-minor        - Bump minor version (0.1.0 -> 0.2.0)"
-	@echo "  make bump-major        - Bump major version (0.1.0 -> 1.0.0)"
+	@echo "  make bump-patch        - Bump patch version (0.1.0 -> 0.1.1) without publish"
+	@echo "  make bump-minor        - Bump minor version (0.1.0 -> 0.2.0) without publish"
+	@echo "  make bump-major        - Bump major version (0.1.0 -> 1.0.0) without publish"
 
 # Install binary to ~/.cargo/bin
 install:
@@ -113,20 +113,23 @@ pre-commit-hooks:
 	@chmod +x .git/hooks/pre-commit
 	@echo "Pre-commit hooks installed successfully!"
 
-# Bump patch version (0.1.0 -> 0.1.1) and create git tag
+# Bump patch version (0.1.0 -> 0.1.1) and create git tag (no publish)
 bump-patch:
 	@echo "Bumping patch version..."
-	@cargo release patch --execute --no-confirm
+	@cargo release patch --execute --no-confirm --no-publish
 	@echo "Patch version bumped and tagged successfully"
+	@echo "To publish to crates.io, run: cargo publish"
 
-# Bump minor version (0.1.0 -> 0.2.0) and create git tag
+# Bump minor version (0.1.0 -> 0.2.0) and create git tag (no publish)
 bump-minor:
 	@echo "Bumping minor version..."
-	@cargo release minor --execute --no-confirm
+	@cargo release minor --execute --no-confirm --no-publish
 	@echo "Minor version bumped and tagged successfully"
+	@echo "To publish to crates.io, run: cargo publish"
 
-# Bump major version (0.1.0 -> 1.0.0) and create git tag
+# Bump major version (0.1.0 -> 1.0.0) and create git tag (no publish)
 bump-major:
 	@echo "Bumping major version..."
-	@cargo release major --execute --no-confirm
+	@cargo release major --execute --no-confirm --no-publish
 	@echo "Major version bumped and tagged successfully"
+	@echo "To publish to crates.io, run: cargo publish"

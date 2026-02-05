@@ -47,8 +47,8 @@ httpmock = "0.8"
 serial_test = "3.0"
 
 [package.metadata.release]
-# Publish to crates.io
-publish = true
+# Publish to crates.io (disabled by default - use manual publish)
+publish = false
 # Create and push git tag
 tag = true
 # Push changes to remote
