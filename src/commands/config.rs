@@ -83,7 +83,12 @@ fn resolve_client_secret(options: ClientSecretOptions) -> Result<String, OAuthEr
         if !options.confirmed {
             return Err(OAuthError::ConfigError(
                 "Using --client-secret is unsafe (visible in shell history/process list).\n\
-                 Use --yes to confirm, or use --client-secret-env/--client-secret-file instead."
+                 Available safer alternatives:\n\
+                 - Set environment variable: SLACKRS_CLIENT_SECRET=<secret>\n\
+                 - Use flag: --client-secret-env <ENV_VAR>\n\
+                 - Use flag: --client-secret-file <PATH>\n\
+                 - Interactive input (run without flags in a terminal)\n\
+                 - Use --yes to confirm direct input (not recommended)"
                     .to_string(),
             ));
         }
@@ -553,7 +558,13 @@ mod tests {
 
     /// Test error message for missing file
     #[test]
+    #[serial_test::serial]
     fn test_resolve_client_secret_missing_file() {
+        use std::env;
+
+        // Clear SLACKRS_CLIENT_SECRET to ensure it doesn't interfere with this test
+        env::remove_var("SLACKRS_CLIENT_SECRET");
+
         let result = resolve_client_secret(ClientSecretOptions {
             file_path: Some("/nonexistent/path/to/secret".to_string()),
             ..Default::default()

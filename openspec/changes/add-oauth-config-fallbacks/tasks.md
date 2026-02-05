@@ -3,3 +3,6 @@
 - [x] `--client-secret` 使用時は明示同意（`--yes`）が無い場合にエラーを返す（確認: `--yes` 有無で挙動が変わるテストが通る）
 - [x] 非対話で入力経路が無い場合のガイダンスを追加する（確認: エラーに利用可能な手段が含まれる）
 - [x] file backend を使った保存テストを追加する（確認: 一時 tokens.json に `oauth-client-secret:<profile>` が保存される）
+
+## Acceptance #1 Failure Follow-up
+- [x] `--client-secret` の拒否時メッセージに、環境変数/ファイル/対話入力の代替手段（`SLACKRS_CLIENT_SECRET` を含む）を明記する
