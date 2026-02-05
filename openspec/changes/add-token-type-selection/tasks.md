@@ -9,3 +9,7 @@
 - [x] `api call --token-type user` で user トークンが存在しない場合に bot へフォールバックせず、明確なエラーで失敗するようにする（`src/main.rs` の `run_api_call` でのフォールバックを削除・修正）。
 - [x] user トークンのキー形式を統一し、`api call` が `team_id:user_id:user` 形式で保存済みトークンを参照できるようにする（`src/main.rs` と `src/auth/commands.rs` のキー生成を一致させる）。
 - [x] ラッパーコマンドで `--token-type` を受け付け、未指定時は `default_token_type` を用いてトークン解決する（`src/cli/mod.rs` の引数解析と `get_api_client` を更新）。
+
+## Acceptance #2 Failure Follow-up
+- [x] `api call` で `default_token_type=user` の場合、user トークン未保存でも bot へフォールバックしているため、指定トークン不足時はエラーにする（`src/main.rs` の `run_api_call`）。
+- [x] ラッパーコマンドの `--token-type user|bot`（スペース区切り）を受け付けるようにし、`parse_token_type` が `--token-type=` だけでなく `--token-type` + 値も解釈する（`src/cli/mod.rs`）。

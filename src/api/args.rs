@@ -64,10 +64,20 @@ impl ApiCallArgs {
             } else if arg == "--get" {
                 use_get = true;
             } else if arg == "--token-type" {
+                // Space-separated format: --token-type VALUE
                 i += 1;
                 if i < args.len() {
                     token_type = Some(
                         args[i]
+                            .parse::<TokenType>()
+                            .map_err(|e| ArgsError::InvalidJson(e.to_string()))?,
+                    );
+                }
+            } else if arg.starts_with("--token-type=") {
+                // Equals format: --token-type=VALUE
+                if let Some(value) = arg.strip_prefix("--token-type=") {
+                    token_type = Some(
+                        value
                             .parse::<TokenType>()
                             .map_err(|e| ArgsError::InvalidJson(e.to_string()))?,
                     );
@@ -250,5 +260,49 @@ mod tests {
         assert_eq!(form.len(), 2);
         assert!(form.contains(&("channel".to_string(), "C123456".to_string())));
         assert!(form.contains(&("text".to_string(), "Hello".to_string())));
+    }
+
+    #[test]
+    fn test_parse_token_type_space_separated() {
+        let args = vec![
+            "chat.postMessage".to_string(),
+            "--token-type".to_string(),
+            "user".to_string(),
+            "channel=C123456".to_string(),
+        ];
+        let result = ApiCallArgs::parse(&args).unwrap();
+
+        assert_eq!(result.method, "chat.postMessage");
+        assert_eq!(result.token_type, Some(TokenType::User));
+    }
+
+    #[test]
+    fn test_parse_token_type_equals_format() {
+        let args = vec![
+            "chat.postMessage".to_string(),
+            "--token-type=bot".to_string(),
+            "channel=C123456".to_string(),
+        ];
+        let result = ApiCallArgs::parse(&args).unwrap();
+
+        assert_eq!(result.method, "chat.postMessage");
+        assert_eq!(result.token_type, Some(TokenType::Bot));
+    }
+
+    #[test]
+    fn test_parse_token_type_both_formats() {
+        // Test space-separated with bot
+        let args1 = vec![
+            "users.info".to_string(),
+            "--token-type".to_string(),
+            "bot".to_string(),
+        ];
+        let result1 = ApiCallArgs::parse(&args1).unwrap();
+        assert_eq!(result1.token_type, Some(TokenType::Bot));
+
+        // Test equals format with user
+        let args2 = vec!["users.info".to_string(), "--token-type=user".to_string()];
+        let result2 = ApiCallArgs::parse(&args2).unwrap();
+        assert_eq!(result2.token_type, Some(TokenType::User));
     }
 }

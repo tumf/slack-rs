@@ -1031,8 +1031,9 @@ async fn run_api_call(args: Vec<String>) -> Result<(), Box<dyn std::error::Error
     let file_store =
         FileTokenStore::new().map_err(|e| format!("Failed to create token store: {}", e))?;
 
-    // Determine if the token type was explicitly requested via CLI flag
-    let explicit_request = api_args.token_type.is_some();
+    // Determine if the token type was explicitly requested via CLI flag OR default_token_type
+    // If either is set, we should NOT fallback to a different token type
+    let explicit_request = api_args.token_type.is_some() || profile.default_token_type.is_some();
 
     let token = match file_store.get(&token_key) {
         Ok(t) => t,
@@ -1041,13 +1042,13 @@ async fn run_api_call(args: Vec<String>) -> Result<(), Box<dyn std::error::Error
             if let Ok(env_token) = std::env::var("SLACK_TOKEN") {
                 env_token
             } else if explicit_request {
-                // If token type was explicitly requested via --token-type, fail without fallback
+                // If token type was explicitly requested (via --token-type or default_token_type), fail without fallback
                 return Err(format!(
                     "No {} token found for profile '{}' ({}:{}). Explicitly requested token type not available. Set SLACK_TOKEN environment variable or run 'slack login' to obtain a {} token.",
                     resolved_token_type, profile_name, profile.team_id, profile.user_id, resolved_token_type
                 ).into());
             } else {
-                // If token type was not explicitly requested, try bot token as fallback
+                // If no token type preference was specified at all, try bot token as fallback
                 if resolved_token_type == profile::TokenType::User {
                     if let Ok(bot_token) = file_store.get(&token_key_bot) {
                         eprintln!(

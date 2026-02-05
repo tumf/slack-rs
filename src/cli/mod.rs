@@ -86,15 +86,29 @@ pub fn get_option(args: &[String], prefix: &str) -> Option<String> {
 }
 
 /// Parse token type from command line arguments
+/// Supports both --token-type=VALUE and --token-type VALUE formats
 pub fn parse_token_type(args: &[String]) -> Result<Option<TokenType>, String> {
+    // First try --token-type=VALUE format
     if let Some(token_type_str) = get_option(args, "--token-type=") {
-        token_type_str
+        return token_type_str
             .parse::<TokenType>()
             .map(Some)
-            .map_err(|e| e.to_string())
-    } else {
-        Ok(None)
+            .map_err(|e| e.to_string());
     }
+
+    // Then try --token-type VALUE format (space-separated)
+    if let Some(pos) = args.iter().position(|arg| arg == "--token-type") {
+        if let Some(value) = args.get(pos + 1) {
+            return value
+                .parse::<TokenType>()
+                .map(Some)
+                .map_err(|e| e.to_string());
+        } else {
+            return Err("--token-type requires a value (bot or user)".to_string());
+        }
+    }
+
+    Ok(None)
 }
 
 pub async fn run_search(args: &[String]) -> Result<(), String> {
@@ -424,4 +438,71 @@ pub fn print_file_usage(prog: &str) {
         "  {} file upload <path> [--channel=ID] [--channels=IDs] [--title=TITLE] [--comment=TEXT] [--profile=NAME] [--token-type=bot|user]",
         prog
     );
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_token_type_equals_format() {
+        let args = vec!["command".to_string(), "--token-type=user".to_string()];
+        let result = parse_token_type(&args).unwrap();
+        assert_eq!(result, Some(TokenType::User));
+    }
+
+    #[test]
+    fn test_parse_token_type_space_separated() {
+        let args = vec![
+            "command".to_string(),
+            "--token-type".to_string(),
+            "bot".to_string(),
+        ];
+        let result = parse_token_type(&args).unwrap();
+        assert_eq!(result, Some(TokenType::Bot));
+    }
+
+    #[test]
+    fn test_parse_token_type_both_values() {
+        // Test user with equals
+        let args1 = vec!["--token-type=user".to_string()];
+        assert_eq!(parse_token_type(&args1).unwrap(), Some(TokenType::User));
+
+        // Test bot with equals
+        let args2 = vec!["--token-type=bot".to_string()];
+        assert_eq!(parse_token_type(&args2).unwrap(), Some(TokenType::Bot));
+
+        // Test user with space
+        let args3 = vec!["--token-type".to_string(), "user".to_string()];
+        assert_eq!(parse_token_type(&args3).unwrap(), Some(TokenType::User));
+
+        // Test bot with space
+        let args4 = vec!["--token-type".to_string(), "bot".to_string()];
+        assert_eq!(parse_token_type(&args4).unwrap(), Some(TokenType::Bot));
+    }
+
+    #[test]
+    fn test_parse_token_type_missing() {
+        let args = vec!["command".to_string()];
+        let result = parse_token_type(&args).unwrap();
+        assert_eq!(result, None);
+    }
+
+    #[test]
+    fn test_parse_token_type_missing_value() {
+        let args = vec!["--token-type".to_string()];
+        let result = parse_token_type(&args);
+        assert!(result.is_err());
+        assert_eq!(
+            result.unwrap_err(),
+            "--token-type requires a value (bot or user)"
+        );
+    }
+
+    #[test]
+    fn test_parse_token_type_invalid_value() {
+        let args = vec!["--token-type=invalid".to_string()];
+        let result = parse_token_type(&args);
+        assert!(result.is_err());
+    }
 }
