@@ -78,6 +78,7 @@ fn test_command_meta_serialization() {
         user_id: "U888".to_string(),
         method: "chat.postMessage".to_string(),
         command: "msg post".to_string(),
+        token_type: Some("bot".to_string()),
     };
 
     let json = serde_json::to_string(&meta).unwrap();
@@ -88,6 +89,7 @@ fn test_command_meta_serialization() {
     assert_eq!(deserialized.user_id, "U888");
     assert_eq!(deserialized.method, "chat.postMessage");
     assert_eq!(deserialized.command, "msg post");
+    assert_eq!(deserialized.token_type, Some("bot".to_string()));
 }
 
 #[test]
@@ -109,6 +111,7 @@ fn test_different_commands_have_different_command_names() {
         user_id: "U123".to_string(),
         method: "conversations.list".to_string(),
         command: "conv list".to_string(),
+        token_type: Some("bot".to_string()),
     };
 
     let api_json = serde_json::to_value(&api_meta).unwrap();
@@ -120,4 +123,64 @@ fn test_different_commands_have_different_command_names() {
 
     // Both should have the same method
     assert_eq!(api_json["method"], wrapper_json["method"]);
+}
+
+#[test]
+fn test_command_response_with_token_type() {
+    let response = CommandResponse::with_token_type(
+        json!({"ok": true, "channels": []}),
+        Some("default".to_string()),
+        "T123ABC".to_string(),
+        "U456DEF".to_string(),
+        "conversations.list".to_string(),
+        "conv list".to_string(),
+        Some("bot".to_string()),
+    );
+
+    let json = serde_json::to_value(&response).unwrap();
+
+    // Verify envelope structure
+    assert!(json["response"].is_object());
+    assert!(json["meta"].is_object());
+
+    // Verify meta fields including token_type
+    assert_eq!(json["meta"]["profile_name"], "default");
+    assert_eq!(json["meta"]["team_id"], "T123ABC");
+    assert_eq!(json["meta"]["user_id"], "U456DEF");
+    assert_eq!(json["meta"]["method"], "conversations.list");
+    assert_eq!(json["meta"]["command"], "conv list");
+    assert_eq!(json["meta"]["token_type"], "bot");
+}
+
+#[test]
+fn test_command_response_without_token_type_omits_field() {
+    let response = CommandResponse::with_token_type(
+        json!({"ok": true}),
+        Some("default".to_string()),
+        "T123".to_string(),
+        "U456".to_string(),
+        "users.info".to_string(),
+        "users info".to_string(),
+        None,
+    );
+
+    let json_str = serde_json::to_string(&response).unwrap();
+    // token_type should not be present in JSON when None
+    assert!(!json_str.contains("token_type"));
+}
+
+#[test]
+fn test_command_response_with_user_token_type() {
+    let response = CommandResponse::with_token_type(
+        json!({"ok": true}),
+        Some("default".to_string()),
+        "T123".to_string(),
+        "U456".to_string(),
+        "users.info".to_string(),
+        "users info".to_string(),
+        Some("user".to_string()),
+    );
+
+    let json = serde_json::to_value(&response).unwrap();
+    assert_eq!(json["meta"]["token_type"], "user");
 }
