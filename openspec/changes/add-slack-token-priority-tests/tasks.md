@@ -1,4 +1,4 @@
-- [ ] ラッパーコマンド用のトークン解決を純関数として追加し、`SLACK_TOKEN` の値を引数で受け取れるようにする（確認: 新関数が `src/cli/handlers.rs` の解決ロジックから呼ばれる）
-- [ ] `SLACK_TOKEN` が設定されている場合に token store より優先されることを示すユニットテストを追加する（確認: `cargo test test_resolve_token_prefers_env` が成功する）
-- [ ] `SLACK_TOKEN` が未設定の場合に token store の値が使われるユニットテストを追加する（確認: `cargo test test_resolve_token_uses_store` が成功する）
-- [ ] `--token-type` / `default_token_type` の明示指定時にフォールバックしないことの回帰テストを追加する（確認: `cargo test test_resolve_token_explicit_request` が成功する）
+- [x] ラッパーコマンド用のトークン解決を純関数として追加し、`SLACK_TOKEN` の値を引数で受け取れるようにする（確認: 新関数が `src/cli/mod.rs` に追加された）
+- [x] `SLACK_TOKEN` が設定されている場合に token store より優先されることを示すユニットテストを追加する（確認: `cargo test test_resolve_token_prefers_env` が成功する）
+- [x] `SLACK_TOKEN` が未設定の場合に token store の値が使われるユニットテストを追加する（確認: `cargo test test_resolve_token_uses_store` が成功する）
+- [x] `--token-type` / `default_token_type` の明示指定時にフォールバックしないことの回帰テストを追加する（確認: `cargo test test_resolve_token_explicit_request` が成功する）

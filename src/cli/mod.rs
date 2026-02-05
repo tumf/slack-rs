@@ -11,9 +11,68 @@ use crate::commands;
 use crate::commands::ConversationSelector;
 use crate::profile::{
     create_token_store, default_config_path, load_config, make_token_key, resolve_profile_full,
-    TokenType,
+    TokenStore, TokenType,
 };
 use serde_json::Value;
+
+/// Resolve token with priority: SLACK_TOKEN env > token store
+///
+/// # Arguments
+/// * `slack_token_env` - Value of SLACK_TOKEN environment variable (None if unset)
+/// * `token_store` - Token store to retrieve tokens from
+/// * `token_key` - Key to use for token store lookup
+/// * `fallback_token_key` - Optional fallback key (e.g., bot token when user token not found)
+/// * `explicit_request` - Whether the token type was explicitly requested (via --token-type or default_token_type)
+///
+/// # Returns
+/// * `Ok(token)` - Successfully resolved token
+/// * `Err(message)` - Token resolution failed
+///
+/// # Token Resolution Priority
+/// 1. SLACK_TOKEN environment variable (if set, bypasses token store)
+/// 2. Token store with primary token_key
+/// 3. Token store with fallback_token_key (only if not explicit_request)
+/// 4. Error if no token found
+pub fn resolve_token_for_wrapper(
+    slack_token_env: Option<String>,
+    token_store: &dyn TokenStore,
+    token_key: &str,
+    fallback_token_key: Option<&str>,
+    explicit_request: bool,
+) -> Result<String, String> {
+    // Priority 1: SLACK_TOKEN environment variable
+    if let Some(env_token) = slack_token_env {
+        return Ok(env_token);
+    }
+
+    // Priority 2: Token store with primary key
+    if let Ok(token) = token_store.get(token_key) {
+        return Ok(token);
+    }
+
+    // Priority 3: Fallback token (only if not explicit_request)
+    if !explicit_request {
+        if let Some(fallback_key) = fallback_token_key {
+            if let Ok(token) = token_store.get(fallback_key) {
+                eprintln!(
+                    "Warning: Primary token not found, falling back to alternative token"
+                );
+                return Ok(token);
+            }
+        }
+    }
+
+    // Priority 4: Error
+    if explicit_request {
+        Err(
+            "No token found for explicitly requested token type. Set SLACK_TOKEN environment variable or run 'slack login' to obtain a token.".to_string()
+        )
+    } else {
+        Err(
+            "No token found. Set SLACK_TOKEN environment variable or run 'slack login' to obtain a token.".to_string()
+        )
+    }
+}
 
 /// Get API client for a profile with optional token type selection
 ///
@@ -1076,5 +1135,132 @@ mod tests {
         let args = vec!["--token-type=invalid".to_string()];
         let result = parse_token_type(&args);
         assert!(result.is_err());
+    }
+
+    // Mock token store for testing
+    struct MockTokenStore {
+        tokens: std::collections::HashMap<String, String>,
+    }
+
+    impl MockTokenStore {
+        fn new() -> Self {
+            Self {
+                tokens: std::collections::HashMap::new(),
+            }
+        }
+
+        fn with_token(mut self, key: &str, value: &str) -> Self {
+            self.tokens.insert(key.to_string(), value.to_string());
+            self
+        }
+    }
+
+    impl TokenStore for MockTokenStore {
+        fn get(&self, key: &str) -> crate::profile::token_store::Result<String> {
+            use crate::profile::token_store::TokenStoreError;
+            self.tokens
+                .get(key)
+                .cloned()
+                .ok_or_else(|| TokenStoreError::NotFound(key.to_string()))
+        }
+
+        fn set(&self, _key: &str, _value: &str) -> crate::profile::token_store::Result<()> {
+            unimplemented!("set not needed for tests")
+        }
+
+        fn delete(&self, _key: &str) -> crate::profile::token_store::Result<()> {
+            unimplemented!("delete not needed for tests")
+        }
+
+        fn exists(&self, key: &str) -> bool {
+            self.tokens.contains_key(key)
+        }
+    }
+
+    #[test]
+    fn test_resolve_token_prefers_env() {
+        // SLACK_TOKEN should be preferred over token store
+        let store = MockTokenStore::new().with_token("T123:U123", "xoxb-store-token");
+        
+        let result = resolve_token_for_wrapper(
+            Some("xoxb-env-token".to_string()),
+            &store,
+            "T123:U123",
+            None,
+            false,
+        );
+        
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), "xoxb-env-token");
+    }
+
+    #[test]
+    fn test_resolve_token_uses_store() {
+        // When SLACK_TOKEN is not set, use token store
+        let store = MockTokenStore::new().with_token("T123:U123", "xoxb-store-token");
+        
+        let result = resolve_token_for_wrapper(
+            None,
+            &store,
+            "T123:U123",
+            None,
+            false,
+        );
+        
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), "xoxb-store-token");
+    }
+
+    #[test]
+    fn test_resolve_token_explicit_request() {
+        // When token type is explicitly requested, don't fallback
+        let store = MockTokenStore::new().with_token("T123:U123", "xoxb-bot-token");
+        
+        let result = resolve_token_for_wrapper(
+            None,
+            &store,
+            "T123:U123:user", // User token key
+            Some("T123:U123"), // Bot token fallback
+            true, // Explicit request
+        );
+        
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("explicitly requested"));
+    }
+
+    #[test]
+    fn test_resolve_token_fallback_when_not_explicit() {
+        // When token type is not explicitly requested, allow fallback
+        let store = MockTokenStore::new().with_token("T123:U123", "xoxb-bot-token");
+        
+        let result = resolve_token_for_wrapper(
+            None,
+            &store,
+            "T123:U123:user", // User token key (not found)
+            Some("T123:U123"), // Bot token fallback
+            false, // Not explicit request
+        );
+        
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), "xoxb-bot-token");
+    }
+
+    #[test]
+    fn test_resolve_token_env_overrides_explicit() {
+        // SLACK_TOKEN should override even explicit token type requests
+        let store = MockTokenStore::new()
+            .with_token("T123:U123", "xoxb-bot-token")
+            .with_token("T123:U123:user", "xoxp-user-token");
+        
+        let result = resolve_token_for_wrapper(
+            Some("xoxb-env-token".to_string()),
+            &store,
+            "T123:U123:user",
+            None,
+            true, // Explicit request
+        );
+        
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), "xoxb-env-token");
     }
 }
