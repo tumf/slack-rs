@@ -68,6 +68,7 @@ async fn test_api_call_with_form_data() {
     assert_eq!(response.meta.team_id, "T123ABC");
     assert_eq!(response.meta.user_id, "U456DEF");
     assert_eq!(response.meta.method, "chat.postMessage");
+    assert_eq!(response.meta.command, "api call");
 
     // Verify mock was called
     mock.assert();
@@ -293,6 +294,7 @@ async fn test_output_json_with_meta() {
     assert_eq!(response.meta.team_id, "T999XYZ");
     assert_eq!(response.meta.user_id, "U888ABC");
     assert_eq!(response.meta.method, "test.method");
+    assert_eq!(response.meta.command, "api call");
 
     // Verify we can serialize the full response to JSON
     let json = serde_json::to_value(&response).unwrap();
@@ -302,4 +304,5 @@ async fn test_output_json_with_meta() {
     assert_eq!(json["meta"]["team_id"], "T999XYZ");
     assert_eq!(json["meta"]["user_id"], "U888ABC");
     assert_eq!(json["meta"]["method"], "test.method");
+    assert_eq!(json["meta"]["command"], "api call");
 }

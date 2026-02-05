@@ -1,14 +1,25 @@
 //! CLI command routing and handlers
 
+use crate::api::call::{ApiCallMeta, ApiCallResponse};
+use crate::api::ApiCallContext;
 use crate::api::ApiClient;
 use crate::commands;
 use crate::commands::ConversationSelector;
 use crate::profile::{
     default_config_path, load_config, make_token_key, FileTokenStore, TokenStore,
 };
+use serde::Serialize;
 
 /// Get API client for a profile
 pub async fn get_api_client(profile_name: Option<String>) -> Result<ApiClient, String> {
+    let (client, _) = get_api_client_with_context(profile_name).await?;
+    Ok(client)
+}
+
+/// Get API client and execution context for a profile
+pub async fn get_api_client_with_context(
+    profile_name: Option<String>,
+) -> Result<(ApiClient, ApiCallContext), String> {
     let profile_name = profile_name.unwrap_or_else(|| "default".to_string());
     let config_path = default_config_path().map_err(|e| e.to_string())?;
     let config = load_config(&config_path).map_err(|e| e.to_string())?;
@@ -33,7 +44,13 @@ pub async fn get_api_client(profile_name: Option<String>) -> Result<ApiClient, S
         }
     };
 
-    Ok(ApiClient::with_token(token))
+    let context = ApiCallContext {
+        profile_name: Some(profile_name),
+        team_id: profile.team_id.clone(),
+        user_id: profile.user_id.clone(),
+    };
+
+    Ok((ApiClient::with_token(token), context))
 }
 
 /// Check if a flag exists in args
@@ -49,6 +66,37 @@ pub fn get_option(args: &[String], prefix: &str) -> Option<String> {
         .map(|s| s.to_string())
 }
 
+fn make_meta(context: &ApiCallContext, method: &str, command: &str) -> ApiCallMeta {
+    ApiCallMeta {
+        profile_name: context.profile_name.clone(),
+        team_id: context.team_id.clone(),
+        user_id: context.user_id.clone(),
+        method: method.to_string(),
+        command: command.to_string(),
+    }
+}
+
+fn print_unified_output<T: Serialize>(
+    response: &T,
+    meta: ApiCallMeta,
+    raw: bool,
+) -> Result<(), String> {
+    if raw {
+        let json = serde_json::to_string_pretty(response).map_err(|e| e.to_string())?;
+        println!("{}", json);
+        return Ok(());
+    }
+
+    let value = serde_json::to_value(response).map_err(|e| e.to_string())?;
+    let envelope = ApiCallResponse {
+        response: value,
+        meta,
+    };
+    let json = serde_json::to_string_pretty(&envelope).map_err(|e| e.to_string())?;
+    println!("{}", json);
+    Ok(())
+}
+
 pub async fn run_search(args: &[String]) -> Result<(), String> {
     let query = args[2].clone();
     let count = get_option(args, "--count=").and_then(|s| s.parse().ok());
@@ -56,13 +104,15 @@ pub async fn run_search(args: &[String]) -> Result<(), String> {
     let sort = get_option(args, "--sort=");
     let sort_dir = get_option(args, "--sort_dir=");
     let profile = get_option(args, "--profile=");
+    let raw = has_flag(args, "--raw");
 
-    let client = get_api_client(profile).await?;
+    let (client, context) = get_api_client_with_context(profile).await?;
     let response = commands::search(&client, query, count, page, sort, sort_dir)
         .await
         .map_err(|e| e.to_string())?;
 
-    println!("{}", serde_json::to_string_pretty(&response).unwrap());
+    let meta = make_meta(&context, "search.messages", "search");
+    print_unified_output(&response, meta, raw)?;
     Ok(())
 }
 
@@ -79,6 +129,7 @@ pub async fn run_conv_list(args: &[String]) -> Result<(), String> {
     let types = get_option(args, "--types=");
     let limit = get_option(args, "--limit=").and_then(|s| s.parse().ok());
     let profile = get_option(args, "--profile=");
+    let raw = has_flag(args, "--raw");
     let filter_strings = get_all_options(args, "--filter=");
 
     // Parse filters
@@ -88,7 +139,7 @@ pub async fn run_conv_list(args: &[String]) -> Result<(), String> {
         .collect();
     let filters = filters.map_err(|e| e.to_string())?;
 
-    let client = get_api_client(profile).await?;
+    let (client, context) = get_api_client_with_context(profile).await?;
     let mut response = commands::conv_list(&client, types, limit)
         .await
         .map_err(|e| e.to_string())?;
@@ -96,7 +147,8 @@ pub async fn run_conv_list(args: &[String]) -> Result<(), String> {
     // Apply filters
     commands::apply_filters(&mut response, &filters);
 
-    println!("{}", serde_json::to_string_pretty(&response).unwrap());
+    let meta = make_meta(&context, "conversations.list", "conv list");
+    print_unified_output(&response, meta, raw)?;
     Ok(())
 }
 
@@ -132,6 +184,7 @@ pub async fn run_conv_select(args: &[String]) -> Result<(), String> {
 
 pub async fn run_conv_history(args: &[String]) -> Result<(), String> {
     let interactive = has_flag(args, "--interactive");
+    let raw = has_flag(args, "--raw");
 
     let channel = if interactive {
         // Use conv_select logic to get channel
@@ -170,25 +223,28 @@ pub async fn run_conv_history(args: &[String]) -> Result<(), String> {
     let latest = get_option(args, "--latest=");
     let profile = get_option(args, "--profile=");
 
-    let client = get_api_client(profile).await?;
+    let (client, context) = get_api_client_with_context(profile).await?;
     let response = commands::conv_history(&client, channel, limit, oldest, latest)
         .await
         .map_err(|e| e.to_string())?;
 
-    println!("{}", serde_json::to_string_pretty(&response).unwrap());
+    let meta = make_meta(&context, "conversations.history", "conv history");
+    print_unified_output(&response, meta, raw)?;
     Ok(())
 }
 
 pub async fn run_users_info(args: &[String]) -> Result<(), String> {
     let user = args[3].clone();
     let profile = get_option(args, "--profile=");
+    let raw = has_flag(args, "--raw");
 
-    let client = get_api_client(profile).await?;
+    let (client, context) = get_api_client_with_context(profile).await?;
     let response = commands::users_info(&client, user)
         .await
         .map_err(|e| e.to_string())?;
 
-    println!("{}", serde_json::to_string_pretty(&response).unwrap());
+    let meta = make_meta(&context, "users.info", "users info");
+    print_unified_output(&response, meta, raw)?;
     Ok(())
 }
 
@@ -255,7 +311,7 @@ pub async fn run_users_resolve_mentions(args: &[String]) -> Result<(), String> {
 
 pub async fn run_msg_post(args: &[String]) -> Result<(), String> {
     if args.len() < 5 {
-        return Err("Usage: msg post <channel> <text> [--thread-ts=TS] [--reply-broadcast] [--profile=NAME]".to_string());
+        return Err("Usage: msg post <channel> <text> [--thread-ts=TS] [--reply-broadcast] [--profile=NAME] [--raw]".to_string());
     }
 
     let channel = args[3].clone();
@@ -263,24 +319,28 @@ pub async fn run_msg_post(args: &[String]) -> Result<(), String> {
     let thread_ts = get_option(args, "--thread-ts=");
     let reply_broadcast = has_flag(args, "--reply-broadcast");
     let profile = get_option(args, "--profile=");
+    let raw = has_flag(args, "--raw");
 
     // Validate: --reply-broadcast requires --thread-ts
     if reply_broadcast && thread_ts.is_none() {
         return Err("Error: --reply-broadcast requires --thread-ts".to_string());
     }
 
-    let client = get_api_client(profile).await?;
+    let (client, context) = get_api_client_with_context(profile).await?;
     let response = commands::msg_post(&client, channel, text, thread_ts, reply_broadcast)
         .await
         .map_err(|e| e.to_string())?;
 
-    println!("{}", serde_json::to_string_pretty(&response).unwrap());
+    let meta = make_meta(&context, "chat.postMessage", "msg post");
+    print_unified_output(&response, meta, raw)?;
     Ok(())
 }
 
 pub async fn run_msg_update(args: &[String]) -> Result<(), String> {
     if args.len() < 6 {
-        return Err("Usage: msg update <channel> <ts> <text> [--yes] [--profile=NAME]".to_string());
+        return Err(
+            "Usage: msg update <channel> <ts> <text> [--yes] [--profile=NAME] [--raw]".to_string(),
+        );
     }
 
     let channel = args[3].clone();
@@ -288,58 +348,67 @@ pub async fn run_msg_update(args: &[String]) -> Result<(), String> {
     let text = args[5].clone();
     let yes = has_flag(args, "--yes");
     let profile = get_option(args, "--profile=");
+    let raw = has_flag(args, "--raw");
 
-    let client = get_api_client(profile).await?;
+    let (client, context) = get_api_client_with_context(profile).await?;
     let response = commands::msg_update(&client, channel, ts, text, yes)
         .await
         .map_err(|e| e.to_string())?;
 
-    println!("{}", serde_json::to_string_pretty(&response).unwrap());
+    let meta = make_meta(&context, "chat.update", "msg update");
+    print_unified_output(&response, meta, raw)?;
     Ok(())
 }
 
 pub async fn run_msg_delete(args: &[String]) -> Result<(), String> {
     if args.len() < 5 {
-        return Err("Usage: msg delete <channel> <ts> [--yes] [--profile=NAME]".to_string());
+        return Err(
+            "Usage: msg delete <channel> <ts> [--yes] [--profile=NAME] [--raw]".to_string(),
+        );
     }
 
     let channel = args[3].clone();
     let ts = args[4].clone();
     let yes = has_flag(args, "--yes");
     let profile = get_option(args, "--profile=");
+    let raw = has_flag(args, "--raw");
 
-    let client = get_api_client(profile).await?;
+    let (client, context) = get_api_client_with_context(profile).await?;
     let response = commands::msg_delete(&client, channel, ts, yes)
         .await
         .map_err(|e| e.to_string())?;
 
-    println!("{}", serde_json::to_string_pretty(&response).unwrap());
+    let meta = make_meta(&context, "chat.delete", "msg delete");
+    print_unified_output(&response, meta, raw)?;
     Ok(())
 }
 
 pub async fn run_react_add(args: &[String]) -> Result<(), String> {
     if args.len() < 6 {
-        return Err("Usage: react add <channel> <ts> <emoji> [--profile=NAME]".to_string());
+        return Err("Usage: react add <channel> <ts> <emoji> [--profile=NAME] [--raw]".to_string());
     }
 
     let channel = args[3].clone();
     let ts = args[4].clone();
     let emoji = args[5].clone();
     let profile = get_option(args, "--profile=");
+    let raw = has_flag(args, "--raw");
 
-    let client = get_api_client(profile).await?;
+    let (client, context) = get_api_client_with_context(profile).await?;
     let response = commands::react_add(&client, channel, ts, emoji)
         .await
         .map_err(|e| e.to_string())?;
 
-    println!("{}", serde_json::to_string_pretty(&response).unwrap());
+    let meta = make_meta(&context, "reactions.add", "react add");
+    print_unified_output(&response, meta, raw)?;
     Ok(())
 }
 
 pub async fn run_react_remove(args: &[String]) -> Result<(), String> {
     if args.len() < 6 {
         return Err(
-            "Usage: react remove <channel> <ts> <emoji> [--yes] [--profile=NAME]".to_string(),
+            "Usage: react remove <channel> <ts> <emoji> [--yes] [--profile=NAME] [--raw]"
+                .to_string(),
         );
     }
 
@@ -348,20 +417,22 @@ pub async fn run_react_remove(args: &[String]) -> Result<(), String> {
     let emoji = args[5].clone();
     let yes = has_flag(args, "--yes");
     let profile = get_option(args, "--profile=");
+    let raw = has_flag(args, "--raw");
 
-    let client = get_api_client(profile).await?;
+    let (client, context) = get_api_client_with_context(profile).await?;
     let response = commands::react_remove(&client, channel, ts, emoji, yes)
         .await
         .map_err(|e| e.to_string())?;
 
-    println!("{}", serde_json::to_string_pretty(&response).unwrap());
+    let meta = make_meta(&context, "reactions.remove", "react remove");
+    print_unified_output(&response, meta, raw)?;
     Ok(())
 }
 
 pub async fn run_file_upload(args: &[String]) -> Result<(), String> {
     if args.len() < 4 {
         return Err(
-            "Usage: file upload <path> [--channel=ID] [--channels=IDs] [--title=TITLE] [--comment=TEXT] [--profile=NAME]"
+            "Usage: file upload <path> [--channel=ID] [--channels=IDs] [--title=TITLE] [--comment=TEXT] [--profile=NAME] [--raw]"
                 .to_string(),
         );
     }
@@ -373,20 +444,26 @@ pub async fn run_file_upload(args: &[String]) -> Result<(), String> {
     let title = get_option(args, "--title=");
     let comment = get_option(args, "--comment=");
     let profile = get_option(args, "--profile=");
+    let raw = has_flag(args, "--raw");
 
-    let client = get_api_client(profile).await?;
+    let (client, context) = get_api_client_with_context(profile).await?;
     let response = commands::file_upload(&client, file_path, channels, title, comment)
         .await
         .map_err(|e| e.to_string())?;
 
-    println!("{}", serde_json::to_string_pretty(&response).unwrap());
+    let meta = make_meta(
+        &context,
+        "files.getUploadURLExternal+files.completeUploadExternal",
+        "file upload",
+    );
+    print_unified_output(&response, meta, raw)?;
     Ok(())
 }
 
 pub fn print_conv_usage(prog: &str) {
     println!("Conv command usage:");
     println!(
-        "  {} conv list [--types=TYPE] [--limit=N] [--filter=KEY:VALUE]... [--profile=NAME]",
+        "  {} conv list [--types=TYPE] [--limit=N] [--filter=KEY:VALUE]... [--profile=NAME] [--raw]",
         prog
     );
     println!("    Filters: name:<glob>, is_member:true|false, is_private:true|false");
@@ -396,11 +473,11 @@ pub fn print_conv_usage(prog: &str) {
     );
     println!("    Interactively select a conversation and output its channel ID");
     println!(
-        "  {} conv history <channel> [--limit=N] [--oldest=TS] [--latest=TS] [--profile=NAME]",
+        "  {} conv history <channel> [--limit=N] [--oldest=TS] [--latest=TS] [--profile=NAME] [--raw]",
         prog
     );
     println!(
-        "  {} conv history --interactive [--types=TYPE] [--filter=KEY:VALUE]... [--limit=N] [--profile=NAME]",
+        "  {} conv history --interactive [--types=TYPE] [--filter=KEY:VALUE]... [--limit=N] [--profile=NAME] [--raw]",
         prog
     );
     println!("    Select channel interactively before fetching history");
@@ -408,7 +485,7 @@ pub fn print_conv_usage(prog: &str) {
 
 pub fn print_users_usage(prog: &str) {
     println!("Users command usage:");
-    println!("  {} users info <user_id> [--profile=NAME]", prog);
+    println!("  {} users info <user_id> [--profile=NAME] [--raw]", prog);
     println!("  {} users cache-update [--profile=NAME] [--force]", prog);
     println!("  {} users resolve-mentions <text> [--profile=NAME] [--format=display_name|real_name|username]", prog);
 }
@@ -416,15 +493,15 @@ pub fn print_users_usage(prog: &str) {
 pub fn print_msg_usage(prog: &str) {
     println!("Msg command usage:");
     println!(
-        "  {} msg post <channel> <text> [--thread-ts=TS] [--reply-broadcast] [--profile=NAME]",
+        "  {} msg post <channel> <text> [--thread-ts=TS] [--reply-broadcast] [--profile=NAME] [--raw]",
         prog
     );
     println!(
-        "  {} msg update <channel> <ts> <text> [--yes] [--profile=NAME]",
+        "  {} msg update <channel> <ts> <text> [--yes] [--profile=NAME] [--raw]",
         prog
     );
     println!(
-        "  {} msg delete <channel> <ts> [--yes] [--profile=NAME]",
+        "  {} msg delete <channel> <ts> [--yes] [--profile=NAME] [--raw]",
         prog
     );
 }
@@ -432,11 +509,11 @@ pub fn print_msg_usage(prog: &str) {
 pub fn print_react_usage(prog: &str) {
     println!("React command usage:");
     println!(
-        "  {} react add <channel> <ts> <emoji> [--profile=NAME]",
+        "  {} react add <channel> <ts> <emoji> [--profile=NAME] [--raw]",
         prog
     );
     println!(
-        "  {} react remove <channel> <ts> <emoji> [--yes] [--profile=NAME]",
+        "  {} react remove <channel> <ts> <emoji> [--yes] [--profile=NAME] [--raw]",
         prog
     );
 }
@@ -444,7 +521,7 @@ pub fn print_react_usage(prog: &str) {
 pub fn print_file_usage(prog: &str) {
     println!("File command usage:");
     println!(
-        "  {} file upload <path> [--channel=ID] [--channels=IDs] [--title=TITLE] [--comment=TEXT] [--profile=NAME]",
+        "  {} file upload <path> [--channel=ID] [--channels=IDs] [--title=TITLE] [--comment=TEXT] [--profile=NAME] [--raw]",
         prog
     );
 }
