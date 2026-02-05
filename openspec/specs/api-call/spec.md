@@ -2,7 +2,6 @@
 
 ## Purpose
 Provides a generic API call interface to invoke any Slack Web API method with proper authentication, retry logic, and flexible parameter handling.
-
 ## Requirements
 ### Requirement: Can call any Slack API method
 Any Slack Web API method MUST be callable via `https://slack.com/api/{method}`. (MUST)
@@ -40,11 +39,11 @@ On 429 response, MUST wait according to `Retry-After` and retry up to a maximum 
 - Then wait for the specified seconds and retry
 
 ### Requirement: Include meta in output
-Output JSON MUST include `meta.profile_name`, `meta.team_id`, `meta.user_id`, and `meta.method`. (MUST)
-#### Scenario: Execution context is included in JSON
-- Given a profile is selected
-- When executing `api call`
-- Then meta contains required fields
+Output JSON MUST include `meta.profile_name`, `meta.team_id`, `meta.user_id`, `meta.method`, and `meta.token_type`. (MUST)
+#### Scenario: token_type is included in output
+- Given executing `api call`
+- When calling API with a valid token
+- Then `meta.token_type` contains `user` or `bot`
 
 ### Requirement: Return Slack API response as-is
 Slack API response MUST be preserved in `response`, even when `ok=false`. (MUST)
@@ -52,3 +51,26 @@ Slack API response MUST be preserved in `response`, even when `ok=false`. (MUST)
 - Given Slack API returns `ok=false`
 - When executing `api call`
 - Then `response.ok` is returned as `false`
+
+### Requirement: Can explicitly specify token type with `--token-type`
+`api call` MUST accept `--token-type user|bot` and use the specified token type. (MUST)
+#### Scenario: Explicitly specify user token
+- Given `--token-type user` is specified
+- When executing `api call conversations.list`
+- Then User Token is used in Authorization header
+
+### Requirement: Resolve with default token type
+When `--token-type` is not specified, MUST use the profile's `default_token_type`. (MUST)
+#### Scenario: Default type is user
+- Given profile's `default_token_type` is `user`
+- When executing `api call`
+- Then User Token is used
+
+### Requirement: Error when token does not exist
+When the specified token type does not exist, MUST fail with a clear error. (MUST)
+#### Scenario: User token is not saved
+- Given `--token-type user` is specified
+- And User Token is not saved
+- When executing `api call`
+- Then an error indicating missing token is returned
+
