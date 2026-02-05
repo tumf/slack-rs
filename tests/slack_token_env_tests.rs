@@ -173,8 +173,8 @@ async fn test_fallback_to_token_store_when_slack_token_not_set() {
 
 #[test]
 fn test_command_response_with_token_type_metadata() {
-    use slack_rs::api::CommandResponse;
     use serde_json::json;
+    use slack_rs::api::CommandResponse;
 
     // Test that CommandResponse::with_token_type includes token_type in metadata
     let response = CommandResponse::with_token_type(
@@ -193,8 +193,8 @@ fn test_command_response_with_token_type_metadata() {
 
 #[test]
 fn test_command_response_with_user_token_type_metadata() {
-    use slack_rs::api::CommandResponse;
     use serde_json::json;
+    use slack_rs::api::CommandResponse;
 
     // Test that CommandResponse::with_token_type works with user token type
     let response = CommandResponse::with_token_type(
@@ -213,8 +213,8 @@ fn test_command_response_with_user_token_type_metadata() {
 
 #[test]
 fn test_command_response_without_token_type_metadata() {
-    use slack_rs::api::CommandResponse;
     use serde_json::json;
+    use slack_rs::api::CommandResponse;
 
     // Test that CommandResponse::with_token_type with None doesn't include token_type
     let response = CommandResponse::with_token_type(
