@@ -8,10 +8,11 @@ use crate::profile::{
 };
 
 /// Get API client for a profile with optional token type preference
+/// Returns (ApiClient, is_user_token) where is_user_token indicates if a user token was used
 pub async fn get_api_client_with_token_type(
     profile_name: Option<String>,
     prefer_user_token: bool,
-) -> Result<ApiClient, String> {
+) -> Result<(ApiClient, bool), String> {
     let profile_name = profile_name.unwrap_or_else(|| "default".to_string());
     let config_path = default_config_path().map_err(|e| e.to_string())?;
     let config = load_config(&config_path).map_err(|e| e.to_string())?;
@@ -25,34 +26,38 @@ pub async fn get_api_client_with_token_type(
     let user_token_key = format!("{}:{}:user", profile.team_id, profile.user_id);
     let bot_token_key = make_token_key(&profile.team_id, &profile.user_id);
 
-    let token = if prefer_user_token {
-        // Try user token first, fall back to bot token
-        match token_store.get(&user_token_key) {
-            Ok(user_token) => user_token,
-            Err(_) => {
-                eprintln!("Warning: User token not found, falling back to bot token.");
-                eprintln!("For better private channel access, run 'slackcli auth login' with user_scopes.");
-                token_store
-                    .get(&bot_token_key)
-                    .map_err(|e| format!("Failed to get token: {}", e))?
-            }
-        }
+    let (token, is_user_token) = if prefer_user_token {
+        // User token is required - do not fall back to bot token
+        let token = token_store.get(&user_token_key).map_err(|_| {
+            format!(
+                "User token not found for profile '{}'.\n\
+                    Private channels require a User Token with appropriate scopes.\n\
+                    Run: slackcli auth login (with user_scopes)",
+                profile_name
+            )
+        })?;
+        (token, true)
     } else {
         // Try bot token first, fall back to user token
         match token_store.get(&bot_token_key) {
-            Ok(bot_token) => bot_token,
-            Err(_) => token_store
-                .get(&user_token_key)
-                .map_err(|e| format!("Failed to get token: {}", e))?,
+            Ok(bot_token) => (bot_token, false),
+            Err(_) => {
+                let user_token = token_store
+                    .get(&user_token_key)
+                    .map_err(|e| format!("Failed to get token: {}", e))?;
+                (user_token, true)
+            }
         }
     };
 
-    Ok(ApiClient::with_token(token))
+    Ok((ApiClient::with_token(token), is_user_token))
 }
 
 /// Get API client for a profile (default: prefer user token)
 pub async fn get_api_client(profile_name: Option<String>) -> Result<ApiClient, String> {
-    get_api_client_with_token_type(profile_name, true).await
+    get_api_client_with_token_type(profile_name, true)
+        .await
+        .map(|(client, _)| client)
 }
 
 /// Check if a flag exists in args
@@ -98,7 +103,13 @@ pub fn get_all_options(args: &[String], prefix: &str) -> Vec<String> {
 fn should_show_conv_list_guidance(
     types: &Option<String>,
     response: &crate::api::types::ApiResponse,
+    is_user_token: bool,
 ) -> bool {
+    // Only show guidance if using bot token (not user token)
+    if is_user_token {
+        return false;
+    }
+
     // Only show guidance if types includes private_channel
     if let Some(types_str) = types {
         if !types_str.contains("private_channel") {
@@ -137,13 +148,14 @@ pub async fn run_conv_list(args: &[String]) -> Result<(), String> {
         .map(|t| t.contains("private_channel"))
         .unwrap_or(false);
 
-    let client = get_api_client_with_token_type(profile, prefer_user_token).await?;
+    let (client, is_user_token) =
+        get_api_client_with_token_type(profile, prefer_user_token).await?;
     let mut response = commands::conv_list(&client, types.clone(), limit)
         .await
         .map_err(|e| e.to_string())?;
 
     // Check if we should show guidance for empty private_channel list
-    if should_show_conv_list_guidance(&types, &response) {
+    if should_show_conv_list_guidance(&types, &response, is_user_token) {
         eprintln!();
         eprintln!("Note: The conversation list for private channels is empty.");
         eprintln!("Bot tokens can only see private channels where the bot is a member.");
