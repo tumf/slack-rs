@@ -1,6 +1,6 @@
 [package]
 name = "slack-rs"
-version = "0.1.15"
+version = "0.1.16"
 edition = "2021"
 default-run = "slack-rs"
 authors = ["tumf <tumf@users.noreply.github.com>"]
