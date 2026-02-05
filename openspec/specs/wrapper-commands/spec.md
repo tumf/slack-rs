@@ -183,11 +183,12 @@ When `private_channel` is requested without User Token available, an error MUST 
 - And `meta` フィールドは含まれない
 
 ### Requirement: Wrapper commands show guidance for known Slack error codes
-ラッパーコマンドの実行結果が `ok=false` かつ `error` が既知のコードに一致する場合、標準エラー出力に原因と解決策のガイダンスを表示すること。JSON 出力の内容は変更せず、追加情報は標準エラー出力に限定すること。(MUST)
+ラッパーコマンド（`search`/`conv`/`users`/`msg`/`react`/`file`）の実行結果が `ok=false` かつ `error` が既知のコードに一致する場合、標準エラー出力に原因と解決策のガイダンスを表示しなければならない。(MUST)
+JSON 出力の内容は変更せず、追加情報は標準エラー出力に限定しなければならない。(MUST)
 
-#### Scenario: `missing_scope` のガイダンスが表示される
+#### Scenario: `users info` で `missing_scope` のガイダンスが表示される
 - Given Slack API が `ok=false` と `error=missing_scope` を返す
-- When `conv list --types=private_channel` を実行する
+- When `users info --user U123` を実行する
 - Then 標準エラー出力に原因と解決策が表示される
 - And JSON 出力は Slack のレスポンスのままである
 
