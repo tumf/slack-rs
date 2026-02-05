@@ -89,3 +89,11 @@ OAuthクライアントシークレットは設定ファイルに保存されな
 #### Scenario: Import stores client_secret only in keyring
 - import時に `client_secret` はKeyringへ保存され、設定ファイルには書き込まれない
 
+### Requirement: Unified argument parsing preserves existing behavior
+`auth export` and `auth import` MUST maintain existing flag, confirmation, and error behavior even when using a shared argument parser. (MUST)
+
+#### Scenario: Shared parser maintains compatibility
+- **GIVEN** existing `auth export`/`auth import` argument sets are used
+- **WHEN** each command is executed
+- **THEN** the same confirmation flows and error conditions apply as before
+
