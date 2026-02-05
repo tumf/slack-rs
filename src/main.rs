@@ -167,10 +167,22 @@ async fn main() {
                         std::process::exit(1);
                     }
                 }
+                "select" => {
+                    if let Err(e) = run_conv_select(&args).await {
+                        eprintln!("Conv select failed: {}", e);
+                        std::process::exit(1);
+                    }
+                }
                 "history" => {
-                    if args.len() < 4 {
+                    // --interactive flag makes channel argument optional
+                    let has_interactive = args.iter().any(|arg| arg == "--interactive");
+                    if !has_interactive && args.len() < 4 {
                         eprintln!(
                             "Usage: {} conv history <channel> [--limit=N] [--profile=NAME]",
+                            args[0]
+                        );
+                        eprintln!(
+                            "   or: {} conv history --interactive [--filter=KEY:VALUE]... [--profile=NAME]",
                             args[0]
                         );
                         std::process::exit(1);
@@ -317,8 +329,11 @@ fn print_help() {
     println!("    config oauth delete <profile>    Delete OAuth configuration for a profile");
     println!("    config set <profile> --token-type <type>  Set default token type (bot/user)");
     println!("    search <query>                   Search messages");
-    println!("    conv list                        List conversations");
-    println!("    conv history <channel>           Get conversation history");
+    println!("    conv list                        List conversations (supports --filter)");
+    println!("    conv select                      Interactively select a conversation");
+    println!(
+        "    conv history <channel>           Get conversation history (supports --interactive)"
+    );
     println!("    users info <user_id>             Get user information");
     println!("    users cache-update               Update user cache for mention resolution");
     println!("    users resolve-mentions <text>    Resolve user mentions in text");
@@ -357,8 +372,11 @@ fn print_usage() {
     println!("  config oauth delete <profile>  - Delete OAuth configuration for a profile");
     println!("  config set <profile> --token-type <type> - Set default token type (bot/user)");
     println!("  search <query>                 - Search messages (supports --count, --page, --sort, --sort_dir)");
-    println!("  conv list                      - List conversations");
-    println!("  conv history <channel>         - Get conversation history");
+    println!("  conv list                      - List conversations (supports --filter)");
+    println!("  conv select                    - Interactively select a conversation");
+    println!(
+        "  conv history <channel>         - Get conversation history (supports --interactive)"
+    );
     println!("  users info <user_id>           - Get user information");
     println!("  users cache-update             - Update user cache for mention resolution (supports --profile, --force)");
     println!("  users resolve-mentions <text>  - Resolve user mentions in text (supports --profile, --format)");
