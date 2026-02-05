@@ -1,2 +1,0 @@
-- [ ] `src/main.rs` の usage 文言を `SLACKCLI_ALLOW_WRITE` に合わせて修正する（検証: `src/main.rs` の `print_usage` に `requires SLACKCLI_ALLOW_WRITE=true` が表示され、`requires --allow-write` が消えていることを確認）
-- [ ] ヘルプ表示の最終確認を行う（検証: `cargo run -- --help` もしくは `slack-rs --help` の出力に `SLACKCLI_ALLOW_WRITE` が表示されることを確認）
