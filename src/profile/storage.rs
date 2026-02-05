@@ -160,6 +160,7 @@ mod tests {
                 scopes: None,
                 bot_scopes: None,
                 user_scopes: None,
+                default_token_type: None,
             },
         );
 
@@ -211,6 +212,7 @@ mod tests {
                 scopes: None,
                 bot_scopes: None,
                 user_scopes: None,
+                default_token_type: None,
             },
         );
         config.set(
@@ -225,6 +227,7 @@ mod tests {
                 scopes: None,
                 bot_scopes: None,
                 user_scopes: None,
+                default_token_type: None,
             },
         );
 
@@ -269,6 +272,7 @@ mod tests {
                 scopes: None,
                 bot_scopes: None,
                 user_scopes: None,
+                default_token_type: None,
             },
         );
         fs::create_dir_all(legacy_path.parent().unwrap()).unwrap();
@@ -313,6 +317,7 @@ mod tests {
                 scopes: None,
                 bot_scopes: None,
                 user_scopes: None,
+                default_token_type: None,
             },
         );
         fs::create_dir_all(legacy_path.parent().unwrap()).unwrap();

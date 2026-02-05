@@ -49,14 +49,16 @@ pub struct ApiCallMeta {
     pub team_id: String,
     pub user_id: String,
     pub method: String,
+    pub token_type: String,
 }
 
-/// Execute an API call with the given arguments and context
+/// Execute an API call with the given arguments, context, and token type
 pub async fn execute_api_call(
     client: &ApiClient,
     args: &ApiCallArgs,
     token: &str,
     context: &ApiCallContext,
+    token_type: &str,
 ) -> Result<ApiCallResponse> {
     // Determine HTTP method
     let method = if args.use_get {
@@ -94,6 +96,7 @@ pub async fn execute_api_call(
             team_id: context.team_id.clone(),
             user_id: context.user_id.clone(),
             method: args.method.clone(),
+            token_type: token_type.to_string(),
         },
     };
 
@@ -112,6 +115,7 @@ mod tests {
             team_id: "T123ABC".to_string(),
             user_id: "U456DEF".to_string(),
             method: "chat.postMessage".to_string(),
+            token_type: "bot".to_string(),
         };
 
         let json = serde_json::to_string(&meta).unwrap();
@@ -121,6 +125,7 @@ mod tests {
         assert_eq!(deserialized.team_id, "T123ABC");
         assert_eq!(deserialized.user_id, "U456DEF");
         assert_eq!(deserialized.method, "chat.postMessage");
+        assert_eq!(deserialized.token_type, "bot");
     }
 
     #[test]
@@ -136,6 +141,7 @@ mod tests {
                 team_id: "T123ABC".to_string(),
                 user_id: "U456DEF".to_string(),
                 method: "chat.postMessage".to_string(),
+                token_type: "bot".to_string(),
             },
         };
 
@@ -144,5 +150,6 @@ mod tests {
         assert!(json["response"]["ok"].as_bool().unwrap());
         assert_eq!(json["meta"]["team_id"], "T123ABC");
         assert_eq!(json["meta"]["method"], "chat.postMessage");
+        assert_eq!(json["meta"]["token_type"], "bot");
     }
 }

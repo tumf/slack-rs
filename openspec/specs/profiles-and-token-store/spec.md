@@ -92,3 +92,10 @@ When the new path does not exist and `profiles.json` exists in the legacy path (
 - When loading the configuration file
 - Then `profiles.json` is created in the new path and the same content is loaded
 
+### Requirement: Store default token type in profile
+Profile MUST optionally hold `default_token_type` and persist it. (MUST)
+#### Scenario: Save and reload default type
+- Given setting `default_token_type=user`
+- When saving and reloading profile
+- Then `default_token_type` is retained
+
