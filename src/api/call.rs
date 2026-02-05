@@ -8,6 +8,7 @@
 
 use super::args::ApiCallArgs;
 use super::client::{ApiClient, RequestBody};
+use super::guidance::format_error_guidance;
 use reqwest::Method;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -106,6 +107,22 @@ pub async fn execute_api_call(
     Ok(api_response)
 }
 
+/// Display error guidance to stderr if the response contains a known error
+pub fn display_error_guidance(response: &ApiCallResponse) {
+    // Check if response has an error
+    if let Some(ok) = response.response.get("ok").and_then(|v| v.as_bool()) {
+        if !ok {
+            // Try to get error code from response
+            if let Some(error_code) = response.response.get("error").and_then(|v| v.as_str()) {
+                // Display guidance if available
+                if let Some(guidance) = format_error_guidance(error_code) {
+                    eprintln!("{}", guidance);
+                }
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -158,5 +175,115 @@ mod tests {
         assert_eq!(json["meta"]["method"], "chat.postMessage");
         assert_eq!(json["meta"]["command"], "api call");
         assert_eq!(json["meta"]["token_type"], "bot");
+    }
+
+    #[test]
+    fn test_display_error_guidance_with_known_error() {
+        // Create response with known error code
+        let response = ApiCallResponse {
+            response: json!({
+                "ok": false,
+                "error": "missing_scope"
+            }),
+            meta: ApiCallMeta {
+                profile_name: Some("default".to_string()),
+                team_id: "T123ABC".to_string(),
+                user_id: "U456DEF".to_string(),
+                method: "chat.postMessage".to_string(),
+                command: "api call".to_string(),
+                token_type: "bot".to_string(),
+            },
+        };
+
+        // This should not panic - guidance should be displayed to stderr
+        display_error_guidance(&response);
+    }
+
+    #[test]
+    fn test_display_error_guidance_with_unknown_error() {
+        // Create response with unknown error code
+        let response = ApiCallResponse {
+            response: json!({
+                "ok": false,
+                "error": "unknown_error_code"
+            }),
+            meta: ApiCallMeta {
+                profile_name: Some("default".to_string()),
+                team_id: "T123ABC".to_string(),
+                user_id: "U456DEF".to_string(),
+                method: "chat.postMessage".to_string(),
+                command: "api call".to_string(),
+                token_type: "bot".to_string(),
+            },
+        };
+
+        // This should not panic - no guidance for unknown errors
+        display_error_guidance(&response);
+    }
+
+    #[test]
+    fn test_display_error_guidance_with_success() {
+        // Create successful response
+        let response = ApiCallResponse {
+            response: json!({
+                "ok": true,
+                "channel": "C123456"
+            }),
+            meta: ApiCallMeta {
+                profile_name: Some("default".to_string()),
+                team_id: "T123ABC".to_string(),
+                user_id: "U456DEF".to_string(),
+                method: "chat.postMessage".to_string(),
+                command: "api call".to_string(),
+                token_type: "bot".to_string(),
+            },
+        };
+
+        // This should not display anything (success case)
+        display_error_guidance(&response);
+    }
+
+    #[test]
+    fn test_display_error_guidance_with_not_allowed_token_type() {
+        // Create response with not_allowed_token_type error
+        let response = ApiCallResponse {
+            response: json!({
+                "ok": false,
+                "error": "not_allowed_token_type"
+            }),
+            meta: ApiCallMeta {
+                profile_name: Some("default".to_string()),
+                team_id: "T123ABC".to_string(),
+                user_id: "U456DEF".to_string(),
+                method: "conversations.history".to_string(),
+                command: "api call".to_string(),
+                token_type: "bot".to_string(),
+            },
+        };
+
+        // This should display guidance to stderr
+        display_error_guidance(&response);
+    }
+
+    #[test]
+    fn test_display_error_guidance_with_invalid_auth() {
+        // Create response with invalid_auth error
+        let response = ApiCallResponse {
+            response: json!({
+                "ok": false,
+                "error": "invalid_auth"
+            }),
+            meta: ApiCallMeta {
+                profile_name: Some("default".to_string()),
+                team_id: "T123ABC".to_string(),
+                user_id: "U456DEF".to_string(),
+                method: "auth.test".to_string(),
+                command: "api call".to_string(),
+                token_type: "bot".to_string(),
+            },
+        };
+
+        // This should display guidance to stderr
+        display_error_guidance(&response);
     }
 }

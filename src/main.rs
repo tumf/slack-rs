@@ -1148,6 +1148,9 @@ async fn run_api_call(args: Vec<String>) -> Result<(), Box<dyn std::error::Error
     )
     .await?;
 
+    // Display error guidance if response contains a known error
+    api::display_error_guidance(&response);
+
     // Check if we should show guidance for private_channel with bot token
     if should_show_private_channel_guidance(&api_args, resolved_token_type.as_str(), &response) {
         eprintln!();
