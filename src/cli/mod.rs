@@ -53,9 +53,9 @@ pub async fn get_api_client_with_token_type(
     Ok((ApiClient::with_token(token), is_user_token))
 }
 
-/// Get API client for a profile (default: prefer user token)
+/// Get API client for a profile (default: prefer bot token, fallback to user token)
 pub async fn get_api_client(profile_name: Option<String>) -> Result<ApiClient, String> {
-    get_api_client_with_token_type(profile_name, true)
+    get_api_client_with_token_type(profile_name, false)
         .await
         .map(|(client, _)| client)
 }
