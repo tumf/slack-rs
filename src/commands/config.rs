@@ -3,7 +3,7 @@
 use crate::oauth::OAuthError;
 use crate::profile::{
     default_config_path, delete_oauth_client_secret, get_oauth_client_secret, load_config,
-    save_config, store_oauth_client_secret, FileTokenStore, Profile, ProfilesConfig,
+    save_config, store_oauth_client_secret, FileTokenStore, Profile, ProfilesConfig, TokenType,
 };
 
 /// Set OAuth configuration for a profile
@@ -63,6 +63,7 @@ pub fn oauth_set(
             scopes: Some(scopes_vec.clone()),
             bot_scopes: None,  // TODO: Will be populated in task 2
             user_scopes: None, // TODO: Will be populated in task 2
+            default_token_type: existing.default_token_type,
         }
     } else {
         // Create placeholder profile (will be filled in during login)
@@ -77,6 +78,7 @@ pub fn oauth_set(
             scopes: Some(scopes_vec.clone()),
             bot_scopes: None,  // TODO: Will be populated in task 2
             user_scopes: None, // TODO: Will be populated in task 2
+            default_token_type: None,
         }
     };
 
@@ -177,6 +179,7 @@ pub fn oauth_delete(profile_name: String) -> Result<(), OAuthError> {
         scopes: None,
         bot_scopes: None,
         user_scopes: None,
+        default_token_type: profile.default_token_type,
     };
 
     config.set(profile_name.clone(), updated_profile);
@@ -192,6 +195,53 @@ pub fn oauth_delete(profile_name: String) -> Result<(), OAuthError> {
     println!(
         "✓ OAuth configuration deleted for profile '{}'",
         profile_name
+    );
+
+    Ok(())
+}
+
+/// Set default token type for a profile
+///
+/// # Arguments
+/// * `profile_name` - Profile name
+/// * `token_type` - Default token type (bot or user)
+pub fn set_default_token_type(
+    profile_name: String,
+    token_type: TokenType,
+) -> Result<(), OAuthError> {
+    let config_path = default_config_path()
+        .map_err(|e| OAuthError::ConfigError(format!("Failed to get config path: {}", e)))?;
+
+    let mut config = load_config(&config_path).unwrap_or_else(|_| ProfilesConfig::new());
+
+    // Get existing profile or return error
+    let profile = config
+        .get(&profile_name)
+        .ok_or_else(|| OAuthError::ConfigError(format!("Profile '{}' not found", profile_name)))?
+        .clone();
+
+    // Update profile with new default token type
+    let updated_profile = Profile {
+        team_id: profile.team_id,
+        user_id: profile.user_id,
+        team_name: profile.team_name,
+        user_name: profile.user_name,
+        client_id: profile.client_id,
+        redirect_uri: profile.redirect_uri,
+        scopes: profile.scopes,
+        bot_scopes: profile.bot_scopes,
+        user_scopes: profile.user_scopes,
+        default_token_type: Some(token_type),
+    };
+
+    config.set(profile_name.clone(), updated_profile);
+
+    save_config(&config_path, &config)
+        .map_err(|e| OAuthError::ConfigError(format!("Failed to save config: {}", e)))?;
+
+    println!(
+        "✓ Default token type set to '{}' for profile '{}'",
+        token_type, profile_name
     );
 
     Ok(())

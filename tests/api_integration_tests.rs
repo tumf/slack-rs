@@ -55,7 +55,7 @@ async fn test_api_call_with_form_data() {
     };
 
     // Execute API call
-    let response = execute_api_call(&client, &args, "test-token", &context)
+    let response = execute_api_call(&client, &args, "test-token", &context, "bot")
         .await
         .unwrap();
 
@@ -68,6 +68,7 @@ async fn test_api_call_with_form_data() {
     assert_eq!(response.meta.team_id, "T123ABC");
     assert_eq!(response.meta.user_id, "U456DEF");
     assert_eq!(response.meta.method, "chat.postMessage");
+    assert_eq!(response.meta.token_type, "bot");
 
     // Verify mock was called
     mock.assert();
@@ -119,7 +120,7 @@ async fn test_api_call_with_json_data() {
     };
 
     // Execute API call
-    let response = execute_api_call(&client, &args, "test-token", &context)
+    let response = execute_api_call(&client, &args, "test-token", &context, "bot")
         .await
         .unwrap();
 
@@ -129,6 +130,7 @@ async fn test_api_call_with_json_data() {
     // Verify metadata
     assert_eq!(response.meta.profile_name, None);
     assert_eq!(response.meta.team_id, "T123ABC");
+    assert_eq!(response.meta.token_type, "bot");
 
     // Verify mock was called
     mock.assert();
@@ -180,13 +182,14 @@ async fn test_api_call_with_get_method() {
     };
 
     // Execute API call
-    let response = execute_api_call(&client, &args, "test-token", &context)
+    let response = execute_api_call(&client, &args, "test-token", &context, "user")
         .await
         .unwrap();
 
     // Verify response
     assert_eq!(response.response["ok"], true);
     assert_eq!(response.response["user"]["id"], "U123456");
+    assert_eq!(response.meta.token_type, "user");
 
     // Verify mock was called
     mock.assert();
@@ -234,7 +237,7 @@ async fn test_api_call_retry_on_429() {
     };
 
     // Execute API call - should retry and eventually fail with RateLimitExceeded
-    let result = execute_api_call(&client, &args, "test-token", &context).await;
+    let result = execute_api_call(&client, &args, "test-token", &context, "bot").await;
 
     // Verify that we get a rate limit error after retries
     assert!(result.is_err());
@@ -284,7 +287,7 @@ async fn test_output_json_with_meta() {
     };
 
     // Execute API call
-    let response = execute_api_call(&client, &args, "test-token", &context)
+    let response = execute_api_call(&client, &args, "test-token", &context, "bot")
         .await
         .unwrap();
 
@@ -293,6 +296,7 @@ async fn test_output_json_with_meta() {
     assert_eq!(response.meta.team_id, "T999XYZ");
     assert_eq!(response.meta.user_id, "U888ABC");
     assert_eq!(response.meta.method, "test.method");
+    assert_eq!(response.meta.token_type, "bot");
 
     // Verify we can serialize the full response to JSON
     let json = serde_json::to_value(&response).unwrap();

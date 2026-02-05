@@ -131,6 +131,12 @@ async fn main() {
                         }
                     }
                 }
+                "set" => {
+                    if let Err(e) = run_config_set(&args[3..]) {
+                        eprintln!("Config set failed: {}", e);
+                        std::process::exit(1);
+                    }
+                }
                 _ => {
                     print_config_usage(&args[0]);
                 }
@@ -321,6 +327,7 @@ fn print_help() {
     println!("    config oauth set <profile>       Set OAuth configuration for a profile");
     println!("    config oauth show <profile>      Show OAuth configuration for a profile");
     println!("    config oauth delete <profile>    Delete OAuth configuration for a profile");
+    println!("    config set <profile> --token-type <type>  Set default token type (bot/user)");
     println!("    search <query>                   Search messages");
     println!("    conv list                        List conversations (supports --filter)");
     println!("    conv select                      Interactively select a conversation");
@@ -363,6 +370,7 @@ fn print_usage() {
     println!("  config oauth set <profile>     - Set OAuth configuration for a profile");
     println!("  config oauth show <profile>    - Show OAuth configuration for a profile");
     println!("  config oauth delete <profile>  - Delete OAuth configuration for a profile");
+    println!("  config set <profile> --token-type <type> - Set default token type (bot/user)");
     println!("  search <query>                 - Search messages (supports --count, --page, --sort, --sort_dir)");
     println!("  conv list                      - List conversations (supports --filter)");
     println!("  conv select                    - Interactively select a conversation");
@@ -468,6 +476,10 @@ fn print_config_usage(prog: &str) {
     );
     println!("  {} config oauth show <profile>", prog);
     println!("  {} config oauth delete <profile>", prog);
+    println!(
+        "  {} config set <profile> --token-type <type>  - Set default token type (bot/user)",
+        prog
+    );
 }
 
 fn print_config_oauth_usage(prog: &str) {
@@ -708,6 +720,45 @@ fn run_config_oauth_delete(args: &[String]) -> Result<(), String> {
 
     let profile_name = args[0].clone();
     commands::oauth_delete(profile_name).map_err(|e| e.to_string())
+}
+
+/// Run config set command
+fn run_config_set(args: &[String]) -> Result<(), String> {
+    let mut profile_name: Option<String> = None;
+    let mut token_type: Option<profile::TokenType> = None;
+
+    let mut i = 0;
+    while i < args.len() {
+        if args[i].starts_with("--") {
+            match args[i].as_str() {
+                "--token-type" => {
+                    i += 1;
+                    if i < args.len() {
+                        token_type = Some(
+                            args[i]
+                                .parse::<profile::TokenType>()
+                                .map_err(|e| format!("Invalid token type: {}", e))?,
+                        );
+                    } else {
+                        return Err("--token-type requires a value".to_string());
+                    }
+                }
+                _ => {
+                    return Err(format!("Unknown option: {}", args[i]));
+                }
+            }
+        } else if profile_name.is_none() {
+            profile_name = Some(args[i].clone());
+        } else {
+            return Err(format!("Unexpected argument: {}", args[i]));
+        }
+        i += 1;
+    }
+
+    let profile = profile_name.ok_or_else(|| "Profile name is required".to_string())?;
+    let ttype = token_type.ok_or_else(|| "--token-type is required".to_string())?;
+
+    commands::set_default_token_type(profile, ttype).map_err(|e| e.to_string())
 }
 
 async fn handle_export_command(args: &[String]) {
@@ -953,26 +1004,6 @@ async fn handle_import_command(args: &[String]) {
     }
 }
 
-/// Determine which token type to use based on API arguments
-fn determine_token_type(api_args: &ApiCallArgs) -> String {
-    // If --token-type is explicitly specified, use that
-    if let Some(ref token_type) = api_args.token_type {
-        return token_type.clone();
-    }
-
-    // Auto-detect: if method is conversations.list and types includes private_channel, prefer user token
-    if api_args.method == "conversations.list" {
-        if let Some(types) = api_args.params.get("types") {
-            if types.contains("private_channel") {
-                return "user".to_string();
-            }
-        }
-    }
-
-    // Default to bot token
-    "bot".to_string()
-}
-
 /// Check if we should show private channel guidance
 fn should_show_private_channel_guidance(
     api_args: &ApiCallArgs,
@@ -1003,82 +1034,6 @@ fn should_show_private_channel_guidance(
     false
 }
 
-/// Retrieve token from store based on token type preference
-fn retrieve_token(
-    file_store: &FileTokenStore,
-    profile: &Profile,
-    _api_args: &ApiCallArgs,
-    token_type: &str,
-    profile_name: &str,
-) -> Result<String, Box<dyn std::error::Error>> {
-    let team_id = &profile.team_id;
-    let user_id = &profile.user_id;
-
-    // Determine primary and fallback token keys
-    let (primary_key, fallback_key, _primary_type, _fallback_type) = if token_type == "user" {
-        (
-            format!("{}:{}:user", team_id, user_id),
-            make_token_key(team_id, user_id),
-            "user",
-            "bot",
-        )
-    } else {
-        (
-            make_token_key(team_id, user_id),
-            format!("{}:{}:user", team_id, user_id),
-            "bot",
-            "user",
-        )
-    };
-
-    // Try primary token
-    if let Ok(token) = file_store.get(&primary_key) {
-        return Ok(token);
-    }
-
-    // If user token was requested but not found, provide guidance
-    if token_type == "user" {
-        // Check if bot token exists as fallback
-        if file_store.get(&fallback_key).is_ok() {
-            eprintln!(
-                "Warning: User token not found for profile '{}' ({}:{})",
-                profile_name, team_id, user_id
-            );
-            eprintln!("To use private channels, you need a User Token with appropriate scopes.");
-            eprintln!("Please run 'slackcli auth login' with user_scopes to obtain a User Token.");
-            eprintln!("Falling back to Bot Token, but private channels you're not a member of may not be visible.");
-        } else {
-            return Err(format!(
-                "No User Token found for profile '{}' ({}:{}). To use private channels, please run 'slackcli auth login' with user_scopes.",
-                profile_name, team_id, user_id
-            ).into());
-        }
-
-        // Return bot token as fallback
-        return file_store.get(&fallback_key).map_err(|_| {
-            format!(
-                "No token found for profile '{}' ({}:{}). Set SLACK_TOKEN environment variable or run 'slackcli auth login'.",
-                profile_name, team_id, user_id
-            ).into()
-        });
-    }
-
-    // Try fallback token
-    if let Ok(token) = file_store.get(&fallback_key) {
-        return Ok(token);
-    }
-
-    // Try environment variable as last resort
-    if let Ok(env_token) = std::env::var("SLACK_TOKEN") {
-        return Ok(env_token);
-    }
-
-    Err(format!(
-        "No token found for profile '{}' ({}:{}). Set SLACK_TOKEN environment variable or run 'slackcli auth login'.",
-        profile_name, team_id, user_id
-    ).into())
-}
-
 /// Run the api call command
 async fn run_api_call(args: Vec<String>) -> Result<(), Box<dyn std::error::Error>> {
     // Parse arguments
@@ -1101,22 +1056,85 @@ async fn run_api_call(args: Vec<String>) -> Result<(), Box<dyn std::error::Error
         user_id: profile.user_id.clone(),
     };
 
-    // Determine token type to use
-    let token_type = determine_token_type(&api_args);
+    // Resolve token type: CLI flag > profile default > fallback to bot
+    let resolved_token_type = profile::TokenType::resolve(
+        api_args.token_type,
+        profile.default_token_type,
+        profile::TokenType::Bot,
+    );
 
-    // Retrieve token from token store based on token type
+    // Create token key from team_id, user_id, and token type
+    // User token key format: {team_id}:{user_id}:user (matches auth/commands.rs storage format)
+    let token_key_bot = make_token_key(&profile.team_id, &profile.user_id);
+    let token_key_user = format!("{}:{}:user", profile.team_id, profile.user_id);
+
+    // Select the appropriate token key based on resolved token type
+    let token_key = match resolved_token_type {
+        profile::TokenType::Bot => token_key_bot.clone(),
+        profile::TokenType::User => token_key_user.clone(),
+    };
+
+    // Retrieve token from token store
+    // Try file store first, fall back to environment variable only for the requested token type
     let file_store =
         FileTokenStore::new().map_err(|e| format!("Failed to create token store: {}", e))?;
-    let token = retrieve_token(&file_store, &profile, &api_args, &token_type, &profile_name)?;
+
+    // Determine if the token type was explicitly requested via CLI flag OR default_token_type
+    // If either is set, we should NOT fallback to a different token type
+    let explicit_request = api_args.token_type.is_some() || profile.default_token_type.is_some();
+
+    let token = match file_store.get(&token_key) {
+        Ok(t) => t,
+        Err(_) => {
+            // If token not found in store, check environment variable
+            if let Ok(env_token) = std::env::var("SLACK_TOKEN") {
+                env_token
+            } else if explicit_request {
+                // If token type was explicitly requested (via --token-type or default_token_type), fail without fallback
+                return Err(format!(
+                    "No {} token found for profile '{}' ({}:{}). Explicitly requested token type not available. Set SLACK_TOKEN environment variable or run 'slack login' to obtain a {} token.",
+                    resolved_token_type, profile_name, profile.team_id, profile.user_id, resolved_token_type
+                ).into());
+            } else {
+                // If no token type preference was specified at all, try bot token as fallback
+                if resolved_token_type == profile::TokenType::User {
+                    if let Ok(bot_token) = file_store.get(&token_key_bot) {
+                        eprintln!(
+                            "Warning: User token not found, falling back to bot token for profile '{}'",
+                            profile_name
+                        );
+                        bot_token
+                    } else {
+                        return Err(format!(
+                            "No {} token found for profile '{}' ({}:{}). Set SLACK_TOKEN environment variable or run 'slack login' to obtain a token.",
+                            resolved_token_type, profile_name, profile.team_id, profile.user_id
+                        ).into());
+                    }
+                } else {
+                    return Err(format!(
+                        "No {} token found for profile '{}' ({}:{}). Set SLACK_TOKEN environment variable or run 'slack login' to obtain a token.",
+                        resolved_token_type, profile_name, profile.team_id, profile.user_id
+                    ).into());
+                }
+            }
+        }
+    };
 
     // Create API client
     let client = ApiClient::new();
 
-    // Execute API call
-    let response = execute_api_call(&client, &api_args, &token, &context).await?;
+    // Execute API call with token type information
+    let response = execute_api_call(
+        &client,
+        &api_args,
+        &token,
+        &context,
+        resolved_token_type.as_str(),
+    )
+    .await?;
 
     // Check if we should show guidance for private_channel with bot token
-    if should_show_private_channel_guidance(&api_args, &token_type, &response) {
+    if should_show_private_channel_guidance(&api_args, resolved_token_type.as_str(), &response) {
         eprintln!();
         eprintln!("Note: The conversation list for private channels is empty.");
         eprintln!("Bot tokens can only see private channels where the bot is a member.");
@@ -1241,6 +1259,7 @@ fn example_profile_management() {
         scopes: None,
         bot_scopes: None,
         user_scopes: None,
+        default_token_type: None,
     };
 
     // Use add() to prevent duplicates
@@ -1275,6 +1294,7 @@ fn demonstrate_profile_persistence() {
         scopes: None,
         bot_scopes: None,
         user_scopes: None,
+        default_token_type: None,
     };
 
     let profile2 = Profile {
@@ -1287,6 +1307,7 @@ fn demonstrate_profile_persistence() {
         scopes: None,
         bot_scopes: None,
         user_scopes: None,
+        default_token_type: None,
     };
 
     // Demonstrate add() - should succeed for new profile
@@ -1312,6 +1333,7 @@ fn demonstrate_profile_persistence() {
         scopes: None,
         bot_scopes: None,
         user_scopes: None,
+        default_token_type: None,
     };
     match config.set_or_update("personal".to_string(), updated_profile2) {
         Ok(_) => println!("Updated 'personal' profile using set_or_update()"),
@@ -1432,56 +1454,6 @@ mod tests {
     use std::collections::HashMap;
 
     #[test]
-    fn test_determine_token_type_with_explicit_flag() {
-        let mut params = HashMap::new();
-        params.insert("types".to_string(), "private_channel".to_string());
-
-        let args = ApiCallArgs {
-            method: "conversations.list".to_string(),
-            params,
-            use_json: false,
-            use_get: false,
-            token_type: Some("bot".to_string()),
-        };
-
-        // When --token-type is specified, it should be used
-        assert_eq!(determine_token_type(&args), "bot");
-    }
-
-    #[test]
-    fn test_determine_token_type_auto_detect_private_channel() {
-        let mut params = HashMap::new();
-        params.insert("types".to_string(), "private_channel".to_string());
-
-        let args = ApiCallArgs {
-            method: "conversations.list".to_string(),
-            params,
-            use_json: false,
-            use_get: false,
-            token_type: None,
-        };
-
-        // When types=private_channel without explicit token-type, prefer user token
-        assert_eq!(determine_token_type(&args), "user");
-    }
-
-    #[test]
-    fn test_determine_token_type_default_bot() {
-        let params = HashMap::new();
-
-        let args = ApiCallArgs {
-            method: "chat.postMessage".to_string(),
-            params,
-            use_json: false,
-            use_get: false,
-            token_type: None,
-        };
-
-        // For other methods, default to bot token
-        assert_eq!(determine_token_type(&args), "bot");
-    }
-
-    #[test]
     fn test_should_show_private_channel_guidance_empty_response() {
         let mut params = HashMap::new();
         params.insert("types".to_string(), "private_channel".to_string());
@@ -1504,6 +1476,7 @@ mod tests {
                 team_id: "T123".to_string(),
                 user_id: "U123".to_string(),
                 method: "conversations.list".to_string(),
+                token_type: "bot".to_string(),
             },
         };
 
@@ -1538,6 +1511,7 @@ mod tests {
                 team_id: "T123".to_string(),
                 user_id: "U123".to_string(),
                 method: "conversations.list".to_string(),
+                token_type: "bot".to_string(),
             },
         };
 
@@ -1570,6 +1544,7 @@ mod tests {
                 team_id: "T123".to_string(),
                 user_id: "U123".to_string(),
                 method: "conversations.list".to_string(),
+                token_type: "user".to_string(),
             },
         };
 

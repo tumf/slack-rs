@@ -33,3 +33,10 @@ OAuth configuration per profile MUST be settable, viewable, and deletable via CL
 - Then Manifest がファイルに保存される
 - And `oauth_config.redirect_urls` に `https://*.ngrok-free.app/callback` が含まれる
 
+### Requirement: Provide command to configure default token type
+The `config` subcommand MUST allow setting the profile's `default_token_type`. (MUST)
+#### Scenario: Execute `config set default --token-type user`
+- Given target profile exists
+- When executing `config set default --token-type user`
+- Then `default_token_type=user` is saved to profile
+

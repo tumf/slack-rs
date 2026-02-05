@@ -4,15 +4,23 @@ use crate::api::ApiClient;
 use crate::commands;
 use crate::commands::ConversationSelector;
 use crate::profile::{
-    default_config_path, load_config, make_token_key, FileTokenStore, TokenStore,
+    default_config_path, load_config, make_token_key, FileTokenStore, TokenStore, TokenType,
 };
 
-/// Get API client for a profile with optional token type preference
-/// Returns (ApiClient, is_user_token) where is_user_token indicates if a user token was used
+/// Get API client for a profile with optional token type selection
+///
+/// # Arguments
+/// * `profile_name` - Optional profile name (defaults to "default")
+/// * `token_type` - Optional token type (bot/user). If None, uses profile default or bot fallback
+///
+/// # Token Resolution Priority
+/// 1. CLI flag token_type parameter (if provided)
+/// 2. Profile's default_token_type (if set)
+/// 3. Try user token first, fall back to bot token
 pub async fn get_api_client_with_token_type(
     profile_name: Option<String>,
-    prefer_user_token: bool,
-) -> Result<(ApiClient, bool), String> {
+    token_type: Option<TokenType>,
+) -> Result<ApiClient, String> {
     let profile_name = profile_name.unwrap_or_else(|| "default".to_string());
     let config_path = default_config_path().map_err(|e| e.to_string())?;
     let config = load_config(&config_path).map_err(|e| e.to_string())?;
@@ -23,41 +31,46 @@ pub async fn get_api_client_with_token_type(
 
     let token_store = FileTokenStore::new().map_err(|e| e.to_string())?;
 
-    let user_token_key = format!("{}:{}:user", profile.team_id, profile.user_id);
-    let bot_token_key = make_token_key(&profile.team_id, &profile.user_id);
+    // Resolve token type: CLI flag > profile default > try user first with bot fallback
+    let resolved_token_type = token_type.or(profile.default_token_type);
 
-    let (token, is_user_token) = if prefer_user_token {
-        // User token is required - do not fall back to bot token
-        let token = token_store.get(&user_token_key).map_err(|_| {
-            format!(
-                "User token not found for profile '{}'.\n\
-                    Private channels require a User Token with appropriate scopes.\n\
-                    Run: slackcli auth login (with user_scopes)",
-                profile_name
-            )
-        })?;
-        (token, true)
-    } else {
-        // Try bot token first, fall back to user token
-        match token_store.get(&bot_token_key) {
-            Ok(bot_token) => (bot_token, false),
-            Err(_) => {
-                let user_token = token_store
-                    .get(&user_token_key)
-                    .map_err(|e| format!("Failed to get token: {}", e))?;
-                (user_token, true)
+    let bot_token_key = make_token_key(&profile.team_id, &profile.user_id);
+    let user_token_key = format!("{}:{}:user", profile.team_id, profile.user_id);
+
+    let token = match resolved_token_type {
+        Some(TokenType::Bot) => {
+            // Explicitly requested bot token
+            token_store
+                .get(&bot_token_key)
+                .map_err(|e| format!("Failed to get bot token: {}", e))?
+        }
+        Some(TokenType::User) => {
+            // Explicitly requested user token
+            token_store
+                .get(&user_token_key)
+                .map_err(|e| format!("Failed to get user token: {}", e))?
+        }
+        None => {
+            // No explicit preference, try user token first (for APIs that require user scope)
+            match token_store.get(&user_token_key) {
+                Ok(user_token) => user_token,
+                Err(_) => {
+                    // Fall back to bot token
+                    token_store
+                        .get(&bot_token_key)
+                        .map_err(|e| format!("Failed to get token: {}", e))?
+                }
             }
         }
     };
 
-    Ok((ApiClient::with_token(token), is_user_token))
+    Ok(ApiClient::with_token(token))
 }
 
-/// Get API client for a profile (default: prefer bot token, fallback to user token)
+/// Get API client for a profile (legacy function, maintains backward compatibility)
+#[allow(dead_code)]
 pub async fn get_api_client(profile_name: Option<String>) -> Result<ApiClient, String> {
-    get_api_client_with_token_type(profile_name, false)
-        .await
-        .map(|(client, _)| client)
+    get_api_client_with_token_type(profile_name, None).await
 }
 
 /// Check if a flag exists in args
@@ -73,6 +86,32 @@ pub fn get_option(args: &[String], prefix: &str) -> Option<String> {
         .map(|s| s.to_string())
 }
 
+/// Parse token type from command line arguments
+/// Supports both --token-type=VALUE and --token-type VALUE formats
+pub fn parse_token_type(args: &[String]) -> Result<Option<TokenType>, String> {
+    // First try --token-type=VALUE format
+    if let Some(token_type_str) = get_option(args, "--token-type=") {
+        return token_type_str
+            .parse::<TokenType>()
+            .map(Some)
+            .map_err(|e| e.to_string());
+    }
+
+    // Then try --token-type VALUE format (space-separated)
+    if let Some(pos) = args.iter().position(|arg| arg == "--token-type") {
+        if let Some(value) = args.get(pos + 1) {
+            return value
+                .parse::<TokenType>()
+                .map(Some)
+                .map_err(|e| e.to_string());
+        } else {
+            return Err("--token-type requires a value (bot or user)".to_string());
+        }
+    }
+
+    Ok(None)
+}
+
 pub async fn run_search(args: &[String]) -> Result<(), String> {
     let query = args[2].clone();
     let count = get_option(args, "--count=").and_then(|s| s.parse().ok());
@@ -80,8 +119,9 @@ pub async fn run_search(args: &[String]) -> Result<(), String> {
     let sort = get_option(args, "--sort=");
     let sort_dir = get_option(args, "--sort_dir=");
     let profile = get_option(args, "--profile=");
+    let token_type = parse_token_type(args)?;
 
-    let client = get_api_client(profile).await?;
+    let client = get_api_client_with_token_type(profile, token_type).await?;
     let response = commands::search(&client, query, count, page, sort, sort_dir)
         .await
         .map_err(|e| e.to_string())?;
@@ -99,40 +139,11 @@ pub fn get_all_options(args: &[String], prefix: &str) -> Vec<String> {
         .collect()
 }
 
-/// Check if we should show guidance for empty private channel list
-fn should_show_conv_list_guidance(
-    types: &Option<String>,
-    response: &crate::api::types::ApiResponse,
-    is_user_token: bool,
-) -> bool {
-    // Only show guidance if using bot token (not user token)
-    if is_user_token {
-        return false;
-    }
-
-    // Only show guidance if types includes private_channel
-    if let Some(types_str) = types {
-        if !types_str.contains("private_channel") {
-            return false;
-        }
-    } else {
-        return false;
-    }
-
-    // Check if response has empty channels array
-    if let Some(channels) = response.data.get("channels") {
-        if let Some(channels_array) = channels.as_array() {
-            return channels_array.is_empty();
-        }
-    }
-
-    false
-}
-
 pub async fn run_conv_list(args: &[String]) -> Result<(), String> {
     let types = get_option(args, "--types=");
     let limit = get_option(args, "--limit=").and_then(|s| s.parse().ok());
     let profile = get_option(args, "--profile=");
+    let token_type = parse_token_type(args)?;
     let filter_strings = get_all_options(args, "--filter=");
 
     // Parse filters
@@ -142,27 +153,10 @@ pub async fn run_conv_list(args: &[String]) -> Result<(), String> {
         .collect();
     let filters = filters.map_err(|e| e.to_string())?;
 
-    // Determine if we should prefer user token (when types includes private_channel)
-    let prefer_user_token = types
-        .as_ref()
-        .map(|t| t.contains("private_channel"))
-        .unwrap_or(false);
-
-    let (client, is_user_token) =
-        get_api_client_with_token_type(profile, prefer_user_token).await?;
-    let mut response = commands::conv_list(&client, types.clone(), limit)
+    let client = get_api_client_with_token_type(profile, token_type).await?;
+    let mut response = commands::conv_list(&client, types, limit)
         .await
         .map_err(|e| e.to_string())?;
-
-    // Check if we should show guidance for empty private_channel list
-    if should_show_conv_list_guidance(&types, &response, is_user_token) {
-        eprintln!();
-        eprintln!("Note: The conversation list for private channels is empty.");
-        eprintln!("Bot tokens can only see private channels where the bot is a member.");
-        eprintln!("To list all private channels, use a User Token with appropriate scopes.");
-        eprintln!("Run: slackcli auth login (with user_scopes)");
-        eprintln!();
-    }
 
     // Apply filters
     commands::apply_filters(&mut response, &filters);
@@ -175,6 +169,7 @@ pub async fn run_conv_select(args: &[String]) -> Result<(), String> {
     let types = get_option(args, "--types=");
     let limit = get_option(args, "--limit=").and_then(|s| s.parse().ok());
     let profile = get_option(args, "--profile=");
+    let token_type = parse_token_type(args)?;
     let filter_strings = get_all_options(args, "--filter=");
 
     // Parse filters
@@ -184,7 +179,7 @@ pub async fn run_conv_select(args: &[String]) -> Result<(), String> {
         .collect();
     let filters = filters.map_err(|e| e.to_string())?;
 
-    let client = get_api_client(profile).await?;
+    let client = get_api_client_with_token_type(profile, token_type).await?;
     let mut response = commands::conv_list(&client, types, limit)
         .await
         .map_err(|e| e.to_string())?;
@@ -217,7 +212,8 @@ pub async fn run_conv_history(args: &[String]) -> Result<(), String> {
             .collect();
         let filters = filters.map_err(|e| e.to_string())?;
 
-        let client = get_api_client(profile.clone()).await?;
+        let token_type_inner = parse_token_type(args)?;
+        let client = get_api_client_with_token_type(profile.clone(), token_type_inner).await?;
         let mut response = commands::conv_list(&client, types, None)
             .await
             .map_err(|e| e.to_string())?;
@@ -240,8 +236,9 @@ pub async fn run_conv_history(args: &[String]) -> Result<(), String> {
     let oldest = get_option(args, "--oldest=");
     let latest = get_option(args, "--latest=");
     let profile = get_option(args, "--profile=");
+    let token_type = parse_token_type(args)?;
 
-    let client = get_api_client(profile).await?;
+    let client = get_api_client_with_token_type(profile, token_type).await?;
     let response = commands::conv_history(&client, channel, limit, oldest, latest)
         .await
         .map_err(|e| e.to_string())?;
@@ -253,8 +250,9 @@ pub async fn run_conv_history(args: &[String]) -> Result<(), String> {
 pub async fn run_users_info(args: &[String]) -> Result<(), String> {
     let user = args[3].clone();
     let profile = get_option(args, "--profile=");
+    let token_type = parse_token_type(args)?;
 
-    let client = get_api_client(profile).await?;
+    let client = get_api_client_with_token_type(profile, token_type).await?;
     let response = commands::users_info(&client, user)
         .await
         .map_err(|e| e.to_string())?;
@@ -266,6 +264,7 @@ pub async fn run_users_info(args: &[String]) -> Result<(), String> {
 pub async fn run_users_cache_update(args: &[String]) -> Result<(), String> {
     let profile_name = get_option(args, "--profile=").unwrap_or_else(|| "default".to_string());
     let force = has_flag(args, "--force");
+    let token_type = parse_token_type(args)?;
 
     let config_path = default_config_path().map_err(|e| e.to_string())?;
     let config = load_config(&config_path).map_err(|e| e.to_string())?;
@@ -274,7 +273,7 @@ pub async fn run_users_cache_update(args: &[String]) -> Result<(), String> {
         .get(&profile_name)
         .ok_or_else(|| format!("Profile '{}' not found", profile_name))?;
 
-    let client = get_api_client(Some(profile_name.clone())).await?;
+    let client = get_api_client_with_token_type(Some(profile_name.clone()), token_type).await?;
 
     commands::update_cache(&client, profile.team_id.clone(), force)
         .await
@@ -326,7 +325,7 @@ pub async fn run_users_resolve_mentions(args: &[String]) -> Result<(), String> {
 
 pub async fn run_msg_post(args: &[String]) -> Result<(), String> {
     if args.len() < 5 {
-        return Err("Usage: msg post <channel> <text> [--thread-ts=TS] [--reply-broadcast] [--profile=NAME]".to_string());
+        return Err("Usage: msg post <channel> <text> [--thread-ts=TS] [--reply-broadcast] [--profile=NAME] [--token-type=bot|user]".to_string());
     }
 
     let channel = args[3].clone();
@@ -334,13 +333,14 @@ pub async fn run_msg_post(args: &[String]) -> Result<(), String> {
     let thread_ts = get_option(args, "--thread-ts=");
     let reply_broadcast = has_flag(args, "--reply-broadcast");
     let profile = get_option(args, "--profile=");
+    let token_type = parse_token_type(args)?;
 
     // Validate: --reply-broadcast requires --thread-ts
     if reply_broadcast && thread_ts.is_none() {
         return Err("Error: --reply-broadcast requires --thread-ts".to_string());
     }
 
-    let client = get_api_client(profile).await?;
+    let client = get_api_client_with_token_type(profile, token_type).await?;
     let response = commands::msg_post(&client, channel, text, thread_ts, reply_broadcast)
         .await
         .map_err(|e| e.to_string())?;
@@ -351,7 +351,7 @@ pub async fn run_msg_post(args: &[String]) -> Result<(), String> {
 
 pub async fn run_msg_update(args: &[String]) -> Result<(), String> {
     if args.len() < 6 {
-        return Err("Usage: msg update <channel> <ts> <text> [--yes] [--profile=NAME]".to_string());
+        return Err("Usage: msg update <channel> <ts> <text> [--yes] [--profile=NAME] [--token-type=bot|user]".to_string());
     }
 
     let channel = args[3].clone();
@@ -359,8 +359,9 @@ pub async fn run_msg_update(args: &[String]) -> Result<(), String> {
     let text = args[5].clone();
     let yes = has_flag(args, "--yes");
     let profile = get_option(args, "--profile=");
+    let token_type = parse_token_type(args)?;
 
-    let client = get_api_client(profile).await?;
+    let client = get_api_client_with_token_type(profile, token_type).await?;
     let response = commands::msg_update(&client, channel, ts, text, yes)
         .await
         .map_err(|e| e.to_string())?;
@@ -371,15 +372,19 @@ pub async fn run_msg_update(args: &[String]) -> Result<(), String> {
 
 pub async fn run_msg_delete(args: &[String]) -> Result<(), String> {
     if args.len() < 5 {
-        return Err("Usage: msg delete <channel> <ts> [--yes] [--profile=NAME]".to_string());
+        return Err(
+            "Usage: msg delete <channel> <ts> [--yes] [--profile=NAME] [--token-type=bot|user]"
+                .to_string(),
+        );
     }
 
     let channel = args[3].clone();
     let ts = args[4].clone();
     let yes = has_flag(args, "--yes");
     let profile = get_option(args, "--profile=");
+    let token_type = parse_token_type(args)?;
 
-    let client = get_api_client(profile).await?;
+    let client = get_api_client_with_token_type(profile, token_type).await?;
     let response = commands::msg_delete(&client, channel, ts, yes)
         .await
         .map_err(|e| e.to_string())?;
@@ -390,15 +395,19 @@ pub async fn run_msg_delete(args: &[String]) -> Result<(), String> {
 
 pub async fn run_react_add(args: &[String]) -> Result<(), String> {
     if args.len() < 6 {
-        return Err("Usage: react add <channel> <ts> <emoji> [--profile=NAME]".to_string());
+        return Err(
+            "Usage: react add <channel> <ts> <emoji> [--profile=NAME] [--token-type=bot|user]"
+                .to_string(),
+        );
     }
 
     let channel = args[3].clone();
     let ts = args[4].clone();
     let emoji = args[5].clone();
     let profile = get_option(args, "--profile=");
+    let token_type = parse_token_type(args)?;
 
-    let client = get_api_client(profile).await?;
+    let client = get_api_client_with_token_type(profile, token_type).await?;
     let response = commands::react_add(&client, channel, ts, emoji)
         .await
         .map_err(|e| e.to_string())?;
@@ -410,7 +419,7 @@ pub async fn run_react_add(args: &[String]) -> Result<(), String> {
 pub async fn run_react_remove(args: &[String]) -> Result<(), String> {
     if args.len() < 6 {
         return Err(
-            "Usage: react remove <channel> <ts> <emoji> [--yes] [--profile=NAME]".to_string(),
+            "Usage: react remove <channel> <ts> <emoji> [--yes] [--profile=NAME] [--token-type=bot|user]".to_string(),
         );
     }
 
@@ -419,8 +428,9 @@ pub async fn run_react_remove(args: &[String]) -> Result<(), String> {
     let emoji = args[5].clone();
     let yes = has_flag(args, "--yes");
     let profile = get_option(args, "--profile=");
+    let token_type = parse_token_type(args)?;
 
-    let client = get_api_client(profile).await?;
+    let client = get_api_client_with_token_type(profile, token_type).await?;
     let response = commands::react_remove(&client, channel, ts, emoji, yes)
         .await
         .map_err(|e| e.to_string())?;
@@ -432,7 +442,7 @@ pub async fn run_react_remove(args: &[String]) -> Result<(), String> {
 pub async fn run_file_upload(args: &[String]) -> Result<(), String> {
     if args.len() < 4 {
         return Err(
-            "Usage: file upload <path> [--channel=ID] [--channels=IDs] [--title=TITLE] [--comment=TEXT] [--profile=NAME]"
+            "Usage: file upload <path> [--channel=ID] [--channels=IDs] [--title=TITLE] [--comment=TEXT] [--profile=NAME] [--token-type=bot|user]"
                 .to_string(),
         );
     }
@@ -444,8 +454,9 @@ pub async fn run_file_upload(args: &[String]) -> Result<(), String> {
     let title = get_option(args, "--title=");
     let comment = get_option(args, "--comment=");
     let profile = get_option(args, "--profile=");
+    let token_type = parse_token_type(args)?;
 
-    let client = get_api_client(profile).await?;
+    let client = get_api_client_with_token_type(profile, token_type).await?;
     let response = commands::file_upload(&client, file_path, channels, title, comment)
         .await
         .map_err(|e| e.to_string())?;
@@ -457,7 +468,7 @@ pub async fn run_file_upload(args: &[String]) -> Result<(), String> {
 pub fn print_conv_usage(prog: &str) {
     println!("Conv command usage:");
     println!(
-        "  {} conv list [--types=TYPE] [--limit=N] [--filter=KEY:VALUE]... [--profile=NAME]",
+        "  {} conv list [--types=TYPE] [--limit=N] [--filter=KEY:VALUE]... [--profile=NAME] [--token-type=bot|user]",
         prog
     );
     println!("    Filters: name:<glob>, is_member:true|false, is_private:true|false");
@@ -467,7 +478,7 @@ pub fn print_conv_usage(prog: &str) {
     );
     println!("    Interactively select a conversation and output its channel ID");
     println!(
-        "  {} conv history <channel> [--limit=N] [--oldest=TS] [--latest=TS] [--profile=NAME]",
+        "  {} conv history <channel> [--limit=N] [--oldest=TS] [--latest=TS] [--profile=NAME] [--token-type=bot|user]",
         prog
     );
     println!(
@@ -479,23 +490,29 @@ pub fn print_conv_usage(prog: &str) {
 
 pub fn print_users_usage(prog: &str) {
     println!("Users command usage:");
-    println!("  {} users info <user_id> [--profile=NAME]", prog);
-    println!("  {} users cache-update [--profile=NAME] [--force]", prog);
+    println!(
+        "  {} users info <user_id> [--profile=NAME] [--token-type=bot|user]",
+        prog
+    );
+    println!(
+        "  {} users cache-update [--profile=NAME] [--force] [--token-type=bot|user]",
+        prog
+    );
     println!("  {} users resolve-mentions <text> [--profile=NAME] [--format=display_name|real_name|username]", prog);
 }
 
 pub fn print_msg_usage(prog: &str) {
     println!("Msg command usage:");
     println!(
-        "  {} msg post <channel> <text> [--thread-ts=TS] [--reply-broadcast] [--profile=NAME]",
+        "  {} msg post <channel> <text> [--thread-ts=TS] [--reply-broadcast] [--profile=NAME] [--token-type=bot|user]",
         prog
     );
     println!(
-        "  {} msg update <channel> <ts> <text> [--yes] [--profile=NAME]",
+        "  {} msg update <channel> <ts> <text> [--yes] [--profile=NAME] [--token-type=bot|user]",
         prog
     );
     println!(
-        "  {} msg delete <channel> <ts> [--yes] [--profile=NAME]",
+        "  {} msg delete <channel> <ts> [--yes] [--profile=NAME] [--token-type=bot|user]",
         prog
     );
 }
@@ -503,11 +520,11 @@ pub fn print_msg_usage(prog: &str) {
 pub fn print_react_usage(prog: &str) {
     println!("React command usage:");
     println!(
-        "  {} react add <channel> <ts> <emoji> [--profile=NAME]",
+        "  {} react add <channel> <ts> <emoji> [--profile=NAME] [--token-type=bot|user]",
         prog
     );
     println!(
-        "  {} react remove <channel> <ts> <emoji> [--yes] [--profile=NAME]",
+        "  {} react remove <channel> <ts> <emoji> [--yes] [--profile=NAME] [--token-type=bot|user]",
         prog
     );
 }
@@ -515,7 +532,74 @@ pub fn print_react_usage(prog: &str) {
 pub fn print_file_usage(prog: &str) {
     println!("File command usage:");
     println!(
-        "  {} file upload <path> [--channel=ID] [--channels=IDs] [--title=TITLE] [--comment=TEXT] [--profile=NAME]",
+        "  {} file upload <path> [--channel=ID] [--channels=IDs] [--title=TITLE] [--comment=TEXT] [--profile=NAME] [--token-type=bot|user]",
         prog
     );
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_token_type_equals_format() {
+        let args = vec!["command".to_string(), "--token-type=user".to_string()];
+        let result = parse_token_type(&args).unwrap();
+        assert_eq!(result, Some(TokenType::User));
+    }
+
+    #[test]
+    fn test_parse_token_type_space_separated() {
+        let args = vec![
+            "command".to_string(),
+            "--token-type".to_string(),
+            "bot".to_string(),
+        ];
+        let result = parse_token_type(&args).unwrap();
+        assert_eq!(result, Some(TokenType::Bot));
+    }
+
+    #[test]
+    fn test_parse_token_type_both_values() {
+        // Test user with equals
+        let args1 = vec!["--token-type=user".to_string()];
+        assert_eq!(parse_token_type(&args1).unwrap(), Some(TokenType::User));
+
+        // Test bot with equals
+        let args2 = vec!["--token-type=bot".to_string()];
+        assert_eq!(parse_token_type(&args2).unwrap(), Some(TokenType::Bot));
+
+        // Test user with space
+        let args3 = vec!["--token-type".to_string(), "user".to_string()];
+        assert_eq!(parse_token_type(&args3).unwrap(), Some(TokenType::User));
+
+        // Test bot with space
+        let args4 = vec!["--token-type".to_string(), "bot".to_string()];
+        assert_eq!(parse_token_type(&args4).unwrap(), Some(TokenType::Bot));
+    }
+
+    #[test]
+    fn test_parse_token_type_missing() {
+        let args = vec!["command".to_string()];
+        let result = parse_token_type(&args).unwrap();
+        assert_eq!(result, None);
+    }
+
+    #[test]
+    fn test_parse_token_type_missing_value() {
+        let args = vec!["--token-type".to_string()];
+        let result = parse_token_type(&args);
+        assert!(result.is_err());
+        assert_eq!(
+            result.unwrap_err(),
+            "--token-type requires a value (bot or user)"
+        );
+    }
+
+    #[test]
+    fn test_parse_token_type_invalid_value() {
+        let args = vec!["--token-type=invalid".to_string()];
+        let result = parse_token_type(&args);
+        assert!(result.is_err());
+    }
 }

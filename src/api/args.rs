@@ -5,6 +5,7 @@
 //! - Key-value pairs (e.g., "channel=C123456" "text=hello")
 //! - Flags: --json, --get
 
+use crate::profile::TokenType;
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use thiserror::Error;
@@ -38,8 +39,8 @@ pub struct ApiCallArgs {
     /// Use GET method instead of POST
     pub use_get: bool,
 
-    /// Token type preference: "bot", "user", or None for auto-detection
-    pub token_type: Option<String>,
+    /// Token type preference (CLI flag override)
+    pub token_type: Option<TokenType>,
 }
 
 impl ApiCallArgs {
@@ -63,10 +64,23 @@ impl ApiCallArgs {
             } else if arg == "--get" {
                 use_get = true;
             } else if arg == "--token-type" {
-                // Parse --token-type value
-                if i + 1 < args.len() {
-                    token_type = Some(args[i + 1].clone());
-                    i += 1; // Skip the value
+                // Space-separated format: --token-type VALUE
+                i += 1;
+                if i < args.len() {
+                    token_type = Some(
+                        args[i]
+                            .parse::<TokenType>()
+                            .map_err(|e| ArgsError::InvalidJson(e.to_string()))?,
+                    );
+                }
+            } else if arg.starts_with("--token-type=") {
+                // Equals format: --token-type=VALUE
+                if let Some(value) = arg.strip_prefix("--token-type=") {
+                    token_type = Some(
+                        value
+                            .parse::<TokenType>()
+                            .map_err(|e| ArgsError::InvalidJson(e.to_string()))?,
+                    );
                 }
             } else if arg.starts_with("--") {
                 // Ignore unknown flags for forward compatibility
@@ -250,32 +264,46 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_with_token_type() {
+    fn test_parse_token_type_space_separated() {
         let args = vec![
-            "conversations.list".to_string(),
+            "chat.postMessage".to_string(),
             "--token-type".to_string(),
             "user".to_string(),
-            "types=private_channel".to_string(),
+            "channel=C123456".to_string(),
         ];
         let result = ApiCallArgs::parse(&args).unwrap();
 
-        assert_eq!(result.method, "conversations.list");
-        assert_eq!(result.token_type, Some("user".to_string()));
-        assert_eq!(
-            result.params.get("types"),
-            Some(&"private_channel".to_string())
-        );
+        assert_eq!(result.method, "chat.postMessage");
+        assert_eq!(result.token_type, Some(TokenType::User));
     }
 
     #[test]
-    fn test_parse_without_token_type() {
+    fn test_parse_token_type_equals_format() {
         let args = vec![
-            "conversations.list".to_string(),
-            "types=private_channel".to_string(),
+            "chat.postMessage".to_string(),
+            "--token-type=bot".to_string(),
+            "channel=C123456".to_string(),
         ];
         let result = ApiCallArgs::parse(&args).unwrap();
 
-        assert_eq!(result.method, "conversations.list");
-        assert_eq!(result.token_type, None);
+        assert_eq!(result.method, "chat.postMessage");
+        assert_eq!(result.token_type, Some(TokenType::Bot));
+    }
+
+    #[test]
+    fn test_parse_token_type_both_formats() {
+        // Test space-separated with bot
+        let args1 = vec![
+            "users.info".to_string(),
+            "--token-type".to_string(),
+            "bot".to_string(),
+        ];
+        let result1 = ApiCallArgs::parse(&args1).unwrap();
+        assert_eq!(result1.token_type, Some(TokenType::Bot));
+
+        // Test equals format with user
+        let args2 = vec!["users.info".to_string(), "--token-type=user".to_string()];
+        let result2 = ApiCallArgs::parse(&args2).unwrap();
+        assert_eq!(result2.token_type, Some(TokenType::User));
     }
 }

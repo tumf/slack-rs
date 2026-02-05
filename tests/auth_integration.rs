@@ -72,6 +72,7 @@ fn test_profile_with_token_storage() {
         scopes: None,
         bot_scopes: None,
         user_scopes: None,
+        default_token_type: None,
     };
 
     // Add profile
