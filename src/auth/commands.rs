@@ -591,14 +591,70 @@ pub fn status(profile_name: Option<String>) -> Result<(), String> {
         println!("Client ID: {}", client_id);
     }
 
-    // Check if token exists
+    // Check if tokens exist
     let token_store = FileTokenStore::new().map_err(|e| e.to_string())?;
-    let token_key = make_token_key(&profile.team_id, &profile.user_id);
-    let has_token = token_store.exists(&token_key);
+    let bot_token_key = make_token_key(&profile.team_id, &profile.user_id);
+    let user_token_key = format!("{}:{}:user", &profile.team_id, &profile.user_id);
 
-    println!("Token: {}", if has_token { "Present" } else { "Missing" });
+    let has_bot_token = token_store.exists(&bot_token_key);
+    let has_user_token = token_store.exists(&user_token_key);
+
+    // Display available tokens
+    let mut available_tokens = Vec::new();
+    if has_bot_token {
+        available_tokens.push("Bot");
+    }
+    if has_user_token {
+        available_tokens.push("User");
+    }
+
+    if available_tokens.is_empty() {
+        println!("Tokens Available: None");
+    } else {
+        println!("Tokens Available: {}", available_tokens.join(", "));
+    }
+
+    // Display Bot ID if bot token exists
+    if has_bot_token {
+        // Extract Bot ID from bot token if available
+        if let Ok(bot_token) = token_store.get(&bot_token_key) {
+            if let Some(bot_id) = extract_bot_id(&bot_token) {
+                println!("Bot ID: {}", bot_id);
+            }
+        }
+    }
+
+    // Display scopes
+    if let Some(bot_scopes) = profile.get_bot_scopes() {
+        if !bot_scopes.is_empty() {
+            println!("Bot Scopes: {}", bot_scopes.join(", "));
+        }
+    }
+    if let Some(user_scopes) = profile.get_user_scopes() {
+        if !user_scopes.is_empty() {
+            println!("User Scopes: {}", user_scopes.join(", "));
+        }
+    }
+
+    // Display default token type
+    let default_token_type = if has_user_token { "User" } else { "Bot" };
+    println!("Default Token Type: {}", default_token_type);
 
     Ok(())
+}
+
+/// Extract Bot ID from a bot token
+/// Bot tokens have format xoxb-{team_id}-{bot_id}-{secret}
+fn extract_bot_id(token: &str) -> Option<String> {
+    if token.starts_with("xoxb-") {
+        let parts: Vec<&str> = token.split('-').collect();
+        // xoxb-{team_id}-{bot_id}-{secret}
+        // parts[0] = "xoxb", parts[1] = team_id, parts[2] = bot_id
+        if parts.len() >= 3 {
+            return Some(parts[2].to_string());
+        }
+    }
+    None
 }
 
 /// List command - lists all profiles
@@ -703,159 +759,6 @@ fn open_browser(url: &str) -> Result<(), String> {
     ));
 
     result.map(|_| ()).map_err(|e| e.to_string())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_status_profile_not_found() {
-        let result = status(Some("nonexistent".to_string()));
-        assert!(result.is_err());
-        assert!(result.unwrap_err().contains("not found"));
-    }
-
-    #[test]
-    fn test_list_empty() {
-        // This test may fail if there are existing profiles
-        // It's more of a demonstration of how to use the function
-        let result = list();
-        assert!(result.is_ok());
-    }
-
-    #[test]
-    fn test_rename_nonexistent_profile() {
-        let result = rename("nonexistent".to_string(), "new_name".to_string());
-        assert!(result.is_err());
-        assert!(result.unwrap_err().contains("not found"));
-    }
-
-    #[test]
-    fn test_logout_nonexistent_profile() {
-        let result = logout(Some("nonexistent".to_string()));
-        assert!(result.is_err());
-        assert!(result.unwrap_err().contains("not found"));
-    }
-
-    #[test]
-    fn test_save_profile_and_credentials_with_client_id() {
-        use tempfile::TempDir;
-
-        let temp_dir = TempDir::new().unwrap();
-        let config_path = temp_dir.path().join("profiles.json");
-
-        let team_id = "T123";
-        let user_id = "U456";
-        let profile_name = "test";
-
-        // Use a temporary token store file
-        let tokens_path = temp_dir.path().join("tokens.json");
-        std::env::set_var("SLACK_RS_TOKENS_PATH", tokens_path.to_str().unwrap());
-
-        // Save profile with client_id and client_secret to file store
-        let scopes = vec!["chat:write".to_string(), "users:read".to_string()];
-        let bot_scopes = vec!["chat:write".to_string()];
-        let user_scopes = vec!["users:read".to_string()];
-        save_profile_and_credentials(SaveCredentials {
-            config_path: &config_path,
-            profile_name,
-            team_id,
-            team_name: &Some("Test Team".to_string()),
-            user_id,
-            bot_token: Some("xoxb-test-bot-token"),
-            user_token: Some("xoxp-test-user-token"),
-            client_id: "test-client-id",
-            client_secret: "test-client-secret",
-            redirect_uri: "http://127.0.0.1:8765/callback",
-            scopes: &scopes,
-            bot_scopes: &bot_scopes,
-            user_scopes: &user_scopes,
-        })
-        .unwrap();
-
-        // Verify profile was saved with client_id
-        let config = load_config(&config_path).unwrap();
-        let profile = config.get(profile_name).unwrap();
-        assert_eq!(profile.client_id, Some("test-client-id".to_string()));
-        assert_eq!(profile.team_id, team_id);
-        assert_eq!(profile.user_id, user_id);
-
-        // Verify tokens were saved to file store
-        let token_store = FileTokenStore::with_path(tokens_path).unwrap();
-        let bot_token_key = make_token_key(team_id, user_id);
-        let user_token_key = format!("{}:{}:user", team_id, user_id);
-        let client_secret_key = format!("oauth-client-secret:{}", profile_name);
-
-        assert!(token_store.exists(&bot_token_key));
-        assert!(token_store.exists(&user_token_key));
-        assert!(token_store.exists(&client_secret_key));
-    }
-
-    #[test]
-    fn test_backward_compatibility_load_profile_without_client_id() {
-        use tempfile::TempDir;
-
-        let temp_dir = TempDir::new().unwrap();
-        let config_path = temp_dir.path().join("profiles.json");
-
-        // Create old-format profile without client_id
-        let mut config = ProfilesConfig::new();
-        config.set(
-            "legacy".to_string(),
-            Profile {
-                team_id: "T999".to_string(),
-                user_id: "U888".to_string(),
-                team_name: Some("Legacy Team".to_string()),
-                user_name: Some("Legacy User".to_string()),
-                client_id: None,
-                redirect_uri: None,
-                scopes: None,
-                bot_scopes: None,
-                user_scopes: None,
-                default_token_type: None,
-            },
-        );
-        save_config(&config_path, &config).unwrap();
-
-        // Verify it can be loaded
-        let loaded_config = load_config(&config_path).unwrap();
-        let profile = loaded_config.get("legacy").unwrap();
-        assert_eq!(profile.client_id, None);
-        assert_eq!(profile.team_id, "T999");
-    }
-
-    #[test]
-    fn test_bot_and_user_token_storage_keys() {
-        use crate::profile::InMemoryTokenStore;
-
-        // Create token store
-        let token_store = InMemoryTokenStore::new();
-
-        // Test credentials
-        let team_id = "T123";
-        let user_id = "U456";
-        let bot_token = "xoxb-test-bot-token";
-        let user_token = "xoxp-test-user-token";
-
-        // Simulate what save_profile_and_credentials does
-        let bot_token_key = make_token_key(team_id, user_id); // team_id:user_id
-        let user_token_key = format!("{}:{}:user", team_id, user_id); // team_id:user_id:user
-
-        token_store.set(&bot_token_key, bot_token).unwrap();
-        token_store.set(&user_token_key, user_token).unwrap();
-
-        // Verify bot token is stored at team_id:user_id
-        assert_eq!(token_store.get(&bot_token_key).unwrap(), bot_token);
-        assert_eq!(bot_token_key, "T123:U456");
-
-        // Verify user token is stored at team_id:user_id:user
-        assert_eq!(token_store.get(&user_token_key).unwrap(), user_token);
-        assert_eq!(user_token_key, "T123:U456:user");
-
-        // Verify they are different keys
-        assert_ne!(bot_token_key, user_token_key);
-    }
 }
 
 /// Find cloudflared executable in PATH or common locations
@@ -1134,4 +1037,193 @@ pub async fn login_with_credentials_extended(
     drop(cloudflared_tunnel);
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_status_profile_not_found() {
+        let result = status(Some("nonexistent".to_string()));
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("not found"));
+    }
+
+    #[test]
+    fn test_extract_bot_id_valid() {
+        // Test valid bot token format
+        let token = "xoxb-T123-B456-secret123";
+        assert_eq!(extract_bot_id(token), Some("B456".to_string()));
+    }
+
+    #[test]
+    fn test_extract_bot_id_invalid() {
+        // Test invalid formats
+        assert_eq!(extract_bot_id("xoxp-user-token"), None);
+        assert_eq!(extract_bot_id("xoxb-only"), None);
+        assert_eq!(extract_bot_id("xoxb-T123"), None);
+        assert_eq!(extract_bot_id("not-a-token"), None);
+        assert_eq!(extract_bot_id(""), None);
+    }
+
+    #[test]
+    fn test_extract_bot_id_edge_cases() {
+        // Test various bot token formats
+        assert_eq!(
+            extract_bot_id("xoxb-123456-789012-abcdef"),
+            Some("789012".to_string())
+        );
+        assert_eq!(
+            extract_bot_id("xoxb-T123-B456-secret123"),
+            Some("B456".to_string())
+        );
+
+        // Test with extra dashes in secret (should still work)
+        assert_eq!(
+            extract_bot_id("xoxb-T123-B456-secret-with-dashes"),
+            Some("B456".to_string())
+        );
+    }
+
+    #[test]
+    fn test_list_empty() {
+        // This test may fail if there are existing profiles
+        // It's more of a demonstration of how to use the function
+        let result = list();
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_rename_nonexistent_profile() {
+        let result = rename("nonexistent".to_string(), "new_name".to_string());
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("not found"));
+    }
+
+    #[test]
+    fn test_logout_nonexistent_profile() {
+        let result = logout(Some("nonexistent".to_string()));
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("not found"));
+    }
+
+    #[test]
+    fn test_save_profile_and_credentials_with_client_id() {
+        use tempfile::TempDir;
+
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("profiles.json");
+
+        let team_id = "T123";
+        let user_id = "U456";
+        let profile_name = "test";
+
+        // Use a temporary token store file
+        let tokens_path = temp_dir.path().join("tokens.json");
+        std::env::set_var("SLACK_RS_TOKENS_PATH", tokens_path.to_str().unwrap());
+
+        // Save profile with client_id and client_secret to file store
+        let scopes = vec!["chat:write".to_string(), "users:read".to_string()];
+        let bot_scopes = vec!["chat:write".to_string()];
+        let user_scopes = vec!["users:read".to_string()];
+        save_profile_and_credentials(SaveCredentials {
+            config_path: &config_path,
+            profile_name,
+            team_id,
+            team_name: &Some("Test Team".to_string()),
+            user_id,
+            bot_token: Some("xoxb-test-bot-token"),
+            user_token: Some("xoxp-test-user-token"),
+            client_id: "test-client-id",
+            client_secret: "test-client-secret",
+            redirect_uri: "http://127.0.0.1:8765/callback",
+            scopes: &scopes,
+            bot_scopes: &bot_scopes,
+            user_scopes: &user_scopes,
+        })
+        .unwrap();
+
+        // Verify profile was saved with client_id
+        let config = load_config(&config_path).unwrap();
+        let profile = config.get(profile_name).unwrap();
+        assert_eq!(profile.client_id, Some("test-client-id".to_string()));
+        assert_eq!(profile.team_id, team_id);
+        assert_eq!(profile.user_id, user_id);
+
+        // Verify tokens were saved to file store
+        let token_store = FileTokenStore::with_path(tokens_path).unwrap();
+        let bot_token_key = make_token_key(team_id, user_id);
+        let user_token_key = format!("{}:{}:user", team_id, user_id);
+        let client_secret_key = format!("oauth-client-secret:{}", profile_name);
+
+        assert!(token_store.exists(&bot_token_key));
+        assert!(token_store.exists(&user_token_key));
+        assert!(token_store.exists(&client_secret_key));
+    }
+
+    #[test]
+    fn test_backward_compatibility_load_profile_without_client_id() {
+        use tempfile::TempDir;
+
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("profiles.json");
+
+        // Create old-format profile without client_id
+        let mut config = ProfilesConfig::new();
+        config.set(
+            "legacy".to_string(),
+            Profile {
+                team_id: "T999".to_string(),
+                user_id: "U888".to_string(),
+                team_name: Some("Legacy Team".to_string()),
+                user_name: Some("Legacy User".to_string()),
+                client_id: None,
+                redirect_uri: None,
+                scopes: None,
+                bot_scopes: None,
+                user_scopes: None,
+                default_token_type: None,
+            },
+        );
+        save_config(&config_path, &config).unwrap();
+
+        // Verify it can be loaded
+        let loaded_config = load_config(&config_path).unwrap();
+        let profile = loaded_config.get("legacy").unwrap();
+        assert_eq!(profile.client_id, None);
+        assert_eq!(profile.team_id, "T999");
+    }
+
+    #[test]
+    fn test_bot_and_user_token_storage_keys() {
+        use crate::profile::InMemoryTokenStore;
+
+        // Create token store
+        let token_store = InMemoryTokenStore::new();
+
+        // Test credentials
+        let team_id = "T123";
+        let user_id = "U456";
+        let bot_token = "xoxb-test-bot-token";
+        let user_token = "xoxp-test-user-token";
+
+        // Simulate what save_profile_and_credentials does
+        let bot_token_key = make_token_key(team_id, user_id); // team_id:user_id
+        let user_token_key = format!("{}:{}:user", team_id, user_id); // team_id:user_id:user
+
+        token_store.set(&bot_token_key, bot_token).unwrap();
+        token_store.set(&user_token_key, user_token).unwrap();
+
+        // Verify bot token is stored at team_id:user_id
+        assert_eq!(token_store.get(&bot_token_key).unwrap(), bot_token);
+        assert_eq!(bot_token_key, "T123:U456");
+
+        // Verify user token is stored at team_id:user_id:user
+        assert_eq!(token_store.get(&user_token_key).unwrap(), user_token);
+        assert_eq!(user_token_key, "T123:U456:user");
+
+        // Verify they are different keys
+        assert_ne!(bot_token_key, user_token_key);
+    }
 }

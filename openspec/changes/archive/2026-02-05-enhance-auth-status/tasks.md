@@ -1,0 +1,4 @@
+- [x] `auth status` の出力に「Tokens Available」「Scopes」「Default Token Type」を追加し、表示内容が仕様に一致することをユニットテストで確認する（例: 出力文字列の検証）。
+- [x] Bot Token が存在する場合に Bot ID を表示するようにし、Bot Token 不在時は非表示となることをテストで確認する。
+- [x] トークンストアから User/Bot の有無を判定できるようにし、存在/不在の両ケースをテストで確認する。
+- [x] `auth status <profile>` と `auth status`（既定プロファイル）の両方で同じ拡張出力になることを確認する。
