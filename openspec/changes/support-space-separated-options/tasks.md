@@ -1,0 +1,4 @@
+- [ ] `src/cli/mod.rs` の `get_option` / `get_all_options` を拡張し、`--option value` 形式を解釈できるようにする（`--option=value` を優先、次トークンが `-` で始まる場合は値として扱わない）。検証: `src/cli/mod.rs` の該当関数にスペース区切り処理が入っていることを確認する。
+- [ ] `--filter` などの複数指定オプションで混在形式（`--filter value` と `--filter=value`）が取得できるテストを追加する。検証: `cargo test` で新規テストが通る。
+- [ ] `conv list` / `conv search` / `conv select` / `conv history` / `search` の主要オプションがスペース区切り形式でも動作するユニットテストを追加する。検証: `cargo test` で関連テストが通る。
+- [ ] ヘルプ出力（`conv list --help` 等）にスペース区切り形式も受理する旨を追記する。検証: `src/cli/mod.rs` の usage 文字列に追記があることを確認する。
