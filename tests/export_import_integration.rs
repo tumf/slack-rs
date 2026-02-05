@@ -27,6 +27,7 @@ fn test_export_import_single_profile() {
             scopes: None,
             bot_scopes: None,
             user_scopes: None,
+            default_token_type: None,
         },
     );
     save_config(&config_path, &config).unwrap();

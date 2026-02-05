@@ -5,4 +5,7 @@
 - [x] `api call` 出力の `meta.token_type` が選択された種別と一致することをテストで確認する（例: JSON 出力の検証）。
 - [x] ラッパーコマンドが `--token-type` を受け付け、選択結果が実際の API 呼び出しに反映されることをテストで確認する（例: conv list のヘッダ検証）。
 
-Note: ラッパーコマンドは現在プロファイルのデフォルト設定を通じてトークン種別を選択します。明示的な `--token-type` CLI フラグのサポートは、各ラッパーコマンドへの個別実装が必要となるため、将来の拡張として残されています。コアインフラ（トークン解決ロジック、プロファイル保存、meta 出力）は完全に実装されています。
+## Acceptance #1 Failure Follow-up
+- [x] `api call --token-type user` で user トークンが存在しない場合に bot へフォールバックせず、明確なエラーで失敗するようにする（`src/main.rs` の `run_api_call` でのフォールバックを削除・修正）。
+- [x] user トークンのキー形式を統一し、`api call` が `team_id:user_id:user` 形式で保存済みトークンを参照できるようにする（`src/main.rs` と `src/auth/commands.rs` のキー生成を一致させる）。
+- [x] ラッパーコマンドで `--token-type` を受け付け、未指定時は `default_token_type` を用いてトークン解決する（`src/cli/mod.rs` の引数解析と `get_api_client` を更新）。

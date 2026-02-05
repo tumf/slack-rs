@@ -458,7 +458,10 @@ fn print_config_usage(prog: &str) {
     );
     println!("  {} config oauth show <profile>", prog);
     println!("  {} config oauth delete <profile>", prog);
-    println!("  {} config set <profile> --token-type <type>  - Set default token type (bot/user)", prog);
+    println!(
+        "  {} config set <profile> --token-type <type>  - Set default token type (bot/user)",
+        prog
+    );
 }
 
 fn print_config_oauth_usage(prog: &str) {
@@ -1013,8 +1016,9 @@ async fn run_api_call(args: Vec<String>) -> Result<(), Box<dyn std::error::Error
     );
 
     // Create token key from team_id, user_id, and token type
+    // User token key format: {team_id}:{user_id}:user (matches auth/commands.rs storage format)
     let token_key_bot = make_token_key(&profile.team_id, &profile.user_id);
-    let token_key_user = format!("{}_user", token_key_bot);
+    let token_key_user = format!("{}:{}:user", profile.team_id, profile.user_id);
 
     // Select the appropriate token key based on resolved token type
     let token_key = match resolved_token_type {
@@ -1023,36 +1027,43 @@ async fn run_api_call(args: Vec<String>) -> Result<(), Box<dyn std::error::Error
     };
 
     // Retrieve token from token store
-    // Try file store first, fall back to environment variable
+    // Try file store first, fall back to environment variable only for the requested token type
     let file_store =
         FileTokenStore::new().map_err(|e| format!("Failed to create token store: {}", e))?;
+
+    // Determine if the token type was explicitly requested via CLI flag
+    let explicit_request = api_args.token_type.is_some();
+
     let token = match file_store.get(&token_key) {
         Ok(t) => t,
         Err(_) => {
-            // If requested token type not found, try fallback
-            if resolved_token_type == profile::TokenType::User {
-                // Fallback to bot token if user token not found
-                if let Ok(bot_token) = file_store.get(&token_key_bot) {
-                    eprintln!(
-                        "Warning: User token not found, falling back to bot token for profile '{}'",
-                        profile_name
-                    );
-                    bot_token
-                } else if let Ok(env_token) = std::env::var("SLACK_TOKEN") {
-                    env_token
-                } else {
-                    return Err(format!(
-                        "No {} token found for profile '{}' ({}:{}). Set SLACK_TOKEN environment variable or store token in file store.",
-                        resolved_token_type, profile_name, profile.team_id, profile.user_id
-                    ).into());
-                }
+            // If token not found in store, check environment variable
+            if let Ok(env_token) = std::env::var("SLACK_TOKEN") {
+                env_token
+            } else if explicit_request {
+                // If token type was explicitly requested via --token-type, fail without fallback
+                return Err(format!(
+                    "No {} token found for profile '{}' ({}:{}). Explicitly requested token type not available. Set SLACK_TOKEN environment variable or run 'slack login' to obtain a {} token.",
+                    resolved_token_type, profile_name, profile.team_id, profile.user_id, resolved_token_type
+                ).into());
             } else {
-                // Check environment variable
-                if let Ok(env_token) = std::env::var("SLACK_TOKEN") {
-                    env_token
+                // If token type was not explicitly requested, try bot token as fallback
+                if resolved_token_type == profile::TokenType::User {
+                    if let Ok(bot_token) = file_store.get(&token_key_bot) {
+                        eprintln!(
+                            "Warning: User token not found, falling back to bot token for profile '{}'",
+                            profile_name
+                        );
+                        bot_token
+                    } else {
+                        return Err(format!(
+                            "No {} token found for profile '{}' ({}:{}). Set SLACK_TOKEN environment variable or run 'slack login' to obtain a token.",
+                            resolved_token_type, profile_name, profile.team_id, profile.user_id
+                        ).into());
+                    }
                 } else {
                     return Err(format!(
-                        "No {} token found for profile '{}' ({}:{}). Set SLACK_TOKEN environment variable or store token in file store.",
+                        "No {} token found for profile '{}' ({}:{}). Set SLACK_TOKEN environment variable or run 'slack login' to obtain a token.",
                         resolved_token_type, profile_name, profile.team_id, profile.user_id
                     ).into());
                 }

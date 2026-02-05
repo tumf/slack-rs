@@ -61,7 +61,7 @@ mod tests {
                 scopes: None,
                 bot_scopes: None,
                 user_scopes: None,
-            default_token_type: None,
+                default_token_type: None,
             },
         );
         config.set(
@@ -76,7 +76,7 @@ mod tests {
                 scopes: None,
                 bot_scopes: None,
                 user_scopes: None,
-            default_token_type: None,
+                default_token_type: None,
             },
         );
 
