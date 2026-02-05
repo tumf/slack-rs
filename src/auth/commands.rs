@@ -44,69 +44,133 @@ pub async fn login_with_credentials(
         .map_err(|e| OAuthError::ConfigError(format!("Failed to get config path: {}", e)))?;
     let existing_config = load_config(&config_path).ok();
 
+    // In non-interactive mode, collect all missing parameters first before returning error
+    if non_interactive {
+        let mut missing_params = Vec::new();
+
+        // Check client_id
+        let has_client_id = client_id.is_some()
+            || existing_config
+                .as_ref()
+                .and_then(|c| c.get(&profile_name))
+                .and_then(|p| p.client_id.as_ref())
+                .is_some();
+        if !has_client_id {
+            missing_params.push("--client-id <id>");
+        }
+
+        // Check bot_scopes
+        let has_bot_scopes = bot_scopes.is_some()
+            || existing_config
+                .as_ref()
+                .and_then(|c| c.get(&profile_name))
+                .and_then(|p| p.get_bot_scopes())
+                .is_some();
+        if !has_bot_scopes {
+            missing_params.push("--bot-scopes <scopes>");
+        }
+
+        // Check user_scopes
+        let has_user_scopes = user_scopes.is_some()
+            || existing_config
+                .as_ref()
+                .and_then(|c| c.get(&profile_name))
+                .and_then(|p| p.get_user_scopes())
+                .is_some();
+        if !has_user_scopes {
+            missing_params.push("--user-scopes <scopes>");
+        }
+
+        // If any parameters are missing, return comprehensive error
+        if !missing_params.is_empty() {
+            let missing_list = missing_params.join(", ");
+            return Err(OAuthError::ConfigError(format!(
+                "Missing required OAuth parameters in non-interactive mode: {}\n\
+                Provide them via CLI flags or save with 'config oauth set':\n\
+                Example: slack-rs auth login --client-id <id> --bot-scopes <scopes> --user-scopes <scopes>",
+                missing_list
+            )));
+        }
+    }
+
     // Resolve OAuth config with priority: CLI arg > saved in profile > prompt (not fallback)
-    let (final_client_id, final_redirect_uri, final_bot_scopes, final_user_scopes) = if let Some(
-        config,
-    ) =
-        &existing_config
-    {
-        if let Some(profile) = config.get(&profile_name) {
-            // Client ID: CLI arg > profile > prompt (if interactive) or error
-            let resolved_client_id = match client_id {
-                Some(id) => id,
-                None => {
-                    if let Some(saved_id) = &profile.client_id {
-                        saved_id.clone()
-                    } else {
-                        prompt_for_client_id_with_mode(non_interactive)?
+    let (final_client_id, final_redirect_uri, final_bot_scopes, final_user_scopes) =
+        if let Some(config) = &existing_config {
+            if let Some(profile) = config.get(&profile_name) {
+                // Client ID: CLI arg > profile > prompt (if interactive) or error
+                let resolved_client_id = match client_id {
+                    Some(id) => id,
+                    None => {
+                        if let Some(saved_id) = &profile.client_id {
+                            saved_id.clone()
+                        } else {
+                            prompt_for_client_id_with_mode(non_interactive)?
+                        }
                     }
-                }
-            };
+                };
 
-            // Redirect URI: profile > prompt (if interactive) or use default
-            let resolved_redirect_uri = if let Some(saved_uri) = &profile.redirect_uri {
-                saved_uri.clone()
-            } else if non_interactive {
-                // In non-interactive mode, use the default redirect_uri
-                redirect_uri.clone()
+                // Redirect URI: profile > prompt (if interactive) or use default
+                let resolved_redirect_uri = if let Some(saved_uri) = &profile.redirect_uri {
+                    saved_uri.clone()
+                } else if non_interactive {
+                    // In non-interactive mode, use the default redirect_uri
+                    redirect_uri.clone()
+                } else {
+                    prompt_for_redirect_uri(&redirect_uri)?
+                };
+
+                // Bot scopes: CLI arg > profile.bot_scopes > profile.scopes (legacy) > prompt (if interactive)
+                let resolved_bot_scopes = if let Some(cli_bot_scopes) = bot_scopes {
+                    cli_bot_scopes
+                } else if let Some(saved_bot_scopes) = profile.get_bot_scopes() {
+                    saved_bot_scopes
+                } else {
+                    prompt_for_bot_scopes()?
+                };
+
+                // User scopes: CLI arg > profile.user_scopes > prompt (if interactive)
+                let resolved_user_scopes = if let Some(cli_user_scopes) = user_scopes {
+                    cli_user_scopes
+                } else if let Some(saved_user_scopes) = profile.get_user_scopes() {
+                    saved_user_scopes
+                } else {
+                    prompt_for_user_scopes()?
+                };
+
+                (
+                    resolved_client_id,
+                    resolved_redirect_uri,
+                    resolved_bot_scopes,
+                    resolved_user_scopes,
+                )
             } else {
-                prompt_for_redirect_uri(&redirect_uri)?
-            };
-
-            // Bot scopes: CLI arg > profile.bot_scopes > profile.scopes (legacy) > prompt (if interactive) or error
-            let resolved_bot_scopes = if let Some(cli_bot_scopes) = bot_scopes {
-                cli_bot_scopes
-            } else if let Some(saved_bot_scopes) = profile.get_bot_scopes() {
-                saved_bot_scopes
-            } else if non_interactive {
-                return Err(OAuthError::ConfigError(
-                        "Bot scopes are required. In non-interactive mode, provide them via --bot-scopes flag or save them in config with 'config oauth set'".to_string()
-                    ));
-            } else {
-                prompt_for_bot_scopes()?
-            };
-
-            // User scopes: CLI arg > profile.user_scopes > prompt (if interactive) or error
-            let resolved_user_scopes = if let Some(cli_user_scopes) = user_scopes {
-                cli_user_scopes
-            } else if let Some(saved_user_scopes) = profile.get_user_scopes() {
-                saved_user_scopes
-            } else if non_interactive {
-                return Err(OAuthError::ConfigError(
-                        "User scopes are required. In non-interactive mode, provide them via --user-scopes flag or save them in config with 'config oauth set'".to_string()
-                    ));
-            } else {
-                prompt_for_user_scopes()?
-            };
-
-            (
-                resolved_client_id,
-                resolved_redirect_uri,
-                resolved_bot_scopes,
-                resolved_user_scopes,
-            )
+                // Profile doesn't exist, prompt for all OAuth config
+                let resolved_client_id = match client_id {
+                    Some(id) => id,
+                    None => prompt_for_client_id_with_mode(non_interactive)?,
+                };
+                let resolved_redirect_uri = if non_interactive {
+                    redirect_uri.clone()
+                } else {
+                    prompt_for_redirect_uri(&redirect_uri)?
+                };
+                let resolved_bot_scopes = match bot_scopes {
+                    Some(scopes) => scopes,
+                    None => prompt_for_bot_scopes()?,
+                };
+                let resolved_user_scopes = match user_scopes {
+                    Some(scopes) => scopes,
+                    None => prompt_for_user_scopes()?,
+                };
+                (
+                    resolved_client_id,
+                    resolved_redirect_uri,
+                    resolved_bot_scopes,
+                    resolved_user_scopes,
+                )
+            }
         } else {
-            // Profile doesn't exist, prompt for all OAuth config or error in non-interactive mode
+            // No config file exists, prompt for all OAuth config
             let resolved_client_id = match client_id {
                 Some(id) => id,
                 None => prompt_for_client_id_with_mode(non_interactive)?,
@@ -118,20 +182,10 @@ pub async fn login_with_credentials(
             };
             let resolved_bot_scopes = match bot_scopes {
                 Some(scopes) => scopes,
-                None if non_interactive => {
-                    return Err(OAuthError::ConfigError(
-                            "Bot scopes are required. In non-interactive mode, provide them via --bot-scopes flag".to_string()
-                        ));
-                }
                 None => prompt_for_bot_scopes()?,
             };
             let resolved_user_scopes = match user_scopes {
                 Some(scopes) => scopes,
-                None if non_interactive => {
-                    return Err(OAuthError::ConfigError(
-                            "User scopes are required. In non-interactive mode, provide them via --user-scopes flag".to_string()
-                        ));
-                }
                 None => prompt_for_user_scopes()?,
             };
             (
@@ -140,43 +194,7 @@ pub async fn login_with_credentials(
                 resolved_bot_scopes,
                 resolved_user_scopes,
             )
-        }
-    } else {
-        // No config file exists, prompt for all OAuth config or error in non-interactive mode
-        let resolved_client_id = match client_id {
-            Some(id) => id,
-            None => prompt_for_client_id_with_mode(non_interactive)?,
         };
-        let resolved_redirect_uri = if non_interactive {
-            redirect_uri.clone()
-        } else {
-            prompt_for_redirect_uri(&redirect_uri)?
-        };
-        let resolved_bot_scopes = match bot_scopes {
-            Some(scopes) => scopes,
-            None if non_interactive => {
-                return Err(OAuthError::ConfigError(
-                        "Bot scopes are required. In non-interactive mode, provide them via --bot-scopes flag".to_string()
-                    ));
-            }
-            None => prompt_for_bot_scopes()?,
-        };
-        let resolved_user_scopes = match user_scopes {
-            Some(scopes) => scopes,
-            None if non_interactive => {
-                return Err(OAuthError::ConfigError(
-                        "User scopes are required. In non-interactive mode, provide them via --user-scopes flag".to_string()
-                    ));
-            }
-            None => prompt_for_user_scopes()?,
-        };
-        (
-            resolved_client_id,
-            resolved_redirect_uri,
-            resolved_bot_scopes,
-            resolved_user_scopes,
-        )
-    };
 
     // Client secret resolution: File store > prompt (if interactive) or error
     let token_store = FileTokenStore::new()
