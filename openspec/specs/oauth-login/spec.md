@@ -139,11 +139,14 @@ OAuth configuration MUST be resolved from CLI arguments or profile configuration
 - And ユーザーの確認入力を待ってから OAuth 認証フローを開始する
 
 ### Requirement: auth status displays token information
-`auth status` MUST display available token types, their scopes, and the default token type. (MUST)
-#### Scenario: Both User and Bot tokens exist
-- Given User Token and Bot Token are saved
-- When executing `auth status`
-- Then both token types and their scopes are displayed
+`auth status` は利用可能なトークン種別とスコープに加えて、`default_token_type` を正しく表示しなければならない。(MUST)
+`default_token_type` がプロフィールに設定されている場合はその値を表示し、未設定の場合のみ従来の推測ロジック（User Token があれば User、なければ Bot）を使うこと。(MUST)
+
+#### Scenario: default_token_type が user のときに表示される
+- Given User Token と Bot Token が保存されている
+- And プロフィールの `default_token_type` が `user` に設定されている
+- When `auth status` を実行する
+- Then `Default Token Type: User` が表示される
 
 ### Requirement: Display Bot ID when Bot Token exists
 When a Bot Token is saved, `auth status` MUST display the Bot ID. (MUST)
