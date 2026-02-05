@@ -192,6 +192,34 @@ pub async fn run_conv_list(args: &[String]) -> Result<(), String> {
     let filter_strings = get_all_options(args, "--filter=");
     let raw = has_flag(args, "--raw");
 
+    // Parse format option (default: json)
+    let format = if let Some(fmt_str) = get_option(args, "--format=") {
+        commands::OutputFormat::parse(&fmt_str)?
+    } else {
+        commands::OutputFormat::Json
+    };
+
+    // Validate --raw compatibility
+    if raw && format != commands::OutputFormat::Json {
+        return Err(format!(
+            "--raw is only valid with --format json, but got --format {}",
+            format
+        ));
+    }
+
+    // Parse sort options
+    let sort_key = if let Some(sort_str) = get_option(args, "--sort=") {
+        Some(commands::SortKey::parse(&sort_str)?)
+    } else {
+        None
+    };
+
+    let sort_dir = if let Some(dir_str) = get_option(args, "--sort-dir=") {
+        commands::SortDirection::parse(&dir_str)?
+    } else {
+        commands::SortDirection::default()
+    };
+
     // Parse filters
     let filters: Result<Vec<_>, _> = filter_strings
         .iter()
@@ -207,8 +235,15 @@ pub async fn run_conv_list(args: &[String]) -> Result<(), String> {
     // Apply filters
     commands::apply_filters(&mut response, &filters);
 
-    // Output with or without envelope
-    let output = if raw {
+    // Apply sorting if specified
+    if let Some(key) = sort_key {
+        commands::sort_conversations(&mut response, key, sort_dir);
+    }
+
+    // Format output: non-JSON formats bypass raw/envelope logic
+    let output = if format != commands::OutputFormat::Json {
+        commands::format_response(&response, format)?
+    } else if raw {
         serde_json::to_string_pretty(&response).unwrap()
     } else {
         let response_value = serde_json::to_value(&response).map_err(|e| e.to_string())?;
@@ -617,10 +652,14 @@ pub async fn run_file_upload(args: &[String]) -> Result<(), String> {
 pub fn print_conv_usage(prog: &str) {
     println!("Conv command usage:");
     println!(
-        "  {} conv list [--types=TYPE] [--limit=N] [--filter=KEY:VALUE]... [--profile=NAME] [--token-type=bot|user]",
+        "  {} conv list [--types=TYPE] [--limit=N] [--filter=KEY:VALUE]... [--format=FORMAT] [--sort=KEY] [--sort-dir=DIR] [--raw] [--profile=NAME] [--token-type=bot|user]",
         prog
     );
     println!("    Filters: name:<glob>, is_member:true|false, is_private:true|false");
+    println!("    Formats: json (default), jsonl, table, tsv");
+    println!("    Sort keys: name, created, num_members");
+    println!("    Sort direction: asc (default), desc");
+    println!("    Note: --raw is only valid with --format json");
     println!(
         "  {} conv select [--types=TYPE] [--filter=KEY:VALUE]... [--profile=NAME]",
         prog
