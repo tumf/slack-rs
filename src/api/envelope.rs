@@ -23,6 +23,8 @@ pub struct CommandMeta {
     pub user_id: String,
     pub method: String,
     pub command: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub token_type: Option<String>,
 }
 
 impl CommandResponse {
@@ -43,6 +45,30 @@ impl CommandResponse {
                 user_id,
                 method,
                 command,
+                token_type: None,
+            },
+        }
+    }
+
+    /// Create a new command response with metadata including token type
+    pub fn with_token_type(
+        response: Value,
+        profile_name: Option<String>,
+        team_id: String,
+        user_id: String,
+        method: String,
+        command: String,
+        token_type: Option<String>,
+    ) -> Self {
+        Self {
+            response,
+            meta: CommandMeta {
+                profile_name,
+                team_id,
+                user_id,
+                method,
+                command,
+                token_type,
             },
         }
     }

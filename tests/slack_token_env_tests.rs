@@ -170,3 +170,64 @@ async fn test_fallback_to_token_store_when_slack_token_not_set() {
         "Should fail when SLACK_TOKEN not set and no tokens in store"
     );
 }
+
+#[test]
+fn test_command_response_with_token_type_metadata() {
+    use slack_rs::api::CommandResponse;
+    use serde_json::json;
+
+    // Test that CommandResponse::with_token_type includes token_type in metadata
+    let response = CommandResponse::with_token_type(
+        json!({"ok": true, "channels": []}),
+        Some("default".to_string()),
+        "T123ABC".to_string(),
+        "U456DEF".to_string(),
+        "conversations.list".to_string(),
+        "conv list".to_string(),
+        Some("bot".to_string()),
+    );
+
+    let json = serde_json::to_value(&response).unwrap();
+    assert_eq!(json["meta"]["token_type"], "bot");
+}
+
+#[test]
+fn test_command_response_with_user_token_type_metadata() {
+    use slack_rs::api::CommandResponse;
+    use serde_json::json;
+
+    // Test that CommandResponse::with_token_type works with user token type
+    let response = CommandResponse::with_token_type(
+        json!({"ok": true}),
+        Some("default".to_string()),
+        "T123".to_string(),
+        "U456".to_string(),
+        "users.info".to_string(),
+        "users info".to_string(),
+        Some("user".to_string()),
+    );
+
+    let json = serde_json::to_value(&response).unwrap();
+    assert_eq!(json["meta"]["token_type"], "user");
+}
+
+#[test]
+fn test_command_response_without_token_type_metadata() {
+    use slack_rs::api::CommandResponse;
+    use serde_json::json;
+
+    // Test that CommandResponse::with_token_type with None doesn't include token_type
+    let response = CommandResponse::with_token_type(
+        json!({"ok": true}),
+        Some("default".to_string()),
+        "T123".to_string(),
+        "U456".to_string(),
+        "users.info".to_string(),
+        "users info".to_string(),
+        None,
+    );
+
+    let json_str = serde_json::to_string(&response).unwrap();
+    // token_type should not be present in JSON when None
+    assert!(!json_str.contains("token_type"));
+}
