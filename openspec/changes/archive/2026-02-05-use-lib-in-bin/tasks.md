@@ -1,0 +1,3 @@
+- [x] `src/main.rs` の `mod api;` などのモジュール宣言を削除し、`slack_rs::` 経由の `use` に置き換える。検証: `src/main.rs` に `mod api;` 等が存在せず、`use slack_rs::` の参照で CLI が組み立てられていることを確認する。
+- [x] バイナリから参照するモジュールが公開されていることを確認し、必要なら `src/lib.rs` で `pub mod` を追加する。検証: `cargo check` が成功する。
+- [x] テスト重複が解消されたことを確認する。検証: `cargo test --quiet` の出力に同一テスト群が二重に現れない（必要に応じて `cargo test --quiet --bins -- --list` が 0 件であることを確認する）。

@@ -1,21 +1,10 @@
-// Allow unused imports - some are used only in lib.rs for public API
-#![allow(unused_imports)]
-
-mod api;
-mod auth;
-mod cli;
-mod commands;
-mod debug;
-mod oauth;
-mod profile;
-
-use api::{execute_api_call, ApiCallArgs, ApiCallContext, ApiCallResponse, ApiClient};
-use cli::*;
-use profile::{
-    create_token_store, default_config_path, load_config, make_token_key, resolve_profile,
-    resolve_profile_full, save_config, FileTokenStore, InMemoryTokenStore, KeyringTokenStore,
-    Profile, ProfilesConfig, TokenStore,
+// Use library exports instead of module declarations to avoid duplicate test runs
+use slack_rs::cli::*;
+use slack_rs::profile::{
+    default_config_path, load_config, make_token_key, resolve_profile, save_config,
+    InMemoryTokenStore, KeyringTokenStore, Profile, ProfilesConfig, TokenStore,
 };
+use slack_rs::{auth, cli, commands, profile};
 
 #[tokio::main]
 async fn main() {
