@@ -1,0 +1,5 @@
+- [ ] `config oauth set` に `--client-secret-env`/`--client-secret-file`/`--client-secret` を追加する（確認: `--help` に新しいオプションが表示される）
+- [ ] client secret の解決優先順位を実装する（確認: env/file/flag の順で上書きされるユニットテストが通る）
+- [ ] `--client-secret` 使用時は明示同意（`--yes`）が無い場合にエラーを返す（確認: `--yes` 有無で挙動が変わるテストが通る）
+- [ ] 非対話で入力経路が無い場合のガイダンスを追加する（確認: エラーに利用可能な手段が含まれる）
+- [ ] file backend を使った保存テストを追加する（確認: 一時 tokens.json に `oauth-client-secret:<profile>` が保存される）
