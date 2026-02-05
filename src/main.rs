@@ -9,7 +9,7 @@ mod debug;
 mod oauth;
 mod profile;
 
-use api::{execute_api_call, ApiCallArgs, ApiCallContext, ApiClient};
+use api::{execute_api_call, ApiCallArgs, ApiCallContext, ApiCallResponse, ApiClient};
 use cli::*;
 use profile::{
     default_config_path, load_config, make_token_key, resolve_profile, resolve_profile_full,
@@ -1004,6 +1004,36 @@ async fn handle_import_command(args: &[String]) {
     }
 }
 
+/// Check if we should show private channel guidance
+fn should_show_private_channel_guidance(
+    api_args: &ApiCallArgs,
+    token_type: &str,
+    response: &ApiCallResponse,
+) -> bool {
+    // Only show guidance for conversations.list with private_channel type and bot token
+    if api_args.method != "conversations.list" || token_type != "bot" {
+        return false;
+    }
+
+    // Check if types parameter includes private_channel
+    if let Some(types) = api_args.params.get("types") {
+        if !types.contains("private_channel") {
+            return false;
+        }
+    } else {
+        return false;
+    }
+
+    // Check if response has empty channels array
+    if let Some(channels) = response.response.get("channels") {
+        if let Some(channels_array) = channels.as_array() {
+            return channels_array.is_empty();
+        }
+    }
+
+    false
+}
+
 /// Run the api call command
 async fn run_api_call(args: Vec<String>) -> Result<(), Box<dyn std::error::Error>> {
     // Parse arguments
@@ -1102,6 +1132,16 @@ async fn run_api_call(args: Vec<String>) -> Result<(), Box<dyn std::error::Error
         resolved_token_type.as_str(),
     )
     .await?;
+
+    // Check if we should show guidance for private_channel with bot token
+    if should_show_private_channel_guidance(&api_args, resolved_token_type.as_str(), &response) {
+        eprintln!();
+        eprintln!("Note: The conversation list for private channels is empty.");
+        eprintln!("Bot tokens can only see private channels where the bot is a member.");
+        eprintln!("To list all private channels, use a User Token with appropriate scopes.");
+        eprintln!("Run: slackcli auth login (with user_scopes) or use --token-type user");
+        eprintln!();
+    }
 
     // Print response as JSON
     let json = serde_json::to_string_pretty(&response)?;
@@ -1404,4 +1444,113 @@ fn demonstrate_keyring_token_storage() {
     }
 
     println!();
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::api::call::ApiCallMeta;
+    use serde_json::json;
+    use std::collections::HashMap;
+
+    #[test]
+    fn test_should_show_private_channel_guidance_empty_response() {
+        let mut params = HashMap::new();
+        params.insert("types".to_string(), "private_channel".to_string());
+
+        let args = ApiCallArgs {
+            method: "conversations.list".to_string(),
+            params,
+            use_json: false,
+            use_get: false,
+            token_type: None,
+        };
+
+        let response = ApiCallResponse {
+            response: json!({
+                "ok": true,
+                "channels": []
+            }),
+            meta: ApiCallMeta {
+                profile_name: Some("default".to_string()),
+                team_id: "T123".to_string(),
+                user_id: "U123".to_string(),
+                method: "conversations.list".to_string(),
+                token_type: "bot".to_string(),
+            },
+        };
+
+        // Should show guidance when bot token returns empty private channels
+        assert!(should_show_private_channel_guidance(
+            &args, "bot", &response
+        ));
+    }
+
+    #[test]
+    fn test_should_show_private_channel_guidance_non_empty_response() {
+        let mut params = HashMap::new();
+        params.insert("types".to_string(), "private_channel".to_string());
+
+        let args = ApiCallArgs {
+            method: "conversations.list".to_string(),
+            params,
+            use_json: false,
+            use_get: false,
+            token_type: None,
+        };
+
+        let response = ApiCallResponse {
+            response: json!({
+                "ok": true,
+                "channels": [
+                    {"id": "C123", "name": "private-channel"}
+                ]
+            }),
+            meta: ApiCallMeta {
+                profile_name: Some("default".to_string()),
+                team_id: "T123".to_string(),
+                user_id: "U123".to_string(),
+                method: "conversations.list".to_string(),
+                token_type: "bot".to_string(),
+            },
+        };
+
+        // Should not show guidance when channels are returned
+        assert!(!should_show_private_channel_guidance(
+            &args, "bot", &response
+        ));
+    }
+
+    #[test]
+    fn test_should_show_private_channel_guidance_user_token() {
+        let mut params = HashMap::new();
+        params.insert("types".to_string(), "private_channel".to_string());
+
+        let args = ApiCallArgs {
+            method: "conversations.list".to_string(),
+            params,
+            use_json: false,
+            use_get: false,
+            token_type: None,
+        };
+
+        let response = ApiCallResponse {
+            response: json!({
+                "ok": true,
+                "channels": []
+            }),
+            meta: ApiCallMeta {
+                profile_name: Some("default".to_string()),
+                team_id: "T123".to_string(),
+                user_id: "U123".to_string(),
+                method: "conversations.list".to_string(),
+                token_type: "user".to_string(),
+            },
+        };
+
+        // Should not show guidance when using user token
+        assert!(!should_show_private_channel_guidance(
+            &args, "user", &response
+        ));
+    }
 }

@@ -135,6 +135,7 @@ mod tests {
         assert!(result.params.is_empty());
         assert!(!result.use_json);
         assert!(!result.use_get);
+        assert_eq!(result.token_type, None);
     }
 
     #[test]

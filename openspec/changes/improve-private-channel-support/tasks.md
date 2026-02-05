@@ -1,4 +1,0 @@
-- [ ] `conversations.list` で `types=private_channel` が指定された場合に User Token を優先する分岐を追加し、`--token-type` 指定時は優先しないことをテストで確認する。
-- [ ] User Token が存在しない場合のエラーメッセージにガイダンス文を追加し、文言が仕様通りであることをテストで確認する。
-- [ ] Bot Token で `private_channel` が空だった場合にガイダンスを表示するようにし、HTTP モックで応答ケースを再現して検証する。
-- [ ] `api call conversations.list` と `conv list` の両方で同じ挙動になることをテストで確認する。
