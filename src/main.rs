@@ -139,7 +139,7 @@ async fn main() {
         "search" => {
             if args.len() < 3 {
                 eprintln!(
-                    "Usage: {} search <query> [--count=N] [--page=N] [--sort=TYPE] [--sort_dir=DIR] [--profile=NAME] [--raw]",
+                    "Usage: {} search <query> [--count=N] [--page=N] [--sort=TYPE] [--sort_dir=DIR] [--profile=NAME]",
                     args[0]
                 );
                 std::process::exit(1);
@@ -172,11 +172,11 @@ async fn main() {
                     let has_interactive = args.iter().any(|arg| arg == "--interactive");
                     if !has_interactive && args.len() < 4 {
                         eprintln!(
-                            "Usage: {} conv history <channel> [--limit=N] [--profile=NAME] [--raw]",
+                            "Usage: {} conv history <channel> [--limit=N] [--profile=NAME]",
                             args[0]
                         );
                         eprintln!(
-                            "   or: {} conv history --interactive [--filter=KEY:VALUE]... [--profile=NAME] [--raw]",
+                            "   or: {} conv history --interactive [--filter=KEY:VALUE]... [--profile=NAME]",
                             args[0]
                         );
                         std::process::exit(1);
@@ -197,10 +197,7 @@ async fn main() {
             match args[2].as_str() {
                 "info" => {
                     if args.len() < 4 {
-                        eprintln!(
-                            "Usage: {} users info <user_id> [--profile=NAME] [--raw]",
-                            args[0]
-                        );
+                        eprintln!("Usage: {} users info <user_id> [--profile=NAME]", args[0]);
                         std::process::exit(1);
                     }
                     if let Err(e) = run_users_info(&args).await {
@@ -346,7 +343,6 @@ fn print_help() {
     println!("    key=value                        Request parameters");
     println!("    --json                           Send as JSON body (default: form-urlencoded)");
     println!("    --get                            Use GET method (default: POST)");
-    println!("    --raw                            Output Slack API JSON response only (no meta)");
     println!();
     println!("EXAMPLES:");
     println!("    slack-rs api call users.info user=U123456 --get");
@@ -396,7 +392,6 @@ fn print_api_usage() {
     println!("    key=value                    Request parameters");
     println!("    --json                       Send as JSON body (default: form-urlencoded)");
     println!("    --get                        Use GET method (default: POST)");
-    println!("    --raw                        Output Slack API JSON response only (no meta)");
     println!();
     println!("EXAMPLES:");
     println!("    slack-rs api call users.info user=U123456 --get");
@@ -1011,13 +1006,8 @@ async fn run_api_call(args: Vec<String>) -> Result<(), Box<dyn std::error::Error
     let response = execute_api_call(&client, &api_args, &token, &context).await?;
 
     // Print response as JSON
-    if api_args.raw {
-        let json = serde_json::to_string_pretty(&response.response)?;
-        println!("{}", json);
-    } else {
-        let json = serde_json::to_string_pretty(&response)?;
-        println!("{}", json);
-    }
+    let json = serde_json::to_string_pretty(&response)?;
+    println!("{}", json);
 
     Ok(())
 }

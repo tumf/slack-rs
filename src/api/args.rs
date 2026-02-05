@@ -3,7 +3,7 @@
 //! Parses command-line arguments into structured API call parameters:
 //! - Method name (e.g., "chat.postMessage")
 //! - Key-value pairs (e.g., "channel=C123456" "text=hello")
-//! - Flags: --json, --get, --raw
+//! - Flags: --json, --get
 
 use serde_json::{json, Value};
 use std::collections::HashMap;
@@ -37,9 +37,6 @@ pub struct ApiCallArgs {
 
     /// Use GET method instead of POST
     pub use_get: bool,
-
-    /// Output raw Slack API response only (no meta wrapper)
-    pub raw: bool,
 }
 
 impl ApiCallArgs {
@@ -53,15 +50,12 @@ impl ApiCallArgs {
         let mut params = HashMap::new();
         let mut use_json = false;
         let mut use_get = false;
-        let mut raw = false;
 
         for arg in &args[1..] {
             if arg == "--json" {
                 use_json = true;
             } else if arg == "--get" {
                 use_get = true;
-            } else if arg == "--raw" {
-                raw = true;
             } else if arg.starts_with("--") {
                 // Ignore unknown flags for forward compatibility
                 continue;
@@ -80,7 +74,6 @@ impl ApiCallArgs {
             params,
             use_json,
             use_get,
-            raw,
         })
     }
 
@@ -115,7 +108,6 @@ mod tests {
         assert!(result.params.is_empty());
         assert!(!result.use_json);
         assert!(!result.use_get);
-        assert!(!result.raw);
     }
 
     #[test]
@@ -144,20 +136,6 @@ mod tests {
         assert_eq!(result.method, "chat.postMessage");
         assert!(result.use_json);
         assert!(!result.use_get);
-    }
-    #[test]
-    fn test_parse_with_raw_flag() {
-        let args = vec![
-            "users.info".to_string(),
-            "--raw".to_string(),
-            "--get".to_string(),
-            "user=U123456".to_string(),
-        ];
-        let result = ApiCallArgs::parse(&args).unwrap();
-
-        assert_eq!(result.method, "users.info");
-        assert!(result.raw);
-        assert!(result.use_get);
     }
 
     #[test]
@@ -227,7 +205,6 @@ mod tests {
             .collect(),
             use_json: true,
             use_get: false,
-            raw: false,
         };
 
         let json = args.to_json();
@@ -248,7 +225,6 @@ mod tests {
             .collect(),
             use_json: false,
             use_get: false,
-            raw: false,
         };
 
         let form = args.to_form();

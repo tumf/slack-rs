@@ -49,7 +49,6 @@ pub struct ApiCallMeta {
     pub team_id: String,
     pub user_id: String,
     pub method: String,
-    pub command: String,
 }
 
 /// Execute an API call with the given arguments and context
@@ -95,7 +94,6 @@ pub async fn execute_api_call(
             team_id: context.team_id.clone(),
             user_id: context.user_id.clone(),
             method: args.method.clone(),
-            command: "api call".to_string(),
         },
     };
 
@@ -114,7 +112,6 @@ mod tests {
             team_id: "T123ABC".to_string(),
             user_id: "U456DEF".to_string(),
             method: "chat.postMessage".to_string(),
-            command: "api call".to_string(),
         };
 
         let json = serde_json::to_string(&meta).unwrap();
@@ -124,7 +121,6 @@ mod tests {
         assert_eq!(deserialized.team_id, "T123ABC");
         assert_eq!(deserialized.user_id, "U456DEF");
         assert_eq!(deserialized.method, "chat.postMessage");
-        assert_eq!(deserialized.command, "api call");
     }
 
     #[test]
@@ -140,7 +136,6 @@ mod tests {
                 team_id: "T123ABC".to_string(),
                 user_id: "U456DEF".to_string(),
                 method: "chat.postMessage".to_string(),
-                command: "msg post".to_string(),
             },
         };
 
@@ -149,6 +144,5 @@ mod tests {
         assert!(json["response"]["ok"].as_bool().unwrap());
         assert_eq!(json["meta"]["team_id"], "T123ABC");
         assert_eq!(json["meta"]["method"], "chat.postMessage");
-        assert_eq!(json["meta"]["command"], "msg post");
     }
 }
