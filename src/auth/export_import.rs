@@ -62,7 +62,7 @@ pub struct ImportOptions {
 }
 
 /// Export profiles to encrypted file
-pub fn export_profiles<T: TokenStore>(token_store: &T, options: &ExportOptions) -> Result<()> {
+pub fn export_profiles(token_store: &dyn TokenStore, options: &ExportOptions) -> Result<()> {
     // Require --yes confirmation
     if !options.yes {
         return Err(ExportImportError::ConfirmationRequired);
@@ -156,7 +156,7 @@ pub fn export_profiles<T: TokenStore>(token_store: &T, options: &ExportOptions) 
 }
 
 /// Import profiles from encrypted file
-pub fn import_profiles<T: TokenStore>(token_store: &T, options: &ImportOptions) -> Result<()> {
+pub fn import_profiles(token_store: &dyn TokenStore, options: &ImportOptions) -> Result<()> {
     // Validate passphrase
     if options.passphrase.is_empty() {
         return Err(ExportImportError::EmptyPassphrase);

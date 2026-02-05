@@ -4,7 +4,7 @@ use crate::api::ApiClient;
 use crate::commands;
 use crate::commands::ConversationSelector;
 use crate::profile::{
-    default_config_path, load_config, make_token_key, FileTokenStore, TokenStore, TokenType,
+    create_token_store, default_config_path, load_config, make_token_key, TokenType,
 };
 
 /// Get API client for a profile with optional token type selection
@@ -29,7 +29,7 @@ pub async fn get_api_client_with_token_type(
         .get(&profile_name)
         .ok_or_else(|| format!("Profile '{}' not found", profile_name))?;
 
-    let token_store = FileTokenStore::new().map_err(|e| e.to_string())?;
+    let token_store = create_token_store().map_err(|e| e.to_string())?;
 
     // Resolve token type: CLI flag > profile default > try user first with bot fallback
     let resolved_token_type = token_type.or(profile.default_token_type);

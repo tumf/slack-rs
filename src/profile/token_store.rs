@@ -280,9 +280,9 @@ pub fn make_oauth_client_secret_key(profile_name: &str) -> String {
     format!("oauth-client-secret:{}", profile_name)
 }
 
-/// Store OAuth client secret in the keyring
+/// Store OAuth client secret in the token store
 pub fn store_oauth_client_secret(
-    token_store: &impl TokenStore,
+    token_store: &dyn TokenStore,
     profile_name: &str,
     client_secret: &str,
 ) -> Result<()> {
@@ -290,17 +290,14 @@ pub fn store_oauth_client_secret(
     token_store.set(&key, client_secret)
 }
 
-/// Retrieve OAuth client secret from the keyring
-pub fn get_oauth_client_secret(
-    token_store: &impl TokenStore,
-    profile_name: &str,
-) -> Result<String> {
+/// Retrieve OAuth client secret from the token store
+pub fn get_oauth_client_secret(token_store: &dyn TokenStore, profile_name: &str) -> Result<String> {
     let key = make_oauth_client_secret_key(profile_name);
     token_store.get(&key)
 }
 
-/// Delete OAuth client secret from the keyring
-pub fn delete_oauth_client_secret(token_store: &impl TokenStore, profile_name: &str) -> Result<()> {
+/// Delete OAuth client secret from the token store
+pub fn delete_oauth_client_secret(token_store: &dyn TokenStore, profile_name: &str) -> Result<()> {
     let key = make_oauth_client_secret_key(profile_name);
     token_store.delete(&key)
 }

@@ -2,8 +2,8 @@
 
 use crate::oauth::OAuthError;
 use crate::profile::{
-    default_config_path, delete_oauth_client_secret, get_oauth_client_secret, load_config,
-    save_config, store_oauth_client_secret, FileTokenStore, Profile, ProfilesConfig, TokenType,
+    create_token_store, default_config_path, delete_oauth_client_secret, get_oauth_client_secret,
+    load_config, save_config, store_oauth_client_secret, Profile, ProfilesConfig, TokenType,
 };
 
 /// Set OAuth configuration for a profile
@@ -87,17 +87,17 @@ pub fn oauth_set(
     save_config(&config_path, &config)
         .map_err(|e| OAuthError::ConfigError(format!("Failed to save config: {}", e)))?;
 
-    // Save client secret to file store
-    let token_store = FileTokenStore::new()
+    // Save client secret to token store (Keyring or file backend)
+    let token_store = create_token_store()
         .map_err(|e| OAuthError::ConfigError(format!("Failed to create token store: {}", e)))?;
-    store_oauth_client_secret(&token_store, &profile_name, &client_secret)
+    store_oauth_client_secret(&*token_store, &profile_name, &client_secret)
         .map_err(|e| OAuthError::ConfigError(format!("Failed to save client secret: {}", e)))?;
 
     println!("✓ OAuth configuration saved for profile '{}'", profile_name);
     println!("  Client ID: {}", client_id);
     println!("  Redirect URI: {}", redirect_uri);
     println!("  Scopes: {}", scopes_vec.join(", "));
-    println!("  Client secret: (saved securely in file store)");
+    println!("  Client secret: (saved securely in token store)");
 
     Ok(())
 }
@@ -137,14 +137,14 @@ pub fn oauth_show(profile_name: String) -> Result<(), OAuthError> {
         println!("  Scopes: (not set)");
     }
 
-    // Check if client secret exists in file store
-    let token_store = FileTokenStore::new()
+    // Check if client secret exists in token store
+    let token_store = create_token_store()
         .map_err(|e| OAuthError::ConfigError(format!("Failed to create token store: {}", e)))?;
-    let has_secret = get_oauth_client_secret(&token_store, &profile_name).is_ok();
+    let has_secret = get_oauth_client_secret(&*token_store, &profile_name).is_ok();
     println!(
         "  Client secret: {}",
         if has_secret {
-            "(saved in file store)"
+            "(saved in token store)"
         } else {
             "(not set)"
         }
@@ -187,9 +187,9 @@ pub fn oauth_delete(profile_name: String) -> Result<(), OAuthError> {
     save_config(&config_path, &config)
         .map_err(|e| OAuthError::ConfigError(format!("Failed to save config: {}", e)))?;
 
-    // Delete client secret from file store
-    if let Ok(token_store) = FileTokenStore::new() {
-        let _ = delete_oauth_client_secret(&token_store, &profile_name); // Ignore error if not found
+    // Delete client secret from token store
+    if let Ok(token_store) = create_token_store() {
+        let _ = delete_oauth_client_secret(&*token_store, &profile_name); // Ignore error if not found
     }
 
     println!(

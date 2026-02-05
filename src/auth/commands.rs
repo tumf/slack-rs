@@ -7,8 +7,8 @@ use crate::oauth::{
     run_callback_server, OAuthConfig, OAuthError,
 };
 use crate::profile::{
-    default_config_path, load_config, make_token_key, save_config, FileTokenStore, Profile,
-    ProfilesConfig, TokenStore,
+    create_token_store, default_config_path, load_config, make_token_key, save_config, Profile,
+    ProfilesConfig,
 };
 use std::io::{self, Write};
 use std::path::PathBuf;
@@ -120,17 +120,17 @@ pub async fn login_with_credentials(
             )
         };
 
-    // Client secret resolution: File store > prompt
-    let token_store = FileTokenStore::new()
+    // Client secret resolution: Token store > prompt
+    let token_store = create_token_store()
         .map_err(|e| OAuthError::ConfigError(format!("Failed to create token store: {}", e)))?;
     let final_client_secret =
-        match crate::profile::get_oauth_client_secret(&token_store, &profile_name) {
+        match crate::profile::get_oauth_client_secret(&*token_store, &profile_name) {
             Ok(secret) => {
-                println!("Using saved client secret from file store.");
+                println!("Using saved client secret from token store.");
                 secret
             }
             Err(_) => {
-                // Not found in file store, prompt for it
+                // Not found in token store, prompt for it
                 prompt_for_client_secret()?
             }
         };
@@ -418,8 +418,8 @@ fn save_profile_and_credentials(creds: SaveCredentials) -> Result<(), OAuthError
     save_config(creds.config_path, &profiles_config)
         .map_err(|e| OAuthError::ConfigError(format!("Failed to save config: {}", e)))?;
 
-    // Save tokens to file store
-    let token_store = FileTokenStore::new()
+    // Save tokens to token store
+    let token_store = create_token_store()
         .map_err(|e| OAuthError::ConfigError(format!("Failed to create token store: {}", e)))?;
 
     // Save bot token to team_id:user_id key (make_token_key format)
@@ -442,7 +442,7 @@ fn save_profile_and_credentials(creds: SaveCredentials) -> Result<(), OAuthError
         debug::log("No user token to save (user_token is None)");
     }
 
-    // Save client_secret to file store
+    // Save client_secret to token store
     let client_secret_key = format!("oauth-client-secret:{}", creds.profile_name);
     token_store
         .set(&client_secret_key, creds.client_secret)
@@ -551,7 +551,7 @@ pub async fn login(
         .map_err(|e| OAuthError::ConfigError(format!("Failed to save config: {}", e)))?;
 
     // Save token
-    let token_store = FileTokenStore::new()
+    let token_store = create_token_store()
         .map_err(|e| OAuthError::ConfigError(format!("Failed to create token store: {}", e)))?;
     let token_key = make_token_key(&team_id, &user_id);
     token_store
@@ -592,7 +592,7 @@ pub fn status(profile_name: Option<String>) -> Result<(), String> {
     }
 
     // Check if tokens exist
-    let token_store = FileTokenStore::new().map_err(|e| e.to_string())?;
+    let token_store = create_token_store().map_err(|e| e.to_string())?;
     let bot_token_key = make_token_key(&profile.team_id, &profile.user_id);
     let user_token_key = format!("{}:{}:user", &profile.team_id, &profile.user_id);
 
@@ -728,7 +728,7 @@ pub fn logout(profile_name: Option<String>) -> Result<(), String> {
         .clone();
 
     // Delete token
-    let token_store = FileTokenStore::new().map_err(|e| e.to_string())?;
+    let token_store = create_token_store().map_err(|e| e.to_string())?;
     let token_key = make_token_key(&profile.team_id, &profile.user_id);
     let _ = token_store.delete(&token_key); // Ignore error if token doesn't exist
 
@@ -1042,6 +1042,7 @@ pub async fn login_with_credentials_extended(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::profile::TokenStore;
 
     #[test]
     fn test_status_profile_not_found() {
@@ -1109,6 +1110,7 @@ mod tests {
     }
 
     #[test]
+    #[serial_test::serial]
     fn test_save_profile_and_credentials_with_client_id() {
         use tempfile::TempDir;
 
@@ -1119,9 +1121,10 @@ mod tests {
         let user_id = "U456";
         let profile_name = "test";
 
-        // Use a temporary token store file
+        // Use a temporary token store file with file backend
         let tokens_path = temp_dir.path().join("tokens.json");
         std::env::set_var("SLACK_RS_TOKENS_PATH", tokens_path.to_str().unwrap());
+        std::env::set_var("SLACKRS_TOKEN_STORE", "file");
 
         // Save profile with client_id and client_secret to file store
         let scopes = vec!["chat:write".to_string(), "users:read".to_string()];
@@ -1151,8 +1154,9 @@ mod tests {
         assert_eq!(profile.team_id, team_id);
         assert_eq!(profile.user_id, user_id);
 
-        // Verify tokens were saved to file store
-        let token_store = FileTokenStore::with_path(tokens_path).unwrap();
+        // Verify tokens were saved to token store (file mode for this test)
+        use crate::profile::FileTokenStore;
+        let token_store = FileTokenStore::with_path(tokens_path.clone()).unwrap();
         let bot_token_key = make_token_key(team_id, user_id);
         let user_token_key = format!("{}:{}:user", team_id, user_id);
         let client_secret_key = format!("oauth-client-secret:{}", profile_name);
@@ -1160,6 +1164,10 @@ mod tests {
         assert!(token_store.exists(&bot_token_key));
         assert!(token_store.exists(&user_token_key));
         assert!(token_store.exists(&client_secret_key));
+
+        // Clean up environment variables
+        std::env::remove_var("SLACKRS_TOKEN_STORE");
+        std::env::remove_var("SLACK_RS_TOKENS_PATH");
     }
 
     #[test]

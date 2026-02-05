@@ -12,9 +12,9 @@ mod profile;
 use api::{execute_api_call, ApiCallArgs, ApiCallContext, ApiCallResponse, ApiClient};
 use cli::*;
 use profile::{
-    default_config_path, load_config, make_token_key, resolve_profile, resolve_profile_full,
-    save_config, FileTokenStore, InMemoryTokenStore, KeyringTokenStore, Profile, ProfilesConfig,
-    TokenStore,
+    create_token_store, default_config_path, load_config, make_token_key, resolve_profile,
+    resolve_profile_full, save_config, FileTokenStore, InMemoryTokenStore, KeyringTokenStore,
+    Profile, ProfilesConfig, TokenStore,
 };
 
 #[tokio::main]
@@ -878,8 +878,8 @@ async fn handle_export_command(args: &[String]) {
         yes,
     };
 
-    let token_store = FileTokenStore::new().expect("Failed to create token store");
-    match auth::export_profiles(&token_store, &options) {
+    let token_store = create_token_store().expect("Failed to create token store");
+    match auth::export_profiles(&*token_store, &options) {
         Ok(_) => {
             println!("{}", messages.get("success.export"));
         }
@@ -992,8 +992,8 @@ async fn handle_import_command(args: &[String]) {
         force,
     };
 
-    let token_store = FileTokenStore::new().expect("Failed to create token store");
-    match auth::import_profiles(&token_store, &options) {
+    let token_store = create_token_store().expect("Failed to create token store");
+    match auth::import_profiles(&*token_store, &options) {
         Ok(_) => {
             println!("{}", messages.get("success.import"));
         }
@@ -1075,15 +1075,15 @@ async fn run_api_call(args: Vec<String>) -> Result<(), Box<dyn std::error::Error
     };
 
     // Retrieve token from token store
-    // Try file store first, fall back to environment variable only for the requested token type
-    let file_store =
-        FileTokenStore::new().map_err(|e| format!("Failed to create token store: {}", e))?;
+    // Try token store first, fall back to environment variable only for the requested token type
+    let token_store =
+        create_token_store().map_err(|e| format!("Failed to create token store: {}", e))?;
 
     // Determine if the token type was explicitly requested via CLI flag OR default_token_type
     // If either is set, we should NOT fallback to a different token type
     let explicit_request = api_args.token_type.is_some() || profile.default_token_type.is_some();
 
-    let token = match file_store.get(&token_key) {
+    let token = match token_store.get(&token_key) {
         Ok(t) => t,
         Err(_) => {
             // If token not found in store, check environment variable
@@ -1098,7 +1098,7 @@ async fn run_api_call(args: Vec<String>) -> Result<(), Box<dyn std::error::Error
             } else {
                 // If no token type preference was specified at all, try bot token as fallback
                 if resolved_token_type == profile::TokenType::User {
-                    if let Ok(bot_token) = file_store.get(&token_key_bot) {
+                    if let Ok(bot_token) = token_store.get(&token_key_bot) {
                         eprintln!(
                             "Warning: User token not found, falling back to bot token for profile '{}'",
                             profile_name

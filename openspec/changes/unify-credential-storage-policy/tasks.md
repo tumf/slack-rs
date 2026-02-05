@@ -5,3 +5,7 @@
 - [x] `config oauth show` が backend に関わらず `client_secret` を出力しない（確認: `client_secret` を保存した状態で `show` を実行し、出力に `client_secret` の値が含まれない）
 - [x] 仕様に対応するユニットテストを mock-first で追加する（確認: InMemoryTokenStore を用いた保存/取得、Keyring 失敗 stub、`SLACKRS_TOKEN_STORE` の分岐がテストされる）
 - [x] 既存の関連テストを実行し回帰がないことを確認する（確認: `cargo test` が成功する）
+
+## Acceptance #1 Failure Follow-up
+- [x] `config`/`auth`/`cli`/`main` の各フローで `FileTokenStore::new()` 直呼びをやめ、`create_token_store` を使って backend を解決する（未指定時は Keyring、`SLACKRS_TOKEN_STORE=file` のみ file）。
+- [x] Keyring 利用不能時に `TokenStoreError::KeyringUnavailable` を伝播して失敗し、ガイダンスを表示する（無言の file フォールバック禁止）。
