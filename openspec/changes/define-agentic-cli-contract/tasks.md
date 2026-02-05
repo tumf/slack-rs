@@ -8,4 +8,4 @@
 - [x] 作業ツリーがクリーンではないため、再検証前に未コミット変更を整理する（`openspec/changes/define-agentic-cli-contract/tasks.md` が変更中）
 - [x] `msg delete` の非対話失敗時に終了コード 2 と再実行例が出るようにする（`src/commands/guards.rs` の `confirm_destructive` と `src/main.rs` の終了コード処理）
 - [x] `auth login --non-interactive` の不足項目をまとめて列挙し、各項目の指定方法（`--client-id`/`--bot-scopes`/`--user-scopes` など）を同時に提示する（`src/auth/commands.rs` の `login_with_credentials`）
-- [ ] `--non-interactive` でも `--cloudflared`/`--ngrok` ルートで stdin を読まないようにする（`src/main.rs` の `run_auth_login` と `src/auth/commands.rs` の `login_with_credentials_extended`）
+- [x] `--non-interactive` でも `--cloudflared`/`--ngrok` ルートで stdin を読まないようにする（`src/main.rs` の `run_auth_login` と `src/auth/commands.rs` の `login_with_credentials_extended`）
