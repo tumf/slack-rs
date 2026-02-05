@@ -1,6 +1,6 @@
 ## MODIFIED Requirements
 
-### Requirement: OAuth credentials retrieval uses token store backend and prompts only for missing values
+### Requirement: OAuth credentials retrieval at login prioritizes interactive input
 
 login 開始時のクライアント情報は、プロファイルに保存された設定（非機密）および token store backend（機密）を優先して利用し、不足している項目のみ対話入力で補完しなければならない (MUST)。
 
@@ -15,7 +15,7 @@ login 開始時のクライアント情報は、プロファイルに保存さ�
 - Then `client_secret` の入力が求められる
 - And `client_id` の入力は求められない
 
-### Requirement: Store client_id in profile and client_secret in token store backend
+### Requirement: Store `client_id` in profile and `client_secret` in Keyring
 
 各プロファイルは `client_id` を `profiles.json` に保存しなければならない (MUST)。
 
