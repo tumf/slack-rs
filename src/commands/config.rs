@@ -520,9 +520,14 @@ mod tests {
 
     /// Test that file takes precedence over direct secret
     #[test]
+    #[serial_test::serial]
     fn test_resolve_client_secret_file_precedence() {
+        use std::env;
         use std::fs;
         use tempfile::NamedTempFile;
+
+        // Clear SLACKRS_CLIENT_SECRET to ensure it doesn't interfere with this test
+        env::remove_var("SLACKRS_CLIENT_SECRET");
 
         let temp_file = NamedTempFile::new().unwrap();
         fs::write(temp_file.path(), "file-secret").unwrap();
@@ -578,6 +583,7 @@ mod tests {
 
     /// Test that oauth_set saves client secret to file backend
     #[test]
+    #[serial_test::serial]
     fn test_oauth_set_saves_to_file_backend() {
         use crate::profile::{get_oauth_client_secret, FileTokenStore};
         use std::env;
