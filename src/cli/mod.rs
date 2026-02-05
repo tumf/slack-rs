@@ -33,6 +33,7 @@ use serde_json::Value;
 /// 2. Token store with primary token_key
 /// 3. Token store with fallback_token_key (only if not explicit_request)
 /// 4. Error if no token found
+#[allow(dead_code)]
 pub fn resolve_token_for_wrapper(
     slack_token_env: Option<String>,
     token_store: &dyn TokenStore,
@@ -54,9 +55,7 @@ pub fn resolve_token_for_wrapper(
     if !explicit_request {
         if let Some(fallback_key) = fallback_token_key {
             if let Ok(token) = token_store.get(fallback_key) {
-                eprintln!(
-                    "Warning: Primary token not found, falling back to alternative token"
-                );
+                eprintln!("Warning: Primary token not found, falling back to alternative token");
                 return Ok(token);
             }
         }
@@ -1181,7 +1180,7 @@ mod tests {
     fn test_resolve_token_prefers_env() {
         // SLACK_TOKEN should be preferred over token store
         let store = MockTokenStore::new().with_token("T123:U123", "xoxb-store-token");
-        
+
         let result = resolve_token_for_wrapper(
             Some("xoxb-env-token".to_string()),
             &store,
@@ -1189,7 +1188,7 @@ mod tests {
             None,
             false,
         );
-        
+
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), "xoxb-env-token");
     }
@@ -1198,15 +1197,9 @@ mod tests {
     fn test_resolve_token_uses_store() {
         // When SLACK_TOKEN is not set, use token store
         let store = MockTokenStore::new().with_token("T123:U123", "xoxb-store-token");
-        
-        let result = resolve_token_for_wrapper(
-            None,
-            &store,
-            "T123:U123",
-            None,
-            false,
-        );
-        
+
+        let result = resolve_token_for_wrapper(None, &store, "T123:U123", None, false);
+
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), "xoxb-store-token");
     }
@@ -1215,15 +1208,15 @@ mod tests {
     fn test_resolve_token_explicit_request() {
         // When token type is explicitly requested, don't fallback
         let store = MockTokenStore::new().with_token("T123:U123", "xoxb-bot-token");
-        
+
         let result = resolve_token_for_wrapper(
             None,
             &store,
-            "T123:U123:user", // User token key
+            "T123:U123:user",  // User token key
             Some("T123:U123"), // Bot token fallback
-            true, // Explicit request
+            true,              // Explicit request
         );
-        
+
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("explicitly requested"));
     }
@@ -1232,15 +1225,15 @@ mod tests {
     fn test_resolve_token_fallback_when_not_explicit() {
         // When token type is not explicitly requested, allow fallback
         let store = MockTokenStore::new().with_token("T123:U123", "xoxb-bot-token");
-        
+
         let result = resolve_token_for_wrapper(
             None,
             &store,
-            "T123:U123:user", // User token key (not found)
+            "T123:U123:user",  // User token key (not found)
             Some("T123:U123"), // Bot token fallback
-            false, // Not explicit request
+            false,             // Not explicit request
         );
-        
+
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), "xoxb-bot-token");
     }
@@ -1251,7 +1244,7 @@ mod tests {
         let store = MockTokenStore::new()
             .with_token("T123:U123", "xoxb-bot-token")
             .with_token("T123:U123:user", "xoxp-user-token");
-        
+
         let result = resolve_token_for_wrapper(
             Some("xoxb-env-token".to_string()),
             &store,
@@ -1259,7 +1252,7 @@ mod tests {
             None,
             true, // Explicit request
         );
-        
+
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), "xoxb-env-token");
     }
