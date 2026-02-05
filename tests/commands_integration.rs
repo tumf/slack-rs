@@ -248,7 +248,8 @@ async fn test_msg_update_requires_allow_write() {
         "C123456".to_string(),
         "1234567890.123456".to_string(),
         "updated text".to_string(),
-        true, // yes = true (skip confirmation)
+        true,  // yes = true (skip confirmation)
+        false, // non_interactive = false
     )
     .await;
 
@@ -283,7 +284,8 @@ async fn test_msg_update_calls_correct_api() {
         "C123456".to_string(),
         "1234567890.123456".to_string(),
         "updated text".to_string(),
-        true, // yes = true (skip confirmation)
+        true,  // yes = true (skip confirmation)
+        false, // non_interactive = false
     )
     .await;
 
@@ -301,7 +303,8 @@ async fn test_msg_delete_requires_allow_write() {
         &client,
         "C123456".to_string(),
         "1234567890.123456".to_string(),
-        true, // yes = true
+        true,  // yes = true
+        false, // non_interactive = false
     )
     .await;
 
@@ -335,7 +338,8 @@ async fn test_msg_delete_calls_correct_api() {
         &client,
         "C123456".to_string(),
         "1234567890.123456".to_string(),
-        true, // yes = true
+        true,  // yes = true
+        false, // non_interactive = false
     )
     .await;
 
@@ -406,7 +410,8 @@ async fn test_react_remove_requires_allow_write() {
         "C123456".to_string(),
         "1234567890.123456".to_string(),
         "thumbsup".to_string(),
-        true, // yes = true
+        true,  // yes = true
+        false, // non_interactive = false
     )
     .await;
 
@@ -441,7 +446,8 @@ async fn test_react_remove_calls_correct_api() {
         "C123456".to_string(),
         "1234567890.123456".to_string(),
         "thumbsup".to_string(),
-        true, // yes = true
+        true,  // yes = true
+        false, // non_interactive = false
     )
     .await;
 

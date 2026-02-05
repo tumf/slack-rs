@@ -1,7 +1,7 @@
 //! Reaction command implementations
 
 use crate::api::{ApiClient, ApiError, ApiMethod, ApiResponse};
-use crate::commands::guards::{check_write_allowed, confirm_destructive};
+use crate::commands::guards::{check_write_allowed, confirm_destructive_with_hint};
 use serde_json::json;
 use std::collections::HashMap;
 
@@ -40,6 +40,7 @@ pub async fn react_add(
 /// * `timestamp` - Message timestamp
 /// * `name` - Emoji name (without colons, e.g., "thumbsup")
 /// * `yes` - Skip confirmation prompt
+/// * `non_interactive` - Whether running in non-interactive mode
 ///
 /// # Returns
 /// * `Ok(ApiResponse)` with removal confirmation
@@ -50,9 +51,16 @@ pub async fn react_remove(
     timestamp: String,
     name: String,
     yes: bool,
+    non_interactive: bool,
 ) -> Result<ApiResponse, ApiError> {
     check_write_allowed()?;
-    confirm_destructive(yes, "remove this reaction")?;
+
+    // Build hint with example command for non-interactive mode
+    let hint = format!(
+        "Example: slack-rs react remove {} {} {} --yes",
+        channel, timestamp, name
+    );
+    confirm_destructive_with_hint(yes, "remove this reaction", non_interactive, Some(&hint))?;
 
     let mut params = HashMap::new();
     params.insert("channel".to_string(), json!(channel));
@@ -95,6 +103,7 @@ mod tests {
             "1234567890.123456".to_string(),
             "thumbsup".to_string(),
             true,
+            false,
         )
         .await;
         assert!(result.is_err());

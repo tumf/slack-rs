@@ -21,6 +21,10 @@ use profile::{
 async fn main() {
     let args: Vec<String> = std::env::args().collect();
 
+    // Parse global --non-interactive flag
+    let non_interactive = cli::has_flag(&args, "--non-interactive");
+    let ctx = cli::CliContext::new(non_interactive);
+
     if args.len() < 2 {
         print_usage();
         return;
@@ -50,7 +54,7 @@ async fn main() {
             }
             match args[2].as_str() {
                 "login" => {
-                    if let Err(e) = run_auth_login(&args[3..]).await {
+                    if let Err(e) = run_auth_login(&args[3..], ctx.is_non_interactive()).await {
                         eprintln!("Login failed: {}", e);
                         std::process::exit(1);
                     }
@@ -239,14 +243,20 @@ async fn main() {
                     }
                 }
                 "update" => {
-                    if let Err(e) = run_msg_update(&args).await {
+                    if let Err(e) = run_msg_update(&args, ctx.is_non_interactive()).await {
                         eprintln!("Msg update failed: {}", e);
+                        if cli::is_non_interactive_error(&e) {
+                            std::process::exit(2);
+                        }
                         std::process::exit(1);
                     }
                 }
                 "delete" => {
-                    if let Err(e) = run_msg_delete(&args).await {
+                    if let Err(e) = run_msg_delete(&args, ctx.is_non_interactive()).await {
                         eprintln!("Msg delete failed: {}", e);
+                        if cli::is_non_interactive_error(&e) {
+                            std::process::exit(2);
+                        }
                         std::process::exit(1);
                     }
                 }
@@ -266,8 +276,11 @@ async fn main() {
                     }
                 }
                 "remove" => {
-                    if let Err(e) = run_react_remove(&args).await {
+                    if let Err(e) = run_react_remove(&args, ctx.is_non_interactive()).await {
                         eprintln!("React remove failed: {}", e);
+                        if cli::is_non_interactive_error(&e) {
+                            std::process::exit(2);
+                        }
                         std::process::exit(1);
                     }
                 }
@@ -315,7 +328,10 @@ fn print_help() {
     println!("Slack CLI");
     println!();
     println!("USAGE:");
-    println!("    slack-rs [COMMAND] [OPTIONS]");
+    println!("    slack-rs [--non-interactive] [COMMAND] [OPTIONS]");
+    println!();
+    println!("GLOBAL OPTIONS:");
+    println!("    --non-interactive              Run without interactive prompts (auto-enabled when stdin is not a TTY)");
     println!();
     println!("COMMANDS:");
     println!("    api call <method> [params...]    Call a Slack API method");
@@ -367,6 +383,7 @@ fn print_help() {
 
 fn print_usage() {
     println!("Slack CLI - Usage:");
+    println!("  [--non-interactive]                Run without interactive prompts (auto when stdin not a TTY)");
     println!("  api call <method> [params...]  - Call a Slack API method");
     println!("  auth login [profile_name]      - Authenticate with Slack");
     println!("  auth status [profile_name]     - Show profile status");
@@ -520,7 +537,7 @@ fn print_config_oauth_usage(prog: &str) {
 }
 
 /// Run the auth login command with argument parsing
-async fn run_auth_login(args: &[String]) -> Result<(), String> {
+async fn run_auth_login(args: &[String], non_interactive: bool) -> Result<(), String> {
     let mut profile_name: Option<String> = None;
     let mut client_id: Option<String> = None;
     let mut cloudflared_path: Option<String> = None;
@@ -607,9 +624,35 @@ async fn run_auth_login(args: &[String]) -> Result<(), String> {
 
     // If cloudflared or ngrok is specified, use extended login flow
     if cloudflared_path.is_some() || ngrok_path.is_some() {
-        // Prompt for client_id if not provided
+        // Collect missing parameters in non-interactive mode
+        if non_interactive {
+            let mut missing = Vec::new();
+            if client_id.is_none() {
+                missing.push("--client-id");
+            }
+            if bot_scopes.is_none() {
+                missing.push("--bot-scopes");
+            }
+            if user_scopes.is_none() {
+                missing.push("--user-scopes");
+            }
+            if !missing.is_empty() {
+                return Err(format!(
+                    "Missing required parameters in non-interactive mode: {}\n\
+                    Provide them via CLI flags:\n\
+                    Example: slack-rs auth login --cloudflared --client-id <id> --bot-scopes <scopes> --user-scopes <scopes>",
+                    missing.join(", ")
+                ));
+            }
+        }
+
+        // Prompt for client_id if not provided (only in interactive mode)
         let client_id = if let Some(id) = client_id {
             id
+        } else if non_interactive {
+            return Err(
+                "Client ID is required in non-interactive mode. Use --client-id flag.".to_string(),
+            );
         } else {
             use std::io::{self, Write};
             print!("Enter Slack Client ID: ");
@@ -629,9 +672,13 @@ async fn run_auth_login(args: &[String]) -> Result<(), String> {
             debug::log(format!("user_scopes_count={}", user_scopes.len()));
         }
 
-        // Prompt for client_secret
-        let client_secret = auth::prompt_for_client_secret()
-            .map_err(|e| format!("Failed to read client secret: {}", e))?;
+        // Prompt for client_secret (only in interactive mode)
+        let client_secret = if non_interactive {
+            return Err("Client secret cannot be provided in non-interactive mode with --cloudflared/--ngrok. Use the standard login flow (without --cloudflared/--ngrok) to save credentials first.".to_string());
+        } else {
+            auth::prompt_for_client_secret()
+                .map_err(|e| format!("Failed to read client secret: {}", e))?
+        };
 
         // Call extended login with cloudflared support
         auth::login_with_credentials_extended(
@@ -655,6 +702,7 @@ async fn run_auth_login(args: &[String]) -> Result<(), String> {
             bot_scopes,
             user_scopes,
             base_url,
+            non_interactive,
         )
         .await
         .map_err(|e| e.to_string())
