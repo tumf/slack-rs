@@ -1,6 +1,6 @@
 ## MODIFIED Requirements
 
-### Requirement: client_secret is stored in token store backend and never displayed
+### Requirement: client_secret is stored in Keyring and not displayed
 
 `client_secret` は設定ファイルに保存してはならず (MUST NOT)、token store backend に保存されなければならない (MUST)。
 
@@ -19,6 +19,8 @@ token store backend のデフォルトは Keyring でなければならない (M
 - And `client_secret` が file backend に保存されている
 - When `config oauth show` を実行する
 - Then 出力に `client_secret` の値が含まれない
+
+## ADDED Requirements
 
 ### Requirement: Keyring unavailable must fail without silent fallback
 

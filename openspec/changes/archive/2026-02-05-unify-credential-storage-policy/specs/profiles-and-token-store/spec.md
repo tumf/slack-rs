@@ -1,6 +1,6 @@
 ## MODIFIED Requirements
 
-### Requirement: Tokens and client_secret are saved in a backend-selected token store
+### Requirement: Tokens are saved in file-based storage and not in configuration file
 
 トークン（bot/user）および OAuth `client_secret` は `profiles.json` ではなく、token store backend に保存されなければならない (MUST)。
 
@@ -32,6 +32,8 @@ Keyring が利用不能な場合、`SLACKRS_TOKEN_STORE` による明示指定�
 - Given `SLACKRS_TOKEN_STORE=file` が設定されている
 - When トークンストレージを初期化する
 - Then `FileTokenStore` backend が選択される
+
+## ADDED Requirements
 
 ### Requirement: FileTokenStore mode reuses tokens.json path and stable keys
 

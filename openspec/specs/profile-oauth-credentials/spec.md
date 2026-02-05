@@ -5,37 +5,35 @@ TBD - created by archiving change add-per-profile-oauth-credentials. Update Purp
 ## Requirements
 ### Requirement: OAuth credentials retrieval at login prioritizes interactive input
 
-login 開始時のクライアント情報は、プロファイルに保存された設定および Keyring を優先して利用し、不足している項目のみ対話入力で補完しなければならない (MUST)。
+login 開始時のクライアント情報は、プロファイルに保存された設定（非機密）および token store backend（機密）を優先して利用し、不足している項目のみ対話入力で補完しなければならない (MUST)。
 
-redirect_uri はクライアント情報とは別に解決しなければならない (MUST)。`--cloudflared` が指定されない場合、`auth login` は redirect_uri をユーザーにプロンプトして取得しなければならない (MUST)。`--cloudflared [path]` が指定される場合は tunnel 公開 URL から `{public_url}/callback` を解決しなければならない (MUST)。このとき `path` が省略された場合は `cloudflared`（PATH から探索）を実行ファイルとして使用しなければならない (MUST)。
+ここで token store backend のデフォルトは Keyring でなければならない (MUST)。
 
-スコープについては、明示的な CLI 引数が指定されていない場合、対話入力してよい (MAY)。その場合、デフォルト入力値は `all` でなければならない (MUST)。
+対話入力は OAuth の不足値（例: `client_secret` が未保存）を補うためのものに限定される。Keyring backend のアンロックのために独自のパスワード/パスフレーズ入力プロンプトを導入してはならない (MUST NOT)。Keyring がロックされていてユーザー操作（interaction required 等）が必要な場合は Keyring を利用不能として扱い、OS の Keyring をアンロックするか `SLACKRS_TOKEN_STORE=file` を設定するよう案内して失敗しなければならない。
 
-#### Scenario: クライアント情報は不足分のみプロンプトされる
-- Given `client_id` が未設定である
-- And `client_secret` が Keyring に存在しない
+#### Scenario: client_secret が token store backend にない場合のみプロンプトされる
+- Given `client_id` はプロファイルに保存されている
+- And `client_secret` が token store backend に存在しない
 - When `auth login` を実行する
-- Then `client_id` と `client_secret` の入力が求められる
-
-#### Scenario: スコープが CLI 引数で指定されていない場合に `all` をデフォルトとしてプロンプトできる
-- Given `--bot-scopes` と `--user-scopes` が指定されていない
-- When `auth login` を実行する
-- Then スコープ入力プロンプトが表示される
-- And デフォルト入力値が `all` である
-
-#### Scenario: `--cloudflared` 未指定時に redirect_uri がプロンプトされる
-- Given `auth login` を実行する
-- And `--cloudflared` が指定されていない
-- When OAuth フローを開始する
-- Then redirect_uri の入力が求められる
+- Then `client_secret` の入力が求められる
+- And `client_id` の入力は求められない
 
 ### Requirement: Store `client_id` in profile and `client_secret` in Keyring
 
-Each profile MUST maintain its own OAuth client ID, and secrets MUST NOT remain in configuration files.
+各プロファイルは `client_id` を `profiles.json` に保存しなければならない (MUST)。
 
-#### Scenario: Saved to configuration file and Keyring after successful login
-- `client_id` is saved to `profiles.json`
-- `client_secret` is saved to Keyring and NOT written to configuration files
+`client_secret` は token store backend に保存されなければならず (MUST)、設定ファイルに残してはならない (MUST NOT)。
+
+#### Scenario: ログイン成功後に client_id は profiles.json に、client_secret は token store backend に保存される
+- When `auth login` が成功する
+- Then `client_id` が `profiles.json` に保存される
+- And `client_secret` が token store backend に保存される
+- And `profiles.json` に `client_secret` が含まれない
+
+#### Scenario: file mode では client_secret は既存の file backend キー形式で保存される
+- Given `SLACKRS_TOKEN_STORE=file` が設定されている
+- When `auth login` が成功する
+- Then `client_secret` は file backend のキー `oauth-client-secret:{profile_name}` で保存される
 
 ### Requirement: Existing profiles can be loaded even without `client_id` set
 
