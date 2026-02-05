@@ -1,0 +1,4 @@
+- [ ] `auth status` に token store backend と保存先を表示する（確認: `auth status` の出力に `Token Store:` 行が含まれる）
+- [ ] keyring backend 使用時に file backend の tokens.json を非侵襲チェックし、該当キーが存在する場合に `SLACKRS_TOKEN_STORE=file` の案内を出す（確認: 一時 tokens.json を使ったテストで案内文が出力される）
+- [ ] `SLACK_TOKEN` の設定有無を表示する（値は表示しない）（確認: `SLACK_TOKEN` を set/unset したテストで表示が切り替わる）
+- [ ] 追加表示のテストを追加する（確認: `cargo test` が成功する）
