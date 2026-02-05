@@ -55,7 +55,7 @@ async fn test_api_call_with_form_data() {
     };
 
     // Execute API call
-    let response = execute_api_call(&client, &args, "test-token", &context, "bot")
+    let response = execute_api_call(&client, &args, "test-token", &context, "bot", "api call")
         .await
         .unwrap();
 
@@ -68,6 +68,7 @@ async fn test_api_call_with_form_data() {
     assert_eq!(response.meta.team_id, "T123ABC");
     assert_eq!(response.meta.user_id, "U456DEF");
     assert_eq!(response.meta.method, "chat.postMessage");
+    assert_eq!(response.meta.command, "api call");
     assert_eq!(response.meta.token_type, "bot");
 
     // Verify mock was called
@@ -120,7 +121,7 @@ async fn test_api_call_with_json_data() {
     };
 
     // Execute API call
-    let response = execute_api_call(&client, &args, "test-token", &context, "bot")
+    let response = execute_api_call(&client, &args, "test-token", &context, "bot", "api call")
         .await
         .unwrap();
 
@@ -130,6 +131,7 @@ async fn test_api_call_with_json_data() {
     // Verify metadata
     assert_eq!(response.meta.profile_name, None);
     assert_eq!(response.meta.team_id, "T123ABC");
+    assert_eq!(response.meta.command, "api call");
     assert_eq!(response.meta.token_type, "bot");
 
     // Verify mock was called
@@ -182,7 +184,7 @@ async fn test_api_call_with_get_method() {
     };
 
     // Execute API call
-    let response = execute_api_call(&client, &args, "test-token", &context, "user")
+    let response = execute_api_call(&client, &args, "test-token", &context, "user", "api call")
         .await
         .unwrap();
 
@@ -237,7 +239,7 @@ async fn test_api_call_retry_on_429() {
     };
 
     // Execute API call - should retry and eventually fail with RateLimitExceeded
-    let result = execute_api_call(&client, &args, "test-token", &context, "bot").await;
+    let result = execute_api_call(&client, &args, "test-token", &context, "bot", "api call").await;
 
     // Verify that we get a rate limit error after retries
     assert!(result.is_err());
@@ -287,7 +289,7 @@ async fn test_output_json_with_meta() {
     };
 
     // Execute API call
-    let response = execute_api_call(&client, &args, "test-token", &context, "bot")
+    let response = execute_api_call(&client, &args, "test-token", &context, "bot", "api call")
         .await
         .unwrap();
 

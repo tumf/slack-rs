@@ -1,11 +1,13 @@
 //! CLI command routing and handlers
 
-use crate::api::ApiClient;
+use crate::api::{ApiClient, CommandResponse};
 use crate::commands;
 use crate::commands::ConversationSelector;
 use crate::profile::{
-    default_config_path, load_config, make_token_key, FileTokenStore, TokenStore, TokenType,
+    default_config_path, load_config, make_token_key, resolve_profile_full, FileTokenStore,
+    TokenStore, TokenType,
 };
+use serde_json::Value;
 
 /// Get API client for a profile with optional token type selection
 ///
@@ -78,6 +80,28 @@ pub fn has_flag(args: &[String], flag: &str) -> bool {
     args.iter().any(|arg| arg == flag)
 }
 
+/// Wrap response with unified envelope including metadata
+pub async fn wrap_with_envelope(
+    response: Value,
+    method: &str,
+    command: &str,
+    profile_name: Option<String>,
+) -> Result<CommandResponse, String> {
+    let profile_name_str = profile_name.unwrap_or_else(|| "default".to_string());
+    let config_path = default_config_path().map_err(|e| e.to_string())?;
+    let profile = resolve_profile_full(&config_path, &profile_name_str)
+        .map_err(|e| format!("Failed to resolve profile '{}': {}", profile_name_str, e))?;
+
+    Ok(CommandResponse::new(
+        response,
+        Some(profile_name_str),
+        profile.team_id,
+        profile.user_id,
+        method.to_string(),
+        command.to_string(),
+    ))
+}
+
 /// Get option value from args (e.g., --key=value)
 pub fn get_option(args: &[String], prefix: &str) -> Option<String> {
     args.iter()
@@ -120,13 +144,24 @@ pub async fn run_search(args: &[String]) -> Result<(), String> {
     let sort_dir = get_option(args, "--sort_dir=");
     let profile = get_option(args, "--profile=");
     let token_type = parse_token_type(args)?;
+    let raw = has_flag(args, "--raw");
 
-    let client = get_api_client_with_token_type(profile, token_type).await?;
+    let client = get_api_client_with_token_type(profile.clone(), token_type).await?;
     let response = commands::search(&client, query, count, page, sort, sort_dir)
         .await
         .map_err(|e| e.to_string())?;
 
-    println!("{}", serde_json::to_string_pretty(&response).unwrap());
+    // Output with or without envelope
+    let output = if raw {
+        serde_json::to_string_pretty(&response).unwrap()
+    } else {
+        let response_value = serde_json::to_value(&response).map_err(|e| e.to_string())?;
+        let wrapped =
+            wrap_with_envelope(response_value, "search.messages", "search", profile).await?;
+        serde_json::to_string_pretty(&wrapped).unwrap()
+    };
+
+    println!("{}", output);
     Ok(())
 }
 
@@ -182,7 +217,7 @@ pub async fn run_conv_list(args: &[String]) -> Result<(), String> {
         .collect();
     let filters = filters.map_err(|e| e.to_string())?;
 
-    let client = get_api_client_with_token_type(profile, token_type).await?;
+    let client = get_api_client_with_token_type(profile.clone(), token_type).await?;
     let mut response = commands::conv_list(&client, types, limit)
         .await
         .map_err(|e| e.to_string())?;
@@ -195,8 +230,18 @@ pub async fn run_conv_list(args: &[String]) -> Result<(), String> {
         commands::sort_conversations(&mut response, key, sort_dir);
     }
 
-    // Format output
-    let output = commands::format_response(&response, format)?;
+    // Format output: non-JSON formats bypass raw/envelope logic
+    let output = if format != commands::OutputFormat::Json {
+        commands::format_response(&response, format)?
+    } else if raw {
+        serde_json::to_string_pretty(&response).unwrap()
+    } else {
+        let response_value = serde_json::to_value(&response).map_err(|e| e.to_string())?;
+        let wrapped =
+            wrap_with_envelope(response_value, "conversations.list", "conv list", profile).await?;
+        serde_json::to_string_pretty(&wrapped).unwrap()
+    };
+
     println!("{}", output);
     Ok(())
 }
@@ -273,13 +318,29 @@ pub async fn run_conv_history(args: &[String]) -> Result<(), String> {
     let latest = get_option(args, "--latest=");
     let profile = get_option(args, "--profile=");
     let token_type = parse_token_type(args)?;
+    let raw = has_flag(args, "--raw");
 
-    let client = get_api_client_with_token_type(profile, token_type).await?;
+    let client = get_api_client_with_token_type(profile.clone(), token_type).await?;
     let response = commands::conv_history(&client, channel, limit, oldest, latest)
         .await
         .map_err(|e| e.to_string())?;
 
-    println!("{}", serde_json::to_string_pretty(&response).unwrap());
+    // Output with or without envelope
+    let output = if raw {
+        serde_json::to_string_pretty(&response).unwrap()
+    } else {
+        let response_value = serde_json::to_value(&response).map_err(|e| e.to_string())?;
+        let wrapped = wrap_with_envelope(
+            response_value,
+            "conversations.history",
+            "conv history",
+            profile,
+        )
+        .await?;
+        serde_json::to_string_pretty(&wrapped).unwrap()
+    };
+
+    println!("{}", output);
     Ok(())
 }
 
@@ -287,13 +348,24 @@ pub async fn run_users_info(args: &[String]) -> Result<(), String> {
     let user = args[3].clone();
     let profile = get_option(args, "--profile=");
     let token_type = parse_token_type(args)?;
+    let raw = has_flag(args, "--raw");
 
-    let client = get_api_client_with_token_type(profile, token_type).await?;
+    let client = get_api_client_with_token_type(profile.clone(), token_type).await?;
     let response = commands::users_info(&client, user)
         .await
         .map_err(|e| e.to_string())?;
 
-    println!("{}", serde_json::to_string_pretty(&response).unwrap());
+    // Output with or without envelope
+    let output = if raw {
+        serde_json::to_string_pretty(&response).unwrap()
+    } else {
+        let response_value = serde_json::to_value(&response).map_err(|e| e.to_string())?;
+        let wrapped =
+            wrap_with_envelope(response_value, "users.info", "users info", profile).await?;
+        serde_json::to_string_pretty(&wrapped).unwrap()
+    };
+
+    println!("{}", output);
     Ok(())
 }
 
@@ -376,12 +448,23 @@ pub async fn run_msg_post(args: &[String]) -> Result<(), String> {
         return Err("Error: --reply-broadcast requires --thread-ts".to_string());
     }
 
-    let client = get_api_client_with_token_type(profile, token_type).await?;
+    let raw = has_flag(args, "--raw");
+    let client = get_api_client_with_token_type(profile.clone(), token_type).await?;
     let response = commands::msg_post(&client, channel, text, thread_ts, reply_broadcast)
         .await
         .map_err(|e| e.to_string())?;
 
-    println!("{}", serde_json::to_string_pretty(&response).unwrap());
+    // Output with or without envelope
+    let output = if raw {
+        serde_json::to_string_pretty(&response).unwrap()
+    } else {
+        let response_value = serde_json::to_value(&response).map_err(|e| e.to_string())?;
+        let wrapped =
+            wrap_with_envelope(response_value, "chat.postMessage", "msg post", profile).await?;
+        serde_json::to_string_pretty(&wrapped).unwrap()
+    };
+
+    println!("{}", output);
     Ok(())
 }
 
@@ -396,13 +479,24 @@ pub async fn run_msg_update(args: &[String]) -> Result<(), String> {
     let yes = has_flag(args, "--yes");
     let profile = get_option(args, "--profile=");
     let token_type = parse_token_type(args)?;
+    let raw = has_flag(args, "--raw");
 
-    let client = get_api_client_with_token_type(profile, token_type).await?;
+    let client = get_api_client_with_token_type(profile.clone(), token_type).await?;
     let response = commands::msg_update(&client, channel, ts, text, yes)
         .await
         .map_err(|e| e.to_string())?;
 
-    println!("{}", serde_json::to_string_pretty(&response).unwrap());
+    // Output with or without envelope
+    let output = if raw {
+        serde_json::to_string_pretty(&response).unwrap()
+    } else {
+        let response_value = serde_json::to_value(&response).map_err(|e| e.to_string())?;
+        let wrapped =
+            wrap_with_envelope(response_value, "chat.update", "msg update", profile).await?;
+        serde_json::to_string_pretty(&wrapped).unwrap()
+    };
+
+    println!("{}", output);
     Ok(())
 }
 
@@ -419,13 +513,24 @@ pub async fn run_msg_delete(args: &[String]) -> Result<(), String> {
     let yes = has_flag(args, "--yes");
     let profile = get_option(args, "--profile=");
     let token_type = parse_token_type(args)?;
+    let raw = has_flag(args, "--raw");
 
-    let client = get_api_client_with_token_type(profile, token_type).await?;
+    let client = get_api_client_with_token_type(profile.clone(), token_type).await?;
     let response = commands::msg_delete(&client, channel, ts, yes)
         .await
         .map_err(|e| e.to_string())?;
 
-    println!("{}", serde_json::to_string_pretty(&response).unwrap());
+    // Output with or without envelope
+    let output = if raw {
+        serde_json::to_string_pretty(&response).unwrap()
+    } else {
+        let response_value = serde_json::to_value(&response).map_err(|e| e.to_string())?;
+        let wrapped =
+            wrap_with_envelope(response_value, "chat.delete", "msg delete", profile).await?;
+        serde_json::to_string_pretty(&wrapped).unwrap()
+    };
+
+    println!("{}", output);
     Ok(())
 }
 
@@ -442,13 +547,24 @@ pub async fn run_react_add(args: &[String]) -> Result<(), String> {
     let emoji = args[5].clone();
     let profile = get_option(args, "--profile=");
     let token_type = parse_token_type(args)?;
+    let raw = has_flag(args, "--raw");
 
-    let client = get_api_client_with_token_type(profile, token_type).await?;
+    let client = get_api_client_with_token_type(profile.clone(), token_type).await?;
     let response = commands::react_add(&client, channel, ts, emoji)
         .await
         .map_err(|e| e.to_string())?;
 
-    println!("{}", serde_json::to_string_pretty(&response).unwrap());
+    // Output with or without envelope
+    let output = if raw {
+        serde_json::to_string_pretty(&response).unwrap()
+    } else {
+        let response_value = serde_json::to_value(&response).map_err(|e| e.to_string())?;
+        let wrapped =
+            wrap_with_envelope(response_value, "reactions.add", "react add", profile).await?;
+        serde_json::to_string_pretty(&wrapped).unwrap()
+    };
+
+    println!("{}", output);
     Ok(())
 }
 
@@ -465,13 +581,24 @@ pub async fn run_react_remove(args: &[String]) -> Result<(), String> {
     let yes = has_flag(args, "--yes");
     let profile = get_option(args, "--profile=");
     let token_type = parse_token_type(args)?;
+    let raw = has_flag(args, "--raw");
 
-    let client = get_api_client_with_token_type(profile, token_type).await?;
+    let client = get_api_client_with_token_type(profile.clone(), token_type).await?;
     let response = commands::react_remove(&client, channel, ts, emoji, yes)
         .await
         .map_err(|e| e.to_string())?;
 
-    println!("{}", serde_json::to_string_pretty(&response).unwrap());
+    // Output with or without envelope
+    let output = if raw {
+        serde_json::to_string_pretty(&response).unwrap()
+    } else {
+        let response_value = serde_json::to_value(&response).map_err(|e| e.to_string())?;
+        let wrapped =
+            wrap_with_envelope(response_value, "reactions.remove", "react remove", profile).await?;
+        serde_json::to_string_pretty(&wrapped).unwrap()
+    };
+
+    println!("{}", output);
     Ok(())
 }
 
@@ -491,13 +618,24 @@ pub async fn run_file_upload(args: &[String]) -> Result<(), String> {
     let comment = get_option(args, "--comment=");
     let profile = get_option(args, "--profile=");
     let token_type = parse_token_type(args)?;
+    let raw = has_flag(args, "--raw");
 
-    let client = get_api_client_with_token_type(profile, token_type).await?;
+    let client = get_api_client_with_token_type(profile.clone(), token_type).await?;
     let response = commands::file_upload(&client, file_path, channels, title, comment)
         .await
         .map_err(|e| e.to_string())?;
 
-    println!("{}", serde_json::to_string_pretty(&response).unwrap());
+    // Output with or without envelope
+    let output = if raw {
+        serde_json::to_string_pretty(&response).unwrap()
+    } else {
+        let response_value = serde_json::to_value(&response).map_err(|e| e.to_string())?;
+        let wrapped =
+            wrap_with_envelope(response_value, "files.upload", "file upload", profile).await?;
+        serde_json::to_string_pretty(&wrapped).unwrap()
+    };
+
+    println!("{}", output);
     Ok(())
 }
 

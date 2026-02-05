@@ -39,11 +39,19 @@ On 429 response, MUST wait according to `Retry-After` and retry up to a maximum 
 - Then wait for the specified seconds and retry
 
 ### Requirement: Include meta in output
-Output JSON MUST include `meta.profile_name`, `meta.team_id`, `meta.user_id`, `meta.method`, and `meta.token_type`. (MUST)
-#### Scenario: token_type is included in output
-- Given executing `api call`
-- When calling API with a valid token
-- Then `meta.token_type` contains `user` or `bot`
+出力 JSON は `meta.profile_name`, `meta.team_id`, `meta.user_id`, `meta.method` に加えて `meta.command` を含むこと。`--raw` が指定されていない場合は `response`/`meta` のエンベロープで出力すること。`--raw` が指定された場合は Slack API レスポンスをそのまま返し、`meta` を付与しないこと。(MUST)
+
+#### Scenario: 既定出力は `response`/`meta` で返る
+- Given 有効な profile と token が存在する
+- When `api call conversations.list` を実行する
+- Then `meta.command` は `api call` である
+- And `response` に Slack API レスポンスが入る
+
+#### Scenario: `--raw` 指定時はエンベロープを省略する
+- Given 有効な profile と token が存在する
+- When `api call conversations.list --raw` を実行する
+- Then 出力は Slack API レスポンスの JSON そのままである
+- And `meta` フィールドは含まれない
 
 ### Requirement: Return Slack API response as-is
 Slack API response MUST be preserved in `response`, even when `ok=false`. (MUST)
