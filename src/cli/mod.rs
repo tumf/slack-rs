@@ -697,14 +697,17 @@ pub fn print_msg_usage(prog: &str) {
         "  {} msg post <channel> <text> [--thread-ts=TS] [--reply-broadcast] [--profile=NAME] [--token-type=bot|user]",
         prog
     );
+    println!("    Requires SLACKCLI_ALLOW_WRITE=true environment variable");
     println!(
         "  {} msg update <channel> <ts> <text> [--yes] [--profile=NAME] [--token-type=bot|user]",
         prog
     );
+    println!("    Requires SLACKCLI_ALLOW_WRITE=true environment variable");
     println!(
         "  {} msg delete <channel> <ts> [--yes] [--profile=NAME] [--token-type=bot|user]",
         prog
     );
+    println!("    Requires SLACKCLI_ALLOW_WRITE=true environment variable");
 }
 
 pub fn print_react_usage(prog: &str) {
@@ -713,10 +716,12 @@ pub fn print_react_usage(prog: &str) {
         "  {} react add <channel> <ts> <emoji> [--profile=NAME] [--token-type=bot|user]",
         prog
     );
+    println!("    Requires SLACKCLI_ALLOW_WRITE=true environment variable");
     println!(
         "  {} react remove <channel> <ts> <emoji> [--yes] [--profile=NAME] [--token-type=bot|user]",
         prog
     );
+    println!("    Requires SLACKCLI_ALLOW_WRITE=true environment variable");
 }
 
 pub fn print_file_usage(prog: &str) {
