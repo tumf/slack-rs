@@ -84,6 +84,12 @@ pub fn has_flag(args: &[String], flag: &str) -> bool {
     args.iter().any(|arg| arg == flag)
 }
 
+/// Check if error message indicates non-interactive mode failure
+pub fn is_non_interactive_error(error_msg: &str) -> bool {
+    error_msg.contains("Non-interactive mode error")
+        || error_msg.contains("Use --yes flag to confirm in non-interactive mode")
+}
+
 /// Wrap response with unified envelope including metadata
 pub async fn wrap_with_envelope(
     response: Value,

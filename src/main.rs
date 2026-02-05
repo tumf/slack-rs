@@ -245,12 +245,18 @@ async fn main() {
                 "update" => {
                     if let Err(e) = run_msg_update(&args, ctx.is_non_interactive()).await {
                         eprintln!("Msg update failed: {}", e);
+                        if cli::is_non_interactive_error(&e) {
+                            std::process::exit(2);
+                        }
                         std::process::exit(1);
                     }
                 }
                 "delete" => {
                     if let Err(e) = run_msg_delete(&args, ctx.is_non_interactive()).await {
                         eprintln!("Msg delete failed: {}", e);
+                        if cli::is_non_interactive_error(&e) {
+                            std::process::exit(2);
+                        }
                         std::process::exit(1);
                     }
                 }
@@ -272,6 +278,9 @@ async fn main() {
                 "remove" => {
                     if let Err(e) = run_react_remove(&args, ctx.is_non_interactive()).await {
                         eprintln!("React remove failed: {}", e);
+                        if cli::is_non_interactive_error(&e) {
+                            std::process::exit(2);
+                        }
                         std::process::exit(1);
                     }
                 }

@@ -1,7 +1,7 @@
 //! Message command implementations
 
 use crate::api::{ApiClient, ApiError, ApiMethod, ApiResponse};
-use crate::commands::guards::{check_write_allowed, confirm_destructive};
+use crate::commands::guards::{check_write_allowed, confirm_destructive_with_hint};
 use serde_json::json;
 use std::collections::HashMap;
 
@@ -62,7 +62,13 @@ pub async fn msg_update(
     non_interactive: bool,
 ) -> Result<ApiResponse, ApiError> {
     check_write_allowed()?;
-    confirm_destructive(yes, "update this message", non_interactive)?;
+
+    // Build hint with example command for non-interactive mode
+    let hint = format!(
+        "Example: slack-rs msg update {} {} \"new text\" --yes",
+        channel, ts
+    );
+    confirm_destructive_with_hint(yes, "update this message", non_interactive, Some(&hint))?;
 
     let mut params = HashMap::new();
     params.insert("channel".to_string(), json!(channel));
@@ -92,7 +98,10 @@ pub async fn msg_delete(
     non_interactive: bool,
 ) -> Result<ApiResponse, ApiError> {
     check_write_allowed()?;
-    confirm_destructive(yes, "delete this message", non_interactive)?;
+
+    // Build hint with example command for non-interactive mode
+    let hint = format!("Example: slack-rs msg delete {} {} --yes", channel, ts);
+    confirm_destructive_with_hint(yes, "delete this message", non_interactive, Some(&hint))?;
 
     let mut params = HashMap::new();
     params.insert("channel".to_string(), json!(channel));

@@ -1,7 +1,7 @@
 //! Reaction command implementations
 
 use crate::api::{ApiClient, ApiError, ApiMethod, ApiResponse};
-use crate::commands::guards::{check_write_allowed, confirm_destructive};
+use crate::commands::guards::{check_write_allowed, confirm_destructive_with_hint};
 use serde_json::json;
 use std::collections::HashMap;
 
@@ -54,7 +54,13 @@ pub async fn react_remove(
     non_interactive: bool,
 ) -> Result<ApiResponse, ApiError> {
     check_write_allowed()?;
-    confirm_destructive(yes, "remove this reaction", non_interactive)?;
+
+    // Build hint with example command for non-interactive mode
+    let hint = format!(
+        "Example: slack-rs react remove {} {} {} --yes",
+        channel, timestamp, name
+    );
+    confirm_destructive_with_hint(yes, "remove this reaction", non_interactive, Some(&hint))?;
 
     let mut params = HashMap::new();
     params.insert("channel".to_string(), json!(channel));
