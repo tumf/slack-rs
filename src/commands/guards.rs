@@ -33,13 +33,27 @@ pub fn check_write_allowed() -> Result<(), ApiError> {
 /// # Arguments
 /// * `yes` - Whether the --yes flag was provided (skip confirmation)
 /// * `operation` - Description of the operation to confirm
+/// * `non_interactive` - Whether running in non-interactive mode
 ///
 /// # Returns
 /// * `Ok(())` if operation is confirmed
 /// * `Err(ApiError::OperationCancelled)` if operation is cancelled
-pub fn confirm_destructive(yes: bool, operation: &str) -> Result<(), ApiError> {
+/// * `Err(ApiError::NonInteractiveError)` if non-interactive mode and --yes not provided
+pub fn confirm_destructive(
+    yes: bool,
+    operation: &str,
+    non_interactive: bool,
+) -> Result<(), ApiError> {
     if yes {
         return Ok(());
+    }
+
+    // In non-interactive mode, require --yes flag
+    if non_interactive {
+        return Err(ApiError::NonInteractiveError(format!(
+            "Operation requires confirmation: {}. Use --yes flag to confirm in non-interactive mode.",
+            operation
+        )));
     }
 
     print!("Are you sure you want to {}? [y/N]: ", operation);
@@ -111,6 +125,22 @@ mod tests {
 
     #[test]
     fn test_confirm_destructive_with_yes_flag() {
-        assert!(confirm_destructive(true, "delete message").is_ok());
+        assert!(confirm_destructive(true, "delete message", false).is_ok());
+        assert!(confirm_destructive(true, "delete message", true).is_ok());
+    }
+
+    #[test]
+    fn test_confirm_destructive_non_interactive_without_yes() {
+        let result = confirm_destructive(false, "delete message", true);
+        assert!(result.is_err());
+        assert!(matches!(
+            result.unwrap_err(),
+            ApiError::NonInteractiveError(_)
+        ));
+    }
+
+    #[test]
+    fn test_confirm_destructive_non_interactive_with_yes() {
+        assert!(confirm_destructive(true, "delete message", true).is_ok());
     }
 }

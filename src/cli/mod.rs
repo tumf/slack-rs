@@ -1,5 +1,9 @@
 //! CLI command routing and handlers
 
+mod context;
+
+pub use context::CliContext;
+
 use crate::api::{ApiClient, CommandResponse};
 use crate::commands;
 use crate::commands::ConversationSelector;
@@ -433,7 +437,7 @@ pub async fn run_msg_post(args: &[String]) -> Result<(), String> {
     Ok(())
 }
 
-pub async fn run_msg_update(args: &[String]) -> Result<(), String> {
+pub async fn run_msg_update(args: &[String], non_interactive: bool) -> Result<(), String> {
     if args.len() < 6 {
         return Err("Usage: msg update <channel> <ts> <text> [--yes] [--profile=NAME] [--token-type=bot|user]".to_string());
     }
@@ -447,7 +451,7 @@ pub async fn run_msg_update(args: &[String]) -> Result<(), String> {
     let raw = has_flag(args, "--raw");
 
     let client = get_api_client_with_token_type(profile.clone(), token_type).await?;
-    let response = commands::msg_update(&client, channel, ts, text, yes)
+    let response = commands::msg_update(&client, channel, ts, text, yes, non_interactive)
         .await
         .map_err(|e| e.to_string())?;
 
@@ -465,7 +469,7 @@ pub async fn run_msg_update(args: &[String]) -> Result<(), String> {
     Ok(())
 }
 
-pub async fn run_msg_delete(args: &[String]) -> Result<(), String> {
+pub async fn run_msg_delete(args: &[String], non_interactive: bool) -> Result<(), String> {
     if args.len() < 5 {
         return Err(
             "Usage: msg delete <channel> <ts> [--yes] [--profile=NAME] [--token-type=bot|user]"
@@ -481,7 +485,7 @@ pub async fn run_msg_delete(args: &[String]) -> Result<(), String> {
     let raw = has_flag(args, "--raw");
 
     let client = get_api_client_with_token_type(profile.clone(), token_type).await?;
-    let response = commands::msg_delete(&client, channel, ts, yes)
+    let response = commands::msg_delete(&client, channel, ts, yes, non_interactive)
         .await
         .map_err(|e| e.to_string())?;
 
@@ -533,7 +537,7 @@ pub async fn run_react_add(args: &[String]) -> Result<(), String> {
     Ok(())
 }
 
-pub async fn run_react_remove(args: &[String]) -> Result<(), String> {
+pub async fn run_react_remove(args: &[String], non_interactive: bool) -> Result<(), String> {
     if args.len() < 6 {
         return Err(
             "Usage: react remove <channel> <ts> <emoji> [--yes] [--profile=NAME] [--token-type=bot|user]".to_string(),
@@ -549,7 +553,7 @@ pub async fn run_react_remove(args: &[String]) -> Result<(), String> {
     let raw = has_flag(args, "--raw");
 
     let client = get_api_client_with_token_type(profile.clone(), token_type).await?;
-    let response = commands::react_remove(&client, channel, ts, emoji, yes)
+    let response = commands::react_remove(&client, channel, ts, emoji, yes, non_interactive)
         .await
         .map_err(|e| e.to_string())?;
 

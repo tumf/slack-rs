@@ -40,6 +40,7 @@ pub async fn react_add(
 /// * `timestamp` - Message timestamp
 /// * `name` - Emoji name (without colons, e.g., "thumbsup")
 /// * `yes` - Skip confirmation prompt
+/// * `non_interactive` - Whether running in non-interactive mode
 ///
 /// # Returns
 /// * `Ok(ApiResponse)` with removal confirmation
@@ -50,9 +51,10 @@ pub async fn react_remove(
     timestamp: String,
     name: String,
     yes: bool,
+    non_interactive: bool,
 ) -> Result<ApiResponse, ApiError> {
     check_write_allowed()?;
-    confirm_destructive(yes, "remove this reaction")?;
+    confirm_destructive(yes, "remove this reaction", non_interactive)?;
 
     let mut params = HashMap::new();
     params.insert("channel".to_string(), json!(channel));
@@ -95,6 +97,7 @@ mod tests {
             "1234567890.123456".to_string(),
             "thumbsup".to_string(),
             true,
+            false,
         )
         .await;
         assert!(result.is_err());

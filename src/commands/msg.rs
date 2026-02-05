@@ -48,6 +48,7 @@ pub async fn msg_post(
 /// * `ts` - Message timestamp
 /// * `text` - New message text
 /// * `yes` - Skip confirmation prompt
+/// * `non_interactive` - Whether running in non-interactive mode
 ///
 /// # Returns
 /// * `Ok(ApiResponse)` with updated message information
@@ -58,9 +59,10 @@ pub async fn msg_update(
     ts: String,
     text: String,
     yes: bool,
+    non_interactive: bool,
 ) -> Result<ApiResponse, ApiError> {
     check_write_allowed()?;
-    confirm_destructive(yes, "update this message")?;
+    confirm_destructive(yes, "update this message", non_interactive)?;
 
     let mut params = HashMap::new();
     params.insert("channel".to_string(), json!(channel));
@@ -77,6 +79,7 @@ pub async fn msg_update(
 /// * `channel` - Channel ID
 /// * `ts` - Message timestamp
 /// * `yes` - Skip confirmation prompt
+/// * `non_interactive` - Whether running in non-interactive mode
 ///
 /// # Returns
 /// * `Ok(ApiResponse)` with deletion confirmation
@@ -86,9 +89,10 @@ pub async fn msg_delete(
     channel: String,
     ts: String,
     yes: bool,
+    non_interactive: bool,
 ) -> Result<ApiResponse, ApiError> {
     check_write_allowed()?;
-    confirm_destructive(yes, "delete this message")?;
+    confirm_destructive(yes, "delete this message", non_interactive)?;
 
     let mut params = HashMap::new();
     params.insert("channel".to_string(), json!(channel));
@@ -131,6 +135,7 @@ mod tests {
             "1234567890.123456".to_string(),
             "updated text".to_string(),
             true,
+            false,
         )
         .await;
         assert!(result.is_err());
@@ -148,6 +153,7 @@ mod tests {
             "C123456".to_string(),
             "1234567890.123456".to_string(),
             true,
+            false,
         )
         .await;
         assert!(result.is_err());

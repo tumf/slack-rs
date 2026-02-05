@@ -21,6 +21,10 @@ use profile::{
 async fn main() {
     let args: Vec<String> = std::env::args().collect();
 
+    // Parse global --non-interactive flag
+    let non_interactive = cli::has_flag(&args, "--non-interactive");
+    let ctx = cli::CliContext::new(non_interactive);
+
     if args.len() < 2 {
         print_usage();
         return;
@@ -50,7 +54,7 @@ async fn main() {
             }
             match args[2].as_str() {
                 "login" => {
-                    if let Err(e) = run_auth_login(&args[3..]).await {
+                    if let Err(e) = run_auth_login(&args[3..], ctx.is_non_interactive()).await {
                         eprintln!("Login failed: {}", e);
                         std::process::exit(1);
                     }
@@ -239,13 +243,13 @@ async fn main() {
                     }
                 }
                 "update" => {
-                    if let Err(e) = run_msg_update(&args).await {
+                    if let Err(e) = run_msg_update(&args, ctx.is_non_interactive()).await {
                         eprintln!("Msg update failed: {}", e);
                         std::process::exit(1);
                     }
                 }
                 "delete" => {
-                    if let Err(e) = run_msg_delete(&args).await {
+                    if let Err(e) = run_msg_delete(&args, ctx.is_non_interactive()).await {
                         eprintln!("Msg delete failed: {}", e);
                         std::process::exit(1);
                     }
@@ -266,7 +270,7 @@ async fn main() {
                     }
                 }
                 "remove" => {
-                    if let Err(e) = run_react_remove(&args).await {
+                    if let Err(e) = run_react_remove(&args, ctx.is_non_interactive()).await {
                         eprintln!("React remove failed: {}", e);
                         std::process::exit(1);
                     }
@@ -315,7 +319,10 @@ fn print_help() {
     println!("Slack CLI");
     println!();
     println!("USAGE:");
-    println!("    slack-rs [COMMAND] [OPTIONS]");
+    println!("    slack-rs [--non-interactive] [COMMAND] [OPTIONS]");
+    println!();
+    println!("GLOBAL OPTIONS:");
+    println!("    --non-interactive              Run without interactive prompts (auto-enabled when stdin is not a TTY)");
     println!();
     println!("COMMANDS:");
     println!("    api call <method> [params...]    Call a Slack API method");
@@ -367,6 +374,7 @@ fn print_help() {
 
 fn print_usage() {
     println!("Slack CLI - Usage:");
+    println!("  [--non-interactive]                Run without interactive prompts (auto when stdin not a TTY)");
     println!("  api call <method> [params...]  - Call a Slack API method");
     println!("  auth login [profile_name]      - Authenticate with Slack");
     println!("  auth status [profile_name]     - Show profile status");
@@ -520,7 +528,7 @@ fn print_config_oauth_usage(prog: &str) {
 }
 
 /// Run the auth login command with argument parsing
-async fn run_auth_login(args: &[String]) -> Result<(), String> {
+async fn run_auth_login(args: &[String], non_interactive: bool) -> Result<(), String> {
     let mut profile_name: Option<String> = None;
     let mut client_id: Option<String> = None;
     let mut cloudflared_path: Option<String> = None;
@@ -655,6 +663,7 @@ async fn run_auth_login(args: &[String]) -> Result<(), String> {
             bot_scopes,
             user_scopes,
             base_url,
+            non_interactive,
         )
         .await
         .map_err(|e| e.to_string())

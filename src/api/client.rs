@@ -36,6 +36,9 @@ pub enum ApiError {
 
     #[error("Destructive operation cancelled")]
     OperationCancelled,
+
+    #[error("Non-interactive mode error: {0}")]
+    NonInteractiveError(String),
 }
 
 /// API client errors (for generic API calls)
