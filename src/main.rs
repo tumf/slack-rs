@@ -357,7 +357,9 @@ fn print_help() {
     println!("    msg post <channel> <text>        Post a message (requires SLACKCLI_ALLOW_WRITE=true, supports --thread-ts and --reply-broadcast)");
     println!("    msg update <channel> <ts> <text> Update a message (requires SLACKCLI_ALLOW_WRITE=true)");
     println!("    msg delete <channel> <ts>        Delete a message (requires SLACKCLI_ALLOW_WRITE=true)");
-    println!("    react add <channel> <ts> <emoji> Add a reaction (requires SLACKCLI_ALLOW_WRITE=true)");
+    println!(
+        "    react add <channel> <ts> <emoji> Add a reaction (requires SLACKCLI_ALLOW_WRITE=true)"
+    );
     println!("    react remove <channel> <ts> <emoji> Remove a reaction (requires SLACKCLI_ALLOW_WRITE=true)");
     println!("    file upload <path>               Upload a file (external upload method)");
     println!("    demo                             Run demonstration");
@@ -408,8 +410,12 @@ fn print_usage() {
     println!("  users resolve-mentions <text>  - Resolve user mentions in text (supports --profile, --format)");
     println!("  msg post <channel> <text>      - Post a message (requires SLACKCLI_ALLOW_WRITE=true, supports --thread-ts and --reply-broadcast)");
     println!("  msg update <channel> <ts> <text> - Update a message (requires SLACKCLI_ALLOW_WRITE=true)");
-    println!("  msg delete <channel> <ts>      - Delete a message (requires SLACKCLI_ALLOW_WRITE=true)");
-    println!("  react add <channel> <ts> <emoji> - Add a reaction (requires SLACKCLI_ALLOW_WRITE=true)");
+    println!(
+        "  msg delete <channel> <ts>      - Delete a message (requires SLACKCLI_ALLOW_WRITE=true)"
+    );
+    println!(
+        "  react add <channel> <ts> <emoji> - Add a reaction (requires SLACKCLI_ALLOW_WRITE=true)"
+    );
     println!("  react remove <channel> <ts> <emoji> - Remove a reaction (requires SLACKCLI_ALLOW_WRITE=true)");
     println!("  file upload <path>             - Upload a file using external upload method");
     println!("  demo                           - Run demonstration");
