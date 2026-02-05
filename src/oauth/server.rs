@@ -247,7 +247,8 @@ mod tests {
     async fn test_callback_server_timeout() {
         // Test that the server times out appropriately
         let state = "test_state".to_string();
-        let result = run_callback_server(13579, state, 1).await;
+        // Use an ephemeral port to avoid test flakiness from port conflicts.
+        let result = run_callback_server(0, state, 1).await;
 
         assert!(result.is_err());
         match result {
