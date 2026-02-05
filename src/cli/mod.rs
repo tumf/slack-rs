@@ -1,8 +1,10 @@
 //! CLI command routing and handlers
 
 mod context;
+mod handlers;
 
 pub use context::CliContext;
+pub use handlers::{handle_export_command, handle_import_command, run_api_call, run_auth_login};
 
 use crate::api::{ApiClient, CommandResponse};
 use crate::commands;
