@@ -41,6 +41,9 @@ pub struct ApiCallArgs {
 
     /// Token type preference (CLI flag override)
     pub token_type: Option<TokenType>,
+
+    /// Output raw Slack API response without envelope
+    pub raw: bool,
 }
 
 impl ApiCallArgs {
@@ -55,6 +58,7 @@ impl ApiCallArgs {
         let mut use_json = false;
         let mut use_get = false;
         let mut token_type = None;
+        let mut raw = false;
 
         let mut i = 1;
         while i < args.len() {
@@ -63,6 +67,8 @@ impl ApiCallArgs {
                 use_json = true;
             } else if arg == "--get" {
                 use_get = true;
+            } else if arg == "--raw" {
+                raw = true;
             } else if arg == "--token-type" {
                 // Space-separated format: --token-type VALUE
                 i += 1;
@@ -101,6 +107,7 @@ impl ApiCallArgs {
             use_json,
             use_get,
             token_type,
+            raw,
         })
     }
 
@@ -234,6 +241,7 @@ mod tests {
             use_json: true,
             use_get: false,
             token_type: None,
+            raw: false,
         };
 
         let json = args.to_json();
@@ -255,6 +263,7 @@ mod tests {
             use_json: false,
             use_get: false,
             token_type: None,
+            raw: false,
         };
 
         let form = args.to_form();

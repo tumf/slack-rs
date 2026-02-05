@@ -1,5 +1,5 @@
-- [ ] `api call` とラッパーコマンドの出力生成を統一エンベロープに切り替え、`meta.command` を追加する（確認: `api call` と `conv list` の JSON 出力に `response` と `meta.command` が含まれる）
-- [ ] `--raw` フラグを `api call` とラッパーコマンドに追加し、指定時は Slack API レスポンスをそのまま返す（確認: `--raw` で `meta` が出力されない）
-- [ ] 出力統一に対応するテストを追加する（確認: `tests/api_integration_tests.rs` などで `meta.command` と `--raw` の挙動を検証）
-- [ ] CLI ヘルプと README に出力形式と `--raw` の説明を追記する（確認: `README.md` とヘルプ出力に移行情報がある）
-- [ ] 既存テストを実行して回帰がないことを確認する（確認: `cargo test` が成功する）
+- [x] `api call` とラッパーコマンドの出力生成を統一エンベロープに切り替え、`meta.command` を追加する（確認: `api call` と `conv list` の JSON 出力に `response` と `meta.command` が含まれる）
+- [x] `--raw` フラグを `api call` とラッパーコマンドに追加し、指定時は Slack API レスポンスをそのまま返す（確認: `--raw` で `meta` が出力されない）
+- [x] 出力統一に対応するテストを追加する（確認: `tests/api_integration_tests.rs` などで `meta.command` と `--raw` の挙動を検証）
+- [x] CLI ヘルプと README に出力形式と `--raw` の説明を追記する（確認: `README.md` とヘルプ出力に移行情報がある）
+- [x] 既存テストを実行して回帰がないことを確認する（確認: `cargo test` が成功する）
