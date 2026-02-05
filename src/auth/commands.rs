@@ -722,7 +722,9 @@ pub fn status(profile_name: Option<String>) -> Result<(), String> {
     }
 
     // Display token store backend and storage location
-    use crate::profile::{resolve_token_store_backend, FileTokenStore, TokenStore, TokenStoreBackend};
+    use crate::profile::{
+        resolve_token_store_backend, FileTokenStore, TokenStore, TokenStoreBackend,
+    };
     let backend = resolve_token_store_backend().map_err(|e| e.to_string())?;
     match backend {
         TokenStoreBackend::Keyring => {
@@ -765,9 +767,12 @@ pub fn status(profile_name: Option<String>) -> Result<(), String> {
                 if let Ok(file_store) = FileTokenStore::with_path(file_path.clone()) {
                     let has_bot_in_file = file_store.exists(&bot_token_key);
                     let has_user_in_file = file_store.exists(&user_token_key);
-                    
+
                     if has_bot_in_file || has_user_in_file {
-                        println!("\nNote: Tokens found in file backend ({}).", file_path.display());
+                        println!(
+                            "\nNote: Tokens found in file backend ({}).",
+                            file_path.display()
+                        );
                         println!("      To use them, set: export SLACKRS_TOKEN_STORE=file");
                     }
                 }
@@ -1436,10 +1441,10 @@ mod tests {
         // Note: We can't easily capture stdout in tests, but we verify the function doesn't panic
         // The actual output verification would require integration tests
         std::env::set_var("SLACK_RS_CONFIG_PATH", config_path.to_str().unwrap());
-        
+
         // This test verifies that status() doesn't panic with file backend
         // The actual output contains "Token Store: file" but we can't easily verify stdout here
-        
+
         std::env::remove_var("SLACKRS_TOKEN_STORE");
         std::env::remove_var("SLACK_RS_TOKENS_PATH");
         std::env::remove_var("SLACK_RS_CONFIG_PATH");
@@ -1485,10 +1490,10 @@ mod tests {
 
         // Now switch to keyring backend (which will not have the tokens)
         // status() should detect tokens in file backend and show a hint
-        
+
         // Note: The actual keyring check and hint output happens in status()
         // but we can't easily test stdout capture here
-        
+
         std::env::remove_var("SLACK_RS_TOKENS_PATH");
     }
 
@@ -1521,10 +1526,10 @@ mod tests {
 
         // Set SLACK_TOKEN
         std::env::set_var("SLACK_TOKEN", "xoxb-secret-token");
-        
+
         // status() should show "SLACK_TOKEN: set" without revealing the value
         // Note: We can't easily capture stdout in unit tests, but we verify no panic
-        
+
         std::env::remove_var("SLACK_TOKEN");
     }
 }
