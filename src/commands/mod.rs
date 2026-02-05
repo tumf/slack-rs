@@ -20,7 +20,7 @@ pub mod search;
 pub mod users;
 pub mod users_cache;
 
-pub use config::{oauth_delete, oauth_set, oauth_show, set_default_token_type};
+pub use config::{oauth_delete, oauth_set, oauth_show, set_default_token_type, OAuthSetParams};
 pub use conv::{
     apply_filters, conv_history, conv_list, extract_conversations, format_response,
     sort_conversations, ConversationFilter, ConversationItem, ConversationSelector, OutputFormat,

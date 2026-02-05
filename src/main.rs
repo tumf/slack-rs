@@ -523,12 +523,18 @@ fn print_config_usage(prog: &str) {
 fn print_config_oauth_usage(prog: &str) {
     println!("OAuth config command usage:");
     println!(
-        "  {} config oauth set <profile> --client-id <id> --redirect-uri <uri> --scopes <scopes>",
+        "  {} config oauth set <profile> --client-id <id> --redirect-uri <uri> --scopes <scopes> [secret-options]",
         prog
     );
     println!("      Set OAuth configuration for a profile");
-    println!("      Will prompt for client secret (not stored in config file)");
     println!("      Scopes: comma-separated list or 'all' for comprehensive preset");
+    println!();
+    println!("Client secret options (in priority order):");
+    println!("  --client-secret-env <VAR>      Read secret from environment variable");
+    println!("  (SLACKRS_CLIENT_SECRET)        Default environment variable (auto-checked)");
+    println!("  --client-secret-file <PATH>    Read secret from file");
+    println!("  --client-secret <SECRET>       Direct secret value (requires --yes, unsafe)");
+    println!("  (interactive prompt)           Prompt for secret if stdin is a TTY");
     println!();
     println!("  {} config oauth show <profile>", prog);
     println!("      Show OAuth configuration for a profile");
@@ -537,8 +543,19 @@ fn print_config_oauth_usage(prog: &str) {
     println!("      Delete OAuth configuration for a profile");
     println!();
     println!("Examples:");
+    println!("  # Interactive prompt (default):");
     println!("  {} config oauth set work --client-id 123.456 --redirect-uri http://127.0.0.1:8765/callback --scopes \"chat:write,users:read\"", prog);
+    println!();
+    println!("  # Using environment variable:");
+    println!("  export SLACKRS_CLIENT_SECRET=xoxp-...");
     println!("  {} config oauth set work --client-id 123.456 --redirect-uri http://127.0.0.1:8765/callback --scopes \"all\"", prog);
+    println!();
+    println!("  # Using custom environment variable:");
+    println!("  {} config oauth set work --client-id 123.456 --redirect-uri http://127.0.0.1:8765/callback --scopes \"all\" --client-secret-env MY_SECRET", prog);
+    println!();
+    println!("  # Using file:");
+    println!("  {} config oauth set work --client-id 123.456 --redirect-uri http://127.0.0.1:8765/callback --scopes \"all\" --client-secret-file ~/.secrets/slack", prog);
+    println!();
     println!("  {} config oauth show work", prog);
     println!("  {} config oauth delete work", prog);
 }
@@ -549,6 +566,10 @@ fn run_config_oauth_set(args: &[String]) -> Result<(), String> {
     let mut client_id: Option<String> = None;
     let mut redirect_uri: Option<String> = None;
     let mut scopes: Option<String> = None;
+    let mut client_secret_env: Option<String> = None;
+    let mut client_secret_file: Option<String> = None;
+    let mut client_secret: Option<String> = None;
+    let mut confirmed = false;
 
     let mut i = 0;
     while i < args.len() {
@@ -578,6 +599,33 @@ fn run_config_oauth_set(args: &[String]) -> Result<(), String> {
                         return Err("--scopes requires a value".to_string());
                     }
                 }
+                "--client-secret-env" => {
+                    i += 1;
+                    if i < args.len() {
+                        client_secret_env = Some(args[i].clone());
+                    } else {
+                        return Err("--client-secret-env requires a value".to_string());
+                    }
+                }
+                "--client-secret-file" => {
+                    i += 1;
+                    if i < args.len() {
+                        client_secret_file = Some(args[i].clone());
+                    } else {
+                        return Err("--client-secret-file requires a value".to_string());
+                    }
+                }
+                "--client-secret" => {
+                    i += 1;
+                    if i < args.len() {
+                        client_secret = Some(args[i].clone());
+                    } else {
+                        return Err("--client-secret requires a value".to_string());
+                    }
+                }
+                "--yes" => {
+                    confirmed = true;
+                }
                 _ => {
                     return Err(format!("Unknown option: {}", args[i]));
                 }
@@ -595,7 +643,17 @@ fn run_config_oauth_set(args: &[String]) -> Result<(), String> {
     let redirect = redirect_uri.ok_or_else(|| "--redirect-uri is required".to_string())?;
     let scope_str = scopes.ok_or_else(|| "--scopes is required".to_string())?;
 
-    commands::oauth_set(profile, client, redirect, scope_str).map_err(|e| e.to_string())
+    commands::oauth_set(commands::OAuthSetParams {
+        profile_name: profile,
+        client_id: client,
+        redirect_uri: redirect,
+        scopes: scope_str,
+        client_secret_env,
+        client_secret_file,
+        client_secret,
+        confirmed,
+    })
+    .map_err(|e| e.to_string())
 }
 
 /// Run config oauth show command
