@@ -35,6 +35,7 @@ fn setup_test_profile() -> (TempDir, String) {
 }
 
 #[tokio::test]
+#[serial_test::serial]
 async fn test_get_api_client_uses_slack_token_env() {
     // Set SLACK_TOKEN environment variable
     let test_token = "xoxb-test-env-token";
@@ -50,10 +51,15 @@ async fn test_get_api_client_uses_slack_token_env() {
     env::remove_var("SLACK_TOKEN");
 
     // Verify client was created successfully
-    assert!(client.is_ok(), "Failed to create client with SLACK_TOKEN: {:?}", client.err());
+    assert!(
+        client.is_ok(),
+        "Failed to create client with SLACK_TOKEN: {:?}",
+        client.err()
+    );
 }
 
 #[tokio::test]
+#[serial_test::serial]
 async fn test_slack_token_bypasses_profile_token_store() {
     // Set SLACK_TOKEN environment variable
     let env_token = "xoxb-env-token-12345";
@@ -69,10 +75,14 @@ async fn test_slack_token_bypasses_profile_token_store() {
     env::remove_var("SLACK_TOKEN");
 
     // The client should be created using SLACK_TOKEN, not the profile's token store
-    assert!(client.is_ok(), "Should successfully create client with SLACK_TOKEN even when profile is specified");
+    assert!(
+        client.is_ok(),
+        "Should successfully create client with SLACK_TOKEN even when profile is specified"
+    );
 }
 
 #[tokio::test]
+#[serial_test::serial]
 async fn test_wrapper_command_with_slack_token_authorization() {
     // Start a mock Slack API server
     let server = MockServer::start();
@@ -115,6 +125,7 @@ async fn test_wrapper_command_with_slack_token_authorization() {
 }
 
 #[tokio::test]
+#[serial_test::serial]
 async fn test_slack_token_takes_precedence_over_token_type_flag() {
     // Set SLACK_TOKEN environment variable
     let env_token = "xoxb-env-priority-token";
@@ -126,17 +137,22 @@ async fn test_slack_token_takes_precedence_over_token_type_flag() {
     // Try to get API client with explicit token type (should still use SLACK_TOKEN)
     let client_result = get_api_client_with_token_type(
         Some("default".to_string()),
-        Some(slack_rs::profile::TokenType::User)
-    ).await;
+        Some(slack_rs::profile::TokenType::User),
+    )
+    .await;
 
     // Clean up
     env::remove_var("SLACK_TOKEN");
 
     // Should succeed - SLACK_TOKEN takes precedence
-    assert!(client_result.is_ok(), "SLACK_TOKEN should take precedence over --token-type flag");
+    assert!(
+        client_result.is_ok(),
+        "SLACK_TOKEN should take precedence over --token-type flag"
+    );
 }
 
 #[tokio::test]
+#[serial_test::serial]
 async fn test_fallback_to_token_store_when_slack_token_not_set() {
     // Ensure SLACK_TOKEN is not set
     env::remove_var("SLACK_TOKEN");
@@ -149,5 +165,8 @@ async fn test_fallback_to_token_store_when_slack_token_not_set() {
     let client_result = get_api_client_with_token_type(None, None).await;
 
     // Should fail with token not found error (expected behavior without SLACK_TOKEN)
-    assert!(client_result.is_err(), "Should fail when SLACK_TOKEN not set and no tokens in store");
+    assert!(
+        client_result.is_err(),
+        "Should fail when SLACK_TOKEN not set and no tokens in store"
+    );
 }
