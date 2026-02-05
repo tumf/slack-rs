@@ -802,10 +802,30 @@ pub fn status(profile_name: Option<String>) -> Result<(), String> {
         }
     }
 
-    // Display default token type
-    // Priority: 1. profile.default_token_type (if set)
-    //           2. Infer from available tokens (user if available, else bot)
-    let default_token_type = if let Some(token_type) = profile.default_token_type {
+    // Display default token type using pure function
+    let default_token_type =
+        compute_default_token_type_display(profile.default_token_type, has_user_token);
+    println!("Default Token Type: {}", default_token_type);
+
+    Ok(())
+}
+
+/// Compute default token type for display in `auth status`
+///
+/// Priority: 1. profile.default_token_type (if set)
+///           2. Infer from available tokens (user if available, else bot)
+///
+/// # Arguments
+/// * `profile_default_token_type` - Default token type stored in profile
+/// * `has_user_token` - Whether user token exists in token store
+///
+/// # Returns
+/// Static string for display: "Bot" or "User"
+fn compute_default_token_type_display(
+    profile_default_token_type: Option<crate::profile::TokenType>,
+    has_user_token: bool,
+) -> &'static str {
+    if let Some(token_type) = profile_default_token_type {
         match token_type {
             crate::profile::TokenType::Bot => "Bot",
             crate::profile::TokenType::User => "User",
@@ -814,10 +834,7 @@ pub fn status(profile_name: Option<String>) -> Result<(), String> {
         "User"
     } else {
         "Bot"
-    };
-    println!("Default Token Type: {}", default_token_type);
-
-    Ok(())
+    }
 }
 
 /// Extract Bot ID from a bot token
@@ -1542,5 +1559,62 @@ mod tests {
         // Note: We can't easily capture stdout in unit tests, but we verify no panic
 
         std::env::remove_var("SLACK_TOKEN");
+    }
+
+    // Tests for compute_default_token_type_display
+    #[test]
+    fn test_status_default_token_type_user_set() {
+        // When profile.default_token_type is set to User, display "User"
+        let result = compute_default_token_type_display(
+            Some(crate::profile::TokenType::User),
+            false, // has_user_token doesn't matter when profile default is set
+        );
+        assert_eq!(result, "User");
+    }
+
+    #[test]
+    fn test_status_default_token_type_bot_set() {
+        // When profile.default_token_type is set to Bot, display "Bot"
+        let result = compute_default_token_type_display(
+            Some(crate::profile::TokenType::Bot),
+            true, // has_user_token doesn't matter when profile default is set
+        );
+        assert_eq!(result, "Bot");
+    }
+
+    #[test]
+    fn test_status_default_token_type_fallback_with_user_token() {
+        // When profile.default_token_type is unset and user token exists, display "User"
+        let result = compute_default_token_type_display(None, true);
+        assert_eq!(result, "User");
+    }
+
+    #[test]
+    fn test_status_default_token_type_fallback_without_user_token() {
+        // When profile.default_token_type is unset and no user token exists, display "Bot"
+        let result = compute_default_token_type_display(None, false);
+        assert_eq!(result, "Bot");
+    }
+
+    #[test]
+    fn test_status_default_token_type_user_overrides_inference() {
+        // Verify that profile.default_token_type=User takes priority over token inference
+        // Even when user token is not available
+        let result = compute_default_token_type_display(
+            Some(crate::profile::TokenType::User),
+            false, // No user token, but profile says User
+        );
+        assert_eq!(result, "User");
+    }
+
+    #[test]
+    fn test_status_default_token_type_bot_overrides_inference() {
+        // Verify that profile.default_token_type=Bot takes priority over token inference
+        // Even when user token is available
+        let result = compute_default_token_type_display(
+            Some(crate::profile::TokenType::Bot),
+            true, // User token available, but profile says Bot
+        );
+        assert_eq!(result, "Bot");
     }
 }
