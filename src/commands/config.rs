@@ -603,9 +603,9 @@ mod tests {
 
         // Call oauth_set with environment variable
         let profile_name = "test-profile".to_string();
-        let client_id = "123.456".to_string();
-        let redirect_uri = "http://127.0.0.1:8765/callback".to_string();
-        let scopes = "chat:write,users:read".to_string();
+        let _client_id = "123.456".to_string();
+        let _redirect_uri = "http://127.0.0.1:8765/callback".to_string();
+        let _scopes = "chat:write,users:read".to_string();
 
         // Note: We can't directly test oauth_set because it uses default_config_path
         // Instead, we'll test that the client secret can be stored and retrieved
