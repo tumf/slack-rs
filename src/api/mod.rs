@@ -31,4 +31,7 @@ pub use envelope::{CommandMeta, CommandResponse};
 pub use types::{ApiMethod, ApiResponse};
 
 // Re-export error guidance utilities
-pub use guidance::{format_error_guidance, get_error_guidance, ErrorGuidance};
+pub use guidance::{
+    display_json_error_guidance, display_wrapper_error_guidance, format_error_guidance,
+    get_error_guidance, ErrorGuidance,
+};
