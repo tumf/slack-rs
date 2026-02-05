@@ -131,11 +131,15 @@ impl FileTokenStore {
             return Ok(PathBuf::from(path));
         }
 
-        // Use ~/.config/slack-rs/ instead of platform-specific config directory
-        let home = std::env::var("HOME").map_err(|_| {
-            TokenStoreError::IoError("HOME environment variable not set".to_string())
-        })?;
-        let config_dir = PathBuf::from(home).join(".config/slack-rs");
+        // Use cross-platform home directory detection
+        let home = directories::BaseDirs::new()
+            .ok_or_else(|| {
+                TokenStoreError::IoError("Failed to determine home directory".to_string())
+            })?
+            .home_dir()
+            .to_path_buf();
+
+        let config_dir = home.join(".config/slack-rs");
         Ok(config_dir.join("tokens.json"))
     }
 
