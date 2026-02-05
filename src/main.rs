@@ -9,7 +9,7 @@ mod debug;
 mod oauth;
 mod profile;
 
-use api::{execute_api_call, ApiCallArgs, ApiCallContext, ApiClient};
+use api::{execute_api_call, ApiCallArgs, ApiCallContext, ApiCallResponse, ApiClient};
 use cli::*;
 use profile::{
     default_config_path, load_config, make_token_key, resolve_profile, resolve_profile_full,
@@ -953,6 +953,132 @@ async fn handle_import_command(args: &[String]) {
     }
 }
 
+/// Determine which token type to use based on API arguments
+fn determine_token_type(api_args: &ApiCallArgs) -> String {
+    // If --token-type is explicitly specified, use that
+    if let Some(ref token_type) = api_args.token_type {
+        return token_type.clone();
+    }
+
+    // Auto-detect: if method is conversations.list and types includes private_channel, prefer user token
+    if api_args.method == "conversations.list" {
+        if let Some(types) = api_args.params.get("types") {
+            if types.contains("private_channel") {
+                return "user".to_string();
+            }
+        }
+    }
+
+    // Default to bot token
+    "bot".to_string()
+}
+
+/// Check if we should show private channel guidance
+fn should_show_private_channel_guidance(
+    api_args: &ApiCallArgs,
+    token_type: &str,
+    response: &ApiCallResponse,
+) -> bool {
+    // Only show guidance for conversations.list with private_channel type and bot token
+    if api_args.method != "conversations.list" || token_type != "bot" {
+        return false;
+    }
+
+    // Check if types parameter includes private_channel
+    if let Some(types) = api_args.params.get("types") {
+        if !types.contains("private_channel") {
+            return false;
+        }
+    } else {
+        return false;
+    }
+
+    // Check if response has empty channels array
+    if let Some(channels) = response.response.get("channels") {
+        if let Some(channels_array) = channels.as_array() {
+            return channels_array.is_empty();
+        }
+    }
+
+    false
+}
+
+/// Retrieve token from store based on token type preference
+fn retrieve_token(
+    file_store: &FileTokenStore,
+    profile: &Profile,
+    _api_args: &ApiCallArgs,
+    token_type: &str,
+    profile_name: &str,
+) -> Result<String, Box<dyn std::error::Error>> {
+    let team_id = &profile.team_id;
+    let user_id = &profile.user_id;
+
+    // Determine primary and fallback token keys
+    let (primary_key, fallback_key, _primary_type, _fallback_type) = if token_type == "user" {
+        (
+            format!("{}:{}:user", team_id, user_id),
+            make_token_key(team_id, user_id),
+            "user",
+            "bot",
+        )
+    } else {
+        (
+            make_token_key(team_id, user_id),
+            format!("{}:{}:user", team_id, user_id),
+            "bot",
+            "user",
+        )
+    };
+
+    // Try primary token
+    if let Ok(token) = file_store.get(&primary_key) {
+        return Ok(token);
+    }
+
+    // If user token was requested but not found, provide guidance
+    if token_type == "user" {
+        // Check if bot token exists as fallback
+        if file_store.get(&fallback_key).is_ok() {
+            eprintln!(
+                "Warning: User token not found for profile '{}' ({}:{})",
+                profile_name, team_id, user_id
+            );
+            eprintln!("To use private channels, you need a User Token with appropriate scopes.");
+            eprintln!("Please run 'slackcli auth login' with user_scopes to obtain a User Token.");
+            eprintln!("Falling back to Bot Token, but private channels you're not a member of may not be visible.");
+        } else {
+            return Err(format!(
+                "No User Token found for profile '{}' ({}:{}). To use private channels, please run 'slackcli auth login' with user_scopes.",
+                profile_name, team_id, user_id
+            ).into());
+        }
+
+        // Return bot token as fallback
+        return file_store.get(&fallback_key).map_err(|_| {
+            format!(
+                "No token found for profile '{}' ({}:{}). Set SLACK_TOKEN environment variable or run 'slackcli auth login'.",
+                profile_name, team_id, user_id
+            ).into()
+        });
+    }
+
+    // Try fallback token
+    if let Ok(token) = file_store.get(&fallback_key) {
+        return Ok(token);
+    }
+
+    // Try environment variable as last resort
+    if let Ok(env_token) = std::env::var("SLACK_TOKEN") {
+        return Ok(env_token);
+    }
+
+    Err(format!(
+        "No token found for profile '{}' ({}:{}). Set SLACK_TOKEN environment variable or run 'slackcli auth login'.",
+        profile_name, team_id, user_id
+    ).into())
+}
+
 /// Run the api call command
 async fn run_api_call(args: Vec<String>) -> Result<(), Box<dyn std::error::Error>> {
     // Parse arguments
@@ -975,35 +1101,29 @@ async fn run_api_call(args: Vec<String>) -> Result<(), Box<dyn std::error::Error
         user_id: profile.user_id.clone(),
     };
 
-    // Create token key from team_id and user_id
-    let token_key = make_token_key(&profile.team_id, &profile.user_id);
+    // Determine token type to use
+    let token_type = determine_token_type(&api_args);
 
-    // Retrieve token from token store
-    // Try file store first, fall back to environment variable
-    let token = {
-        let file_store =
-            FileTokenStore::new().map_err(|e| format!("Failed to create token store: {}", e))?;
-        match file_store.get(&token_key) {
-            Ok(t) => t,
-            Err(_) => {
-                // If file store fails, check if there's a token in environment
-                if let Ok(env_token) = std::env::var("SLACK_TOKEN") {
-                    env_token
-                } else {
-                    return Err(format!(
-                        "No token found for profile '{}' ({}:{}). Set SLACK_TOKEN environment variable or store token in file store.",
-                        profile_name, profile.team_id, profile.user_id
-                    ).into());
-                }
-            }
-        }
-    };
+    // Retrieve token from token store based on token type
+    let file_store =
+        FileTokenStore::new().map_err(|e| format!("Failed to create token store: {}", e))?;
+    let token = retrieve_token(&file_store, &profile, &api_args, &token_type, &profile_name)?;
 
     // Create API client
     let client = ApiClient::new();
 
     // Execute API call
     let response = execute_api_call(&client, &api_args, &token, &context).await?;
+
+    // Check if we should show guidance for private_channel with bot token
+    if should_show_private_channel_guidance(&api_args, &token_type, &response) {
+        eprintln!();
+        eprintln!("Note: The conversation list for private channels is empty.");
+        eprintln!("Bot tokens can only see private channels where the bot is a member.");
+        eprintln!("To list all private channels, use a User Token with appropriate scopes.");
+        eprintln!("Run: slackcli auth login (with user_scopes) or use --token-type user");
+        eprintln!();
+    }
 
     // Print response as JSON
     let json = serde_json::to_string_pretty(&response)?;
@@ -1302,4 +1422,160 @@ fn demonstrate_keyring_token_storage() {
     }
 
     println!();
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::api::call::ApiCallMeta;
+    use serde_json::json;
+    use std::collections::HashMap;
+
+    #[test]
+    fn test_determine_token_type_with_explicit_flag() {
+        let mut params = HashMap::new();
+        params.insert("types".to_string(), "private_channel".to_string());
+
+        let args = ApiCallArgs {
+            method: "conversations.list".to_string(),
+            params,
+            use_json: false,
+            use_get: false,
+            token_type: Some("bot".to_string()),
+        };
+
+        // When --token-type is specified, it should be used
+        assert_eq!(determine_token_type(&args), "bot");
+    }
+
+    #[test]
+    fn test_determine_token_type_auto_detect_private_channel() {
+        let mut params = HashMap::new();
+        params.insert("types".to_string(), "private_channel".to_string());
+
+        let args = ApiCallArgs {
+            method: "conversations.list".to_string(),
+            params,
+            use_json: false,
+            use_get: false,
+            token_type: None,
+        };
+
+        // When types=private_channel without explicit token-type, prefer user token
+        assert_eq!(determine_token_type(&args), "user");
+    }
+
+    #[test]
+    fn test_determine_token_type_default_bot() {
+        let params = HashMap::new();
+
+        let args = ApiCallArgs {
+            method: "chat.postMessage".to_string(),
+            params,
+            use_json: false,
+            use_get: false,
+            token_type: None,
+        };
+
+        // For other methods, default to bot token
+        assert_eq!(determine_token_type(&args), "bot");
+    }
+
+    #[test]
+    fn test_should_show_private_channel_guidance_empty_response() {
+        let mut params = HashMap::new();
+        params.insert("types".to_string(), "private_channel".to_string());
+
+        let args = ApiCallArgs {
+            method: "conversations.list".to_string(),
+            params,
+            use_json: false,
+            use_get: false,
+            token_type: None,
+        };
+
+        let response = ApiCallResponse {
+            response: json!({
+                "ok": true,
+                "channels": []
+            }),
+            meta: ApiCallMeta {
+                profile_name: Some("default".to_string()),
+                team_id: "T123".to_string(),
+                user_id: "U123".to_string(),
+                method: "conversations.list".to_string(),
+            },
+        };
+
+        // Should show guidance when bot token returns empty private channels
+        assert!(should_show_private_channel_guidance(
+            &args, "bot", &response
+        ));
+    }
+
+    #[test]
+    fn test_should_show_private_channel_guidance_non_empty_response() {
+        let mut params = HashMap::new();
+        params.insert("types".to_string(), "private_channel".to_string());
+
+        let args = ApiCallArgs {
+            method: "conversations.list".to_string(),
+            params,
+            use_json: false,
+            use_get: false,
+            token_type: None,
+        };
+
+        let response = ApiCallResponse {
+            response: json!({
+                "ok": true,
+                "channels": [
+                    {"id": "C123", "name": "private-channel"}
+                ]
+            }),
+            meta: ApiCallMeta {
+                profile_name: Some("default".to_string()),
+                team_id: "T123".to_string(),
+                user_id: "U123".to_string(),
+                method: "conversations.list".to_string(),
+            },
+        };
+
+        // Should not show guidance when channels are returned
+        assert!(!should_show_private_channel_guidance(
+            &args, "bot", &response
+        ));
+    }
+
+    #[test]
+    fn test_should_show_private_channel_guidance_user_token() {
+        let mut params = HashMap::new();
+        params.insert("types".to_string(), "private_channel".to_string());
+
+        let args = ApiCallArgs {
+            method: "conversations.list".to_string(),
+            params,
+            use_json: false,
+            use_get: false,
+            token_type: None,
+        };
+
+        let response = ApiCallResponse {
+            response: json!({
+                "ok": true,
+                "channels": []
+            }),
+            meta: ApiCallMeta {
+                profile_name: Some("default".to_string()),
+                team_id: "T123".to_string(),
+                user_id: "U123".to_string(),
+                method: "conversations.list".to_string(),
+            },
+        };
+
+        // Should not show guidance when using user token
+        assert!(!should_show_private_channel_guidance(
+            &args, "user", &response
+        ));
+    }
 }

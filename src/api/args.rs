@@ -37,6 +37,9 @@ pub struct ApiCallArgs {
 
     /// Use GET method instead of POST
     pub use_get: bool,
+
+    /// Token type preference: "bot", "user", or None for auto-detection
+    pub token_type: Option<String>,
 }
 
 impl ApiCallArgs {
@@ -50,15 +53,23 @@ impl ApiCallArgs {
         let mut params = HashMap::new();
         let mut use_json = false;
         let mut use_get = false;
+        let mut token_type = None;
 
-        for arg in &args[1..] {
+        let mut i = 1;
+        while i < args.len() {
+            let arg = &args[i];
             if arg == "--json" {
                 use_json = true;
             } else if arg == "--get" {
                 use_get = true;
+            } else if arg == "--token-type" {
+                // Parse --token-type value
+                if i + 1 < args.len() {
+                    token_type = Some(args[i + 1].clone());
+                    i += 1; // Skip the value
+                }
             } else if arg.starts_with("--") {
                 // Ignore unknown flags for forward compatibility
-                continue;
             } else {
                 // Parse key=value
                 if let Some((key, value)) = arg.split_once('=') {
@@ -67,6 +78,7 @@ impl ApiCallArgs {
                     return Err(ArgsError::InvalidKeyValue(arg.clone()));
                 }
             }
+            i += 1;
         }
 
         Ok(Self {
@@ -74,6 +86,7 @@ impl ApiCallArgs {
             params,
             use_json,
             use_get,
+            token_type,
         })
     }
 
@@ -108,6 +121,7 @@ mod tests {
         assert!(result.params.is_empty());
         assert!(!result.use_json);
         assert!(!result.use_get);
+        assert_eq!(result.token_type, None);
     }
 
     #[test]
@@ -205,6 +219,7 @@ mod tests {
             .collect(),
             use_json: true,
             use_get: false,
+            token_type: None,
         };
 
         let json = args.to_json();
@@ -225,11 +240,42 @@ mod tests {
             .collect(),
             use_json: false,
             use_get: false,
+            token_type: None,
         };
 
         let form = args.to_form();
         assert_eq!(form.len(), 2);
         assert!(form.contains(&("channel".to_string(), "C123456".to_string())));
         assert!(form.contains(&("text".to_string(), "Hello".to_string())));
+    }
+
+    #[test]
+    fn test_parse_with_token_type() {
+        let args = vec![
+            "conversations.list".to_string(),
+            "--token-type".to_string(),
+            "user".to_string(),
+            "types=private_channel".to_string(),
+        ];
+        let result = ApiCallArgs::parse(&args).unwrap();
+
+        assert_eq!(result.method, "conversations.list");
+        assert_eq!(result.token_type, Some("user".to_string()));
+        assert_eq!(
+            result.params.get("types"),
+            Some(&"private_channel".to_string())
+        );
+    }
+
+    #[test]
+    fn test_parse_without_token_type() {
+        let args = vec![
+            "conversations.list".to_string(),
+            "types=private_channel".to_string(),
+        ];
+        let result = ApiCallArgs::parse(&args).unwrap();
+
+        assert_eq!(result.method, "conversations.list");
+        assert_eq!(result.token_type, None);
     }
 }

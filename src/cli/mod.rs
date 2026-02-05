@@ -7,8 +7,11 @@ use crate::profile::{
     default_config_path, load_config, make_token_key, FileTokenStore, TokenStore,
 };
 
-/// Get API client for a profile
-pub async fn get_api_client(profile_name: Option<String>) -> Result<ApiClient, String> {
+/// Get API client for a profile with optional token type preference
+pub async fn get_api_client_with_token_type(
+    profile_name: Option<String>,
+    prefer_user_token: bool,
+) -> Result<ApiClient, String> {
     let profile_name = profile_name.unwrap_or_else(|| "default".to_string());
     let config_path = default_config_path().map_err(|e| e.to_string())?;
     let config = load_config(&config_path).map_err(|e| e.to_string())?;
@@ -19,21 +22,37 @@ pub async fn get_api_client(profile_name: Option<String>) -> Result<ApiClient, S
 
     let token_store = FileTokenStore::new().map_err(|e| e.to_string())?;
 
-    // Try to get user token first (for APIs that require user scope like search.messages)
     let user_token_key = format!("{}:{}:user", profile.team_id, profile.user_id);
+    let bot_token_key = make_token_key(&profile.team_id, &profile.user_id);
 
-    let token = match token_store.get(&user_token_key) {
-        Ok(user_token) => user_token,
-        Err(_) => {
-            // Fall back to bot token
-            let bot_token_key = make_token_key(&profile.team_id, &profile.user_id);
-            token_store
-                .get(&bot_token_key)
-                .map_err(|e| format!("Failed to get token: {}", e))?
+    let token = if prefer_user_token {
+        // Try user token first, fall back to bot token
+        match token_store.get(&user_token_key) {
+            Ok(user_token) => user_token,
+            Err(_) => {
+                eprintln!("Warning: User token not found, falling back to bot token.");
+                eprintln!("For better private channel access, run 'slackcli auth login' with user_scopes.");
+                token_store
+                    .get(&bot_token_key)
+                    .map_err(|e| format!("Failed to get token: {}", e))?
+            }
+        }
+    } else {
+        // Try bot token first, fall back to user token
+        match token_store.get(&bot_token_key) {
+            Ok(bot_token) => bot_token,
+            Err(_) => token_store
+                .get(&user_token_key)
+                .map_err(|e| format!("Failed to get token: {}", e))?,
         }
     };
 
     Ok(ApiClient::with_token(token))
+}
+
+/// Get API client for a profile (default: prefer user token)
+pub async fn get_api_client(profile_name: Option<String>) -> Result<ApiClient, String> {
+    get_api_client_with_token_type(profile_name, true).await
 }
 
 /// Check if a flag exists in args
@@ -75,6 +94,30 @@ pub fn get_all_options(args: &[String], prefix: &str) -> Vec<String> {
         .collect()
 }
 
+/// Check if we should show guidance for empty private channel list
+fn should_show_conv_list_guidance(
+    types: &Option<String>,
+    response: &crate::api::types::ApiResponse,
+) -> bool {
+    // Only show guidance if types includes private_channel
+    if let Some(types_str) = types {
+        if !types_str.contains("private_channel") {
+            return false;
+        }
+    } else {
+        return false;
+    }
+
+    // Check if response has empty channels array
+    if let Some(channels) = response.data.get("channels") {
+        if let Some(channels_array) = channels.as_array() {
+            return channels_array.is_empty();
+        }
+    }
+
+    false
+}
+
 pub async fn run_conv_list(args: &[String]) -> Result<(), String> {
     let types = get_option(args, "--types=");
     let limit = get_option(args, "--limit=").and_then(|s| s.parse().ok());
@@ -88,10 +131,26 @@ pub async fn run_conv_list(args: &[String]) -> Result<(), String> {
         .collect();
     let filters = filters.map_err(|e| e.to_string())?;
 
-    let client = get_api_client(profile).await?;
-    let mut response = commands::conv_list(&client, types, limit)
+    // Determine if we should prefer user token (when types includes private_channel)
+    let prefer_user_token = types
+        .as_ref()
+        .map(|t| t.contains("private_channel"))
+        .unwrap_or(false);
+
+    let client = get_api_client_with_token_type(profile, prefer_user_token).await?;
+    let mut response = commands::conv_list(&client, types.clone(), limit)
         .await
         .map_err(|e| e.to_string())?;
+
+    // Check if we should show guidance for empty private_channel list
+    if should_show_conv_list_guidance(&types, &response) {
+        eprintln!();
+        eprintln!("Note: The conversation list for private channels is empty.");
+        eprintln!("Bot tokens can only see private channels where the bot is a member.");
+        eprintln!("To list all private channels, use a User Token with appropriate scopes.");
+        eprintln!("Run: slackcli auth login (with user_scopes)");
+        eprintln!();
+    }
 
     // Apply filters
     commands::apply_filters(&mut response, &filters);
