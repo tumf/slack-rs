@@ -240,3 +240,11 @@ Slack API の応答で `channel.num_members` が欠落または `null` の場合
 - When ソート指定の解釈に失敗する
 - Then 許容値（`name`/`created`/`num_members`, `asc`/`desc`）を含むエラーが表示される
 
+### Requirement: conv command behavior is preserved after internal module split
+`conv list`/`conv select`/`conv history` MUST maintain existing argument, output, and error behavior even after internal restructuring. (MUST)
+
+#### Scenario: Behavior is preserved after module split
+- Given using existing `conv` command arguments
+- When executing `conv list` or `conv history`
+- Then the same API calls and output format as before are maintained
+
