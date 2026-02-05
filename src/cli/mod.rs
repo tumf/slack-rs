@@ -22,13 +22,19 @@ use serde_json::Value;
 /// * `token_type` - Optional token type (bot/user). If None, uses profile default or bot fallback
 ///
 /// # Token Resolution Priority
-/// 1. CLI flag token_type parameter (if provided)
-/// 2. Profile's default_token_type (if set)
-/// 3. Try user token first, fall back to bot token
+/// 1. SLACK_TOKEN environment variable (if set, bypasses token store)
+/// 2. CLI flag token_type parameter (if provided)
+/// 3. Profile's default_token_type (if set)
+/// 4. Try user token first, fall back to bot token
 pub async fn get_api_client_with_token_type(
     profile_name: Option<String>,
     token_type: Option<TokenType>,
 ) -> Result<ApiClient, String> {
+    // Check for SLACK_TOKEN environment variable first
+    if let Ok(env_token) = std::env::var("SLACK_TOKEN") {
+        return Ok(ApiClient::with_token(env_token));
+    }
+
     let profile_name = profile_name.unwrap_or_else(|| "default".to_string());
     let config_path = default_config_path().map_err(|e| e.to_string())?;
     let config = load_config(&config_path).map_err(|e| e.to_string())?;

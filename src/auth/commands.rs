@@ -762,7 +762,18 @@ pub fn status(profile_name: Option<String>) -> Result<(), String> {
     }
 
     // Display default token type
-    let default_token_type = if has_user_token { "User" } else { "Bot" };
+    // Priority: 1. profile.default_token_type (if set)
+    //           2. Infer from available tokens (user if available, else bot)
+    let default_token_type = if let Some(token_type) = profile.default_token_type {
+        match token_type {
+            crate::profile::TokenType::Bot => "Bot",
+            crate::profile::TokenType::User => "User",
+        }
+    } else if has_user_token {
+        "User"
+    } else {
+        "Bot"
+    };
     println!("Default Token Type: {}", default_token_type);
 
     Ok(())
