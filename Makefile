@@ -1,6 +1,6 @@
 # Makefile for slack-rs
 
-.PHONY: build help install release test clean fmt lint check setup pre-commit-hooks bump-patch bump-minor bump-major index
+.PHONY: build help install release test clean fmt lint check setup pre-commit-hooks bump-patch bump-minor bump-major index publish publish-tag
 
 # Default target - build debug version
 build:
@@ -25,6 +25,8 @@ help:
 	@echo "  make bump-patch        - Bump patch version (0.1.0 -> 0.1.1) without publish"
 	@echo "  make bump-minor        - Bump minor version (0.1.0 -> 0.2.0) without publish"
 	@echo "  make bump-major        - Bump major version (0.1.0 -> 1.0.0) without publish"
+	@echo "  make publish           - Publish current version to crates.io"
+	@echo "  make publish-tag       - Publish specific git tag to crates.io"
 
 # Install binary to ~/.cargo/bin
 install:
@@ -133,3 +135,28 @@ bump-major:
 	@cargo release major --execute --no-confirm --no-publish
 	@echo "Major version bumped and tagged successfully"
 	@echo "To publish to crates.io, run: cargo publish"
+
+# Publish current version to crates.io
+publish:
+	@echo "Publishing to crates.io..."
+	@CURRENT_VERSION=$$(grep '^version' Cargo.toml | head -1 | cut -d'"' -f2); \
+	echo "Current version: $$CURRENT_VERSION"; \
+	read -p "Proceed with publish? [y/N] " confirm && [ "$$confirm" = "y" ] || exit 1; \
+	cargo publish
+	@echo "Published successfully!"
+
+# Publish specific git tag to crates.io
+publish-tag:
+	@echo "Available tags:"; \
+	git tag -l | tail -10; \
+	read -p "Enter tag to publish (e.g., v0.1.34): " tag; \
+	if [ -z "$$tag" ]; then \
+		echo "Error: No tag specified"; \
+		exit 1; \
+	fi; \
+	CURRENT_BRANCH=$$(git rev-parse --abbrev-ref HEAD); \
+	echo "Checking out tag: $$tag"; \
+	git checkout $$tag && \
+	cargo publish && \
+	git checkout $$CURRENT_BRANCH && \
+	echo "Published $$tag successfully and returned to $$CURRENT_BRANCH"
