@@ -150,6 +150,47 @@ pub fn format_error_guidance(error_code: &str) -> Option<String> {
     })
 }
 
+/// Display error guidance for wrapper command responses (ApiResponse)
+///
+/// Checks if the ApiResponse contains an error and displays guidance to stderr if available.
+/// This function is designed for wrapper commands (msg, react, search, conv, users, file).
+///
+/// # Arguments
+/// * `response` - The API response from a wrapper command
+pub fn display_wrapper_error_guidance(response: &crate::api::types::ApiResponse) {
+    // Check if response indicates an error
+    if !response.ok {
+        // Try to get error code from response
+        if let Some(error_code) = &response.error {
+            // Display guidance if available
+            if let Some(guidance) = format_error_guidance(error_code) {
+                eprintln!("{}", guidance);
+            }
+        }
+    }
+}
+
+/// Display error guidance for JSON value responses (for commands like file upload)
+///
+/// Checks if the JSON value contains an error and displays guidance to stderr if available.
+///
+/// # Arguments
+/// * `response` - The response as a JSON value
+pub fn display_json_error_guidance(response: &serde_json::Value) {
+    // Check if response indicates an error
+    if let Some(ok) = response.get("ok").and_then(|v| v.as_bool()) {
+        if !ok {
+            // Try to get error code from response
+            if let Some(error_code) = response.get("error").and_then(|v| v.as_str()) {
+                // Display guidance if available
+                if let Some(guidance) = format_error_guidance(error_code) {
+                    eprintln!("{}", guidance);
+                }
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -204,5 +245,146 @@ mod tests {
     fn test_format_error_guidance_unknown() {
         let formatted = format_error_guidance("unknown_error");
         assert!(formatted.is_none());
+    }
+
+    #[test]
+    fn test_display_wrapper_error_guidance_with_known_error() {
+        use crate::api::types::ApiResponse;
+        use std::collections::HashMap;
+
+        // Create response with known error code
+        let response = ApiResponse {
+            ok: false,
+            data: HashMap::new(),
+            error: Some("missing_scope".to_string()),
+        };
+
+        // This should not panic - guidance should be displayed to stderr
+        display_wrapper_error_guidance(&response);
+    }
+
+    #[test]
+    fn test_display_wrapper_error_guidance_with_unknown_error() {
+        use crate::api::types::ApiResponse;
+        use std::collections::HashMap;
+
+        // Create response with unknown error code
+        let response = ApiResponse {
+            ok: false,
+            data: HashMap::new(),
+            error: Some("unknown_error_code".to_string()),
+        };
+
+        // This should not panic - no guidance for unknown errors
+        display_wrapper_error_guidance(&response);
+    }
+
+    #[test]
+    fn test_display_wrapper_error_guidance_with_success() {
+        use crate::api::types::ApiResponse;
+        use std::collections::HashMap;
+
+        // Create successful response
+        let mut data = HashMap::new();
+        data.insert("channel".to_string(), serde_json::json!("C123456"));
+
+        let response = ApiResponse {
+            ok: true,
+            data,
+            error: None,
+        };
+
+        // This should not display anything (success case)
+        display_wrapper_error_guidance(&response);
+    }
+
+    #[test]
+    fn test_display_wrapper_error_guidance_with_not_allowed_token_type() {
+        use crate::api::types::ApiResponse;
+        use std::collections::HashMap;
+
+        // Create response with not_allowed_token_type error
+        let response = ApiResponse {
+            ok: false,
+            data: HashMap::new(),
+            error: Some("not_allowed_token_type".to_string()),
+        };
+
+        // This should display guidance to stderr
+        display_wrapper_error_guidance(&response);
+    }
+
+    #[test]
+    fn test_display_wrapper_error_guidance_with_invalid_auth() {
+        use crate::api::types::ApiResponse;
+        use std::collections::HashMap;
+
+        // Create response with invalid_auth error
+        let response = ApiResponse {
+            ok: false,
+            data: HashMap::new(),
+            error: Some("invalid_auth".to_string()),
+        };
+
+        // This should display guidance to stderr
+        display_wrapper_error_guidance(&response);
+    }
+
+    #[test]
+    fn test_display_json_error_guidance_with_known_error() {
+        use serde_json::json;
+
+        // Create JSON response with known error code
+        let response = json!({
+            "ok": false,
+            "error": "missing_scope"
+        });
+
+        // This should not panic - guidance should be displayed to stderr
+        display_json_error_guidance(&response);
+    }
+
+    #[test]
+    fn test_display_json_error_guidance_with_unknown_error() {
+        use serde_json::json;
+
+        // Create JSON response with unknown error code
+        let response = json!({
+            "ok": false,
+            "error": "unknown_error_code"
+        });
+
+        // This should not panic - no guidance for unknown errors
+        display_json_error_guidance(&response);
+    }
+
+    #[test]
+    fn test_display_json_error_guidance_with_success() {
+        use serde_json::json;
+
+        // Create successful JSON response
+        let response = json!({
+            "ok": true,
+            "file": {
+                "id": "F123456"
+            }
+        });
+
+        // This should not display anything (success case)
+        display_json_error_guidance(&response);
+    }
+
+    #[test]
+    fn test_display_json_error_guidance_with_not_allowed_token_type() {
+        use serde_json::json;
+
+        // Create JSON response with not_allowed_token_type error
+        let response = json!({
+            "ok": false,
+            "error": "not_allowed_token_type"
+        });
+
+        // This should display guidance to stderr
+        display_json_error_guidance(&response);
     }
 }

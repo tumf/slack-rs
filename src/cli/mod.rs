@@ -215,6 +215,9 @@ pub async fn run_search(args: &[String]) -> Result<(), String> {
         .await
         .map_err(|e| e.to_string())?;
 
+    // Display error guidance if response contains a known error
+    crate::api::display_wrapper_error_guidance(&response);
+
     // Output with or without envelope
     let output = if raw {
         serde_json::to_string_pretty(&response).unwrap()
@@ -297,6 +300,9 @@ pub async fn run_conv_list(args: &[String]) -> Result<(), String> {
     let mut response = commands::conv_list(&client, types, limit)
         .await
         .map_err(|e| e.to_string())?;
+
+    // Display error guidance if response contains a known error
+    crate::api::display_wrapper_error_guidance(&response);
 
     // Apply filters
     commands::apply_filters(&mut response, &filters);
@@ -524,6 +530,9 @@ pub async fn run_conv_history(args: &[String]) -> Result<(), String> {
         .await
         .map_err(|e| e.to_string())?;
 
+    // Display error guidance if response contains a known error
+    crate::api::display_wrapper_error_guidance(&response);
+
     // Output with or without envelope
     let output = if raw {
         serde_json::to_string_pretty(&response).unwrap()
@@ -554,6 +563,9 @@ pub async fn run_users_info(args: &[String]) -> Result<(), String> {
     let response = commands::users_info(&client, user)
         .await
         .map_err(|e| e.to_string())?;
+
+    // Display error guidance if response contains a known error
+    crate::api::display_wrapper_error_guidance(&response);
 
     // Output with or without envelope
     let output = if raw {
@@ -660,6 +672,9 @@ pub async fn run_msg_post(args: &[String]) -> Result<(), String> {
         .await
         .map_err(|e| e.to_string())?;
 
+    // Display error guidance if response contains a known error
+    crate::api::display_wrapper_error_guidance(&response);
+
     // Output with or without envelope
     let output = if raw {
         serde_json::to_string_pretty(&response).unwrap()
@@ -697,6 +712,9 @@ pub async fn run_msg_update(args: &[String], non_interactive: bool) -> Result<()
     let response = commands::msg_update(&client, channel, ts, text, yes, non_interactive)
         .await
         .map_err(|e| e.to_string())?;
+
+    // Display error guidance if response contains a known error
+    crate::api::display_wrapper_error_guidance(&response);
 
     // Output with or without envelope
     let output = if raw {
@@ -738,6 +756,9 @@ pub async fn run_msg_delete(args: &[String], non_interactive: bool) -> Result<()
         .await
         .map_err(|e| e.to_string())?;
 
+    // Display error guidance if response contains a known error
+    crate::api::display_wrapper_error_guidance(&response);
+
     // Output with or without envelope
     let output = if raw {
         serde_json::to_string_pretty(&response).unwrap()
@@ -778,6 +799,9 @@ pub async fn run_react_add(args: &[String]) -> Result<(), String> {
         .await
         .map_err(|e| e.to_string())?;
 
+    // Display error guidance if response contains a known error
+    crate::api::display_wrapper_error_guidance(&response);
+
     // Output with or without envelope
     let output = if raw {
         serde_json::to_string_pretty(&response).unwrap()
@@ -817,6 +841,9 @@ pub async fn run_react_remove(args: &[String], non_interactive: bool) -> Result<
     let response = commands::react_remove(&client, channel, ts, emoji, yes, non_interactive)
         .await
         .map_err(|e| e.to_string())?;
+
+    // Display error guidance if response contains a known error
+    crate::api::display_wrapper_error_guidance(&response);
 
     // Output with or without envelope
     let output = if raw {
@@ -860,6 +887,9 @@ pub async fn run_file_upload(args: &[String]) -> Result<(), String> {
     let response = commands::file_upload(&client, file_path, channels, title, comment)
         .await
         .map_err(|e| e.to_string())?;
+
+    // Display error guidance if response contains a known error
+    crate::api::display_json_error_guidance(&response);
 
     // Output with or without envelope
     let output = if raw {
