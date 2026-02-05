@@ -139,8 +139,7 @@ OAuth configuration MUST be resolved from CLI arguments or profile configuration
 - And ユーザーの確認入力を待ってから OAuth 認証フローを開始する
 
 ### Requirement: auth status displays token information
-`auth status` は利用可能なトークン種別とスコープに加えて、`default_token_type` を正しく表示しなければならない。(MUST)
-`default_token_type` がプロフィールに設定されている場合はその値を表示し、未設定の場合のみ従来の推測ロジック（User Token があれば User、なければ Bot）を使うこと。(MUST)
+`auth status` は `default_token_type` がプロフィールに設定されている場合はその値を表示し、未設定の場合のみ従来の推測ロジック（User Token があれば User、なければ Bot）を使用しなければならない。(MUST)
 
 #### Scenario: default_token_type が user のときに表示される
 - Given User Token と Bot Token が保存されている
