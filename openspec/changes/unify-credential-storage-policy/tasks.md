@@ -9,3 +9,6 @@
 ## Acceptance #1 Failure Follow-up
 - [x] `config`/`auth`/`cli`/`main` の各フローで `FileTokenStore::new()` 直呼びをやめ、`create_token_store` を使って backend を解決する（未指定時は Keyring、`SLACKRS_TOKEN_STORE=file` のみ file）。
 - [x] Keyring 利用不能時に `TokenStoreError::KeyringUnavailable` を伝播して失敗し、ガイダンスを表示する（無言の file フォールバック禁止）。
+
+## Acceptance #2 Failure Follow-up
+- [x] `config oauth delete` が Keyring 利用不能時に失敗せず成功してしまうため、`create_token_store` のエラーを握りつぶさずガイダンス付きで失敗するよう修正する。

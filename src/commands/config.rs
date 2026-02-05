@@ -3,7 +3,8 @@
 use crate::oauth::OAuthError;
 use crate::profile::{
     create_token_store, default_config_path, delete_oauth_client_secret, get_oauth_client_secret,
-    load_config, save_config, store_oauth_client_secret, Profile, ProfilesConfig, TokenType,
+    load_config, save_config, store_oauth_client_secret, Profile, ProfilesConfig, TokenStoreError,
+    TokenType,
 };
 
 /// Set OAuth configuration for a profile
@@ -188,8 +189,17 @@ pub fn oauth_delete(profile_name: String) -> Result<(), OAuthError> {
         .map_err(|e| OAuthError::ConfigError(format!("Failed to save config: {}", e)))?;
 
     // Delete client secret from token store
-    if let Ok(token_store) = create_token_store() {
-        let _ = delete_oauth_client_secret(&*token_store, &profile_name); // Ignore error if not found
+    let token_store = create_token_store()
+        .map_err(|e| OAuthError::ConfigError(format!("Failed to create token store: {}", e)))?;
+    match delete_oauth_client_secret(&*token_store, &profile_name) {
+        Ok(_) => {}                             // Secret deleted successfully
+        Err(TokenStoreError::NotFound(_)) => {} // Secret was not set, which is fine
+        Err(e) => {
+            return Err(OAuthError::ConfigError(format!(
+                "Failed to delete client secret: {}",
+                e
+            )))
+        }
     }
 
     println!(
