@@ -245,6 +245,12 @@ pub fn get_all_options(args: &[String], prefix: &str) -> Vec<String> {
 }
 
 pub async fn run_conv_list(args: &[String]) -> Result<(), String> {
+    // Check for --help flag before API call
+    if has_flag(args, "--help") || has_flag(args, "-h") {
+        print_conv_usage(&args[0]);
+        return Ok(());
+    }
+
     let types = get_option(args, "--types=");
     let limit = get_option(args, "--limit=").and_then(|s| s.parse().ok());
     let profile = get_option(args, "--profile=");
@@ -323,6 +329,12 @@ pub async fn run_conv_list(args: &[String]) -> Result<(), String> {
 }
 
 pub async fn run_conv_select(args: &[String]) -> Result<(), String> {
+    // Check for --help flag before API call
+    if has_flag(args, "--help") || has_flag(args, "-h") {
+        print_conv_usage(&args[0]);
+        return Ok(());
+    }
+
     let types = get_option(args, "--types=");
     let limit = get_option(args, "--limit=").and_then(|s| s.parse().ok());
     let profile = get_option(args, "--profile=");
@@ -354,6 +366,12 @@ pub async fn run_conv_select(args: &[String]) -> Result<(), String> {
 }
 
 pub async fn run_conv_search(args: &[String]) -> Result<(), String> {
+    // Check for --help flag before pattern extraction
+    if has_flag(args, "--help") || has_flag(args, "-h") {
+        print_conv_usage(&args[0]);
+        return Ok(());
+    }
+
     // Extract the search pattern (first non-flag argument after "search")
     let pattern = args
         .get(3)
@@ -453,6 +471,12 @@ pub async fn run_conv_search(args: &[String]) -> Result<(), String> {
 }
 
 pub async fn run_conv_history(args: &[String]) -> Result<(), String> {
+    // Check for --help flag before API call
+    if has_flag(args, "--help") || has_flag(args, "-h") {
+        print_conv_usage(&args[0]);
+        return Ok(());
+    }
+
     let interactive = has_flag(args, "--interactive");
 
     let channel = if interactive {
