@@ -823,71 +823,147 @@ fn run_config_set(args: &[String]) -> Result<(), String> {
     commands::set_default_token_type(profile, ttype).map_err(|e| e.to_string())
 }
 
+/// Common arguments shared between export and import commands
+struct ExportImportArgs {
+    passphrase_env: Option<String>,
+    yes: bool,
+    lang: Option<String>,
+}
+
+impl ExportImportArgs {
+    /// Parse common arguments from command line args
+    /// Returns (ExportImportArgs, remaining_unparsed_args)
+    fn parse(args: &[String]) -> (Self, Vec<(usize, String)>) {
+        let mut passphrase_env: Option<String> = None;
+        let mut yes = false;
+        let mut lang: Option<String> = None;
+        let mut remaining = Vec::new();
+
+        let mut i = 0;
+        while i < args.len() {
+            match args[i].as_str() {
+                "--passphrase-env" => {
+                    i += 1;
+                    if i < args.len() {
+                        passphrase_env = Some(args[i].clone());
+                    }
+                }
+                "--passphrase-prompt" => {
+                    // Ignore this flag - we always prompt if --passphrase-env is not set
+                }
+                "--yes" => {
+                    yes = true;
+                }
+                "--lang" => {
+                    i += 1;
+                    if i < args.len() {
+                        lang = Some(args[i].clone());
+                    }
+                }
+                _ => {
+                    // Not a common argument, save for specific parsing
+                    remaining.push((i, args[i].clone()));
+                }
+            }
+            i += 1;
+        }
+
+        (
+            Self {
+                passphrase_env,
+                yes,
+                lang,
+            },
+            remaining,
+        )
+    }
+
+    /// Get Messages based on language setting
+    fn get_messages(&self) -> auth::Messages {
+        if let Some(ref lang_code) = self.lang {
+            if let Some(language) = auth::Language::from_code(lang_code) {
+                auth::Messages::new(language)
+            } else {
+                auth::Messages::default()
+            }
+        } else {
+            auth::Messages::default()
+        }
+    }
+
+    /// Get passphrase from environment variable or prompt
+    fn get_passphrase(&self, messages: &auth::Messages) -> Result<String, String> {
+        if let Some(ref env_var) = self.passphrase_env {
+            match std::env::var(env_var) {
+                Ok(val) => Ok(val),
+                Err(_) => {
+                    // Fallback to prompt if environment variable is not set
+                    eprintln!(
+                        "Warning: Environment variable {} not found, prompting for passphrase",
+                        env_var
+                    );
+                    rpassword::prompt_password(messages.get("prompt.passphrase"))
+                        .map_err(|e| format!("Error reading passphrase: {}", e))
+                }
+            }
+        } else {
+            // Fallback to prompt mode
+            rpassword::prompt_password(messages.get("prompt.passphrase"))
+                .map_err(|e| format!("Error reading passphrase: {}", e))
+        }
+    }
+}
+
 async fn handle_export_command(args: &[String]) {
+    // Parse common arguments
+    let (common_args, remaining) = ExportImportArgs::parse(args);
+
+    // Parse export-specific arguments
     let mut profile_name: Option<String> = None;
     let mut all = false;
     let mut output_path: Option<String> = None;
-    let mut passphrase_env: Option<String> = None;
-    let mut yes = false;
-    let mut lang: Option<String> = None;
 
-    let mut i = 0;
-    while i < args.len() {
-        match args[i].as_str() {
+    for (idx, arg) in remaining {
+        match arg.as_str() {
             "--profile" => {
-                i += 1;
-                if i < args.len() {
-                    profile_name = Some(args[i].clone());
+                // Next arg should be the profile name
+                if idx + 1 < args.len() {
+                    profile_name = Some(args[idx + 1].clone());
                 }
             }
             "--all" => {
                 all = true;
             }
             "--out" => {
-                i += 1;
-                if i < args.len() {
-                    output_path = Some(args[i].clone());
-                }
-            }
-            "--passphrase-env" => {
-                i += 1;
-                if i < args.len() {
-                    passphrase_env = Some(args[i].clone());
-                }
-            }
-            "--passphrase-prompt" => {
-                // Ignore this flag - we always prompt if --passphrase-env is not set
-            }
-            "--yes" => {
-                yes = true;
-            }
-            "--lang" => {
-                i += 1;
-                if i < args.len() {
-                    lang = Some(args[i].clone());
+                // Next arg should be the output path
+                if idx + 1 < args.len() {
+                    output_path = Some(args[idx + 1].clone());
                 }
             }
             _ => {
-                eprintln!("Unknown option: {}", args[i]);
+                // Check if this is a value for a previous flag
+                if idx > 0 {
+                    let prev = &args[idx - 1];
+                    if prev == "--profile"
+                        || prev == "--out"
+                        || prev == "--passphrase-env"
+                        || prev == "--lang"
+                    {
+                        // This is a value, not an unknown option
+                        continue;
+                    }
+                }
+                eprintln!("Unknown option: {}", arg);
                 std::process::exit(1);
             }
         }
-        i += 1;
     }
 
-    // Set up i18n messages
-    let messages = if let Some(lang_code) = lang {
-        if let Some(language) = auth::Language::from_code(&lang_code) {
-            auth::Messages::new(language)
-        } else {
-            auth::Messages::default()
-        }
-    } else {
-        auth::Messages::default()
-    };
+    // Get i18n messages
+    let messages = common_args.get_messages();
 
     // Show warning and validate --yes
-    if !yes {
+    if !common_args.yes {
         eprintln!("{}", messages.get("warn.export_sensitive"));
         eprintln!("Error: --yes flag is required to confirm this dangerous operation");
         std::process::exit(1);
@@ -902,33 +978,12 @@ async fn handle_export_command(args: &[String]) {
         }
     };
 
-    // Get passphrase (fallback to prompt if env not specified or not set)
-    let passphrase = if let Some(env_var) = passphrase_env {
-        match std::env::var(&env_var) {
-            Ok(val) => val,
-            Err(_) => {
-                // Fallback to prompt if environment variable is not set
-                eprintln!(
-                    "Warning: Environment variable {} not found, prompting for passphrase",
-                    env_var
-                );
-                match rpassword::prompt_password(messages.get("prompt.passphrase")) {
-                    Ok(pass) => pass,
-                    Err(e) => {
-                        eprintln!("Error reading passphrase: {}", e);
-                        std::process::exit(1);
-                    }
-                }
-            }
-        }
-    } else {
-        // Fallback to prompt mode
-        match rpassword::prompt_password(messages.get("prompt.passphrase")) {
-            Ok(pass) => pass,
-            Err(e) => {
-                eprintln!("Error reading passphrase: {}", e);
-                std::process::exit(1);
-            }
+    // Get passphrase
+    let passphrase = match common_args.get_passphrase(&messages) {
+        Ok(pass) => pass,
+        Err(e) => {
+            eprintln!("{}", e);
+            std::process::exit(1);
         }
     };
 
@@ -937,7 +992,7 @@ async fn handle_export_command(args: &[String]) {
         all,
         output_path: output,
         passphrase,
-        yes,
+        yes: common_args.yes,
     };
 
     let token_store = create_token_store().expect("Failed to create token store");
@@ -953,60 +1008,41 @@ async fn handle_export_command(args: &[String]) {
 }
 
 async fn handle_import_command(args: &[String]) {
-    let mut input_path: Option<String> = None;
-    let mut passphrase_env: Option<String> = None;
-    let mut yes = false;
-    let mut force = false;
-    let mut lang: Option<String> = None;
+    // Parse common arguments
+    let (common_args, remaining) = ExportImportArgs::parse(args);
 
-    let mut i = 0;
-    while i < args.len() {
-        match args[i].as_str() {
+    // Parse import-specific arguments
+    let mut input_path: Option<String> = None;
+    let mut force = false;
+
+    for (idx, arg) in remaining {
+        match arg.as_str() {
             "--in" => {
-                i += 1;
-                if i < args.len() {
-                    input_path = Some(args[i].clone());
+                // Next arg should be the input path
+                if idx + 1 < args.len() {
+                    input_path = Some(args[idx + 1].clone());
                 }
-            }
-            "--passphrase-env" => {
-                i += 1;
-                if i < args.len() {
-                    passphrase_env = Some(args[i].clone());
-                }
-            }
-            "--passphrase-prompt" => {
-                // Ignore this flag - we always prompt if --passphrase-env is not set
-            }
-            "--yes" => {
-                yes = true;
             }
             "--force" => {
                 force = true;
             }
-            "--lang" => {
-                i += 1;
-                if i < args.len() {
-                    lang = Some(args[i].clone());
-                }
-            }
             _ => {
-                eprintln!("Unknown option: {}", args[i]);
+                // Check if this is a value for a previous flag
+                if idx > 0 {
+                    let prev = &args[idx - 1];
+                    if prev == "--in" || prev == "--passphrase-env" || prev == "--lang" {
+                        // This is a value, not an unknown option
+                        continue;
+                    }
+                }
+                eprintln!("Unknown option: {}", arg);
                 std::process::exit(1);
             }
         }
-        i += 1;
     }
 
-    // Set up i18n messages
-    let messages = if let Some(lang_code) = lang {
-        if let Some(language) = auth::Language::from_code(&lang_code) {
-            auth::Messages::new(language)
-        } else {
-            auth::Messages::default()
-        }
-    } else {
-        auth::Messages::default()
-    };
+    // Get i18n messages
+    let messages = common_args.get_messages();
 
     // Validate required options
     let input = match input_path {
@@ -1017,40 +1053,19 @@ async fn handle_import_command(args: &[String]) {
         }
     };
 
-    // Get passphrase (fallback to prompt if env not specified or not set)
-    let passphrase = if let Some(env_var) = passphrase_env {
-        match std::env::var(&env_var) {
-            Ok(val) => val,
-            Err(_) => {
-                // Fallback to prompt if environment variable is not set
-                eprintln!(
-                    "Warning: Environment variable {} not found, prompting for passphrase",
-                    env_var
-                );
-                match rpassword::prompt_password(messages.get("prompt.passphrase")) {
-                    Ok(pass) => pass,
-                    Err(e) => {
-                        eprintln!("Error reading passphrase: {}", e);
-                        std::process::exit(1);
-                    }
-                }
-            }
-        }
-    } else {
-        // Fallback to prompt mode
-        match rpassword::prompt_password(messages.get("prompt.passphrase")) {
-            Ok(pass) => pass,
-            Err(e) => {
-                eprintln!("Error reading passphrase: {}", e);
-                std::process::exit(1);
-            }
+    // Get passphrase
+    let passphrase = match common_args.get_passphrase(&messages) {
+        Ok(pass) => pass,
+        Err(e) => {
+            eprintln!("{}", e);
+            std::process::exit(1);
         }
     };
 
     let options = auth::ImportOptions {
         input_path: input,
         passphrase,
-        yes,
+        yes: common_args.yes,
         force,
     };
 
