@@ -350,11 +350,19 @@ fn print_help() {
     println!("    key=value                        Request parameters");
     println!("    --json                           Send as JSON body (default: form-urlencoded)");
     println!("    --get                            Use GET method (default: POST)");
+    println!(
+        "    --raw                            Output raw Slack API response (without envelope)"
+    );
+    println!();
+    println!("OUTPUT:");
+    println!("    All commands output JSON with unified envelope: {{response, meta}}");
+    println!("    Use --raw flag to get raw Slack API response (for backward compatibility)");
     println!();
     println!("EXAMPLES:");
     println!("    slack-rs api call users.info user=U123456 --get");
     println!("    slack-rs api call chat.postMessage channel=C123 text=Hello");
     println!("    slack-rs api call chat.postMessage --json channel=C123 text=Hello");
+    println!("    slack-rs conv list --raw  # Get raw response without envelope");
 }
 
 fn print_usage() {
@@ -400,10 +408,16 @@ fn print_api_usage() {
     println!("    key=value                    Request parameters");
     println!("    --json                       Send as JSON body (default: form-urlencoded)");
     println!("    --get                        Use GET method (default: POST)");
+    println!("    --raw                        Output raw Slack API response (without envelope)");
+    println!();
+    println!("OUTPUT FORMAT:");
+    println!("    Default: JSON with 'response' and 'meta' fields (unified envelope)");
+    println!("    With --raw: Raw Slack API response only (for backward compatibility)");
     println!();
     println!("EXAMPLES:");
     println!("    slack-rs api call users.info user=U123456 --get");
     println!("    slack-rs api call chat.postMessage channel=C123 text=Hello");
+    println!("    slack-rs api call conversations.list --raw  # Raw output without envelope");
 }
 
 fn print_auth_usage() {
@@ -1123,13 +1137,14 @@ async fn run_api_call(args: Vec<String>) -> Result<(), Box<dyn std::error::Error
     // Create API client
     let client = ApiClient::new();
 
-    // Execute API call with token type information
+    // Execute API call with token type information and command name
     let response = execute_api_call(
         &client,
         &api_args,
         &token,
         &context,
         resolved_token_type.as_str(),
+        "api call",
     )
     .await?;
 
@@ -1147,7 +1162,12 @@ async fn run_api_call(args: Vec<String>) -> Result<(), Box<dyn std::error::Error
     }
 
     // Print response as JSON
-    let json = serde_json::to_string_pretty(&response)?;
+    // If --raw flag is set, output only the Slack API response without envelope
+    let json = if api_args.raw {
+        serde_json::to_string_pretty(&response.response)?
+    } else {
+        serde_json::to_string_pretty(&response)?
+    };
     println!("{}", json);
 
     Ok(())
@@ -1467,6 +1487,7 @@ mod tests {
             use_json: false,
             use_get: false,
             token_type: None,
+            raw: false,
         };
 
         let response = ApiCallResponse {
@@ -1479,6 +1500,7 @@ mod tests {
                 team_id: "T123".to_string(),
                 user_id: "U123".to_string(),
                 method: "conversations.list".to_string(),
+                command: "api call".to_string(),
                 token_type: "bot".to_string(),
             },
         };
@@ -1500,6 +1522,7 @@ mod tests {
             use_json: false,
             use_get: false,
             token_type: None,
+            raw: false,
         };
 
         let response = ApiCallResponse {
@@ -1514,6 +1537,7 @@ mod tests {
                 team_id: "T123".to_string(),
                 user_id: "U123".to_string(),
                 method: "conversations.list".to_string(),
+                command: "api call".to_string(),
                 token_type: "bot".to_string(),
             },
         };
@@ -1535,6 +1559,7 @@ mod tests {
             use_json: false,
             use_get: false,
             token_type: None,
+            raw: false,
         };
 
         let response = ApiCallResponse {
@@ -1547,6 +1572,7 @@ mod tests {
                 team_id: "T123".to_string(),
                 user_id: "U123".to_string(),
                 method: "conversations.list".to_string(),
+                command: "api call".to_string(),
                 token_type: "user".to_string(),
             },
         };
