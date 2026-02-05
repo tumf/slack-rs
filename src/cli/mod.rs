@@ -22,13 +22,19 @@ use serde_json::Value;
 /// * `token_type` - Optional token type (bot/user). If None, uses profile default or bot fallback
 ///
 /// # Token Resolution Priority
-/// 1. CLI flag token_type parameter (if provided)
-/// 2. Profile's default_token_type (if set)
-/// 3. Try user token first, fall back to bot token
+/// 1. SLACK_TOKEN environment variable (if set, bypasses token store)
+/// 2. CLI flag token_type parameter (if provided)
+/// 3. Profile's default_token_type (if set)
+/// 4. Try user token first, fall back to bot token
 pub async fn get_api_client_with_token_type(
     profile_name: Option<String>,
     token_type: Option<TokenType>,
 ) -> Result<ApiClient, String> {
+    // Check for SLACK_TOKEN environment variable first
+    if let Ok(env_token) = std::env::var("SLACK_TOKEN") {
+        return Ok(ApiClient::with_token(env_token));
+    }
+
     let profile_name = profile_name.unwrap_or_else(|| "default".to_string());
     let config_path = default_config_path().map_err(|e| e.to_string())?;
     let config = load_config(&config_path).map_err(|e| e.to_string())?;
@@ -93,24 +99,70 @@ pub fn is_non_interactive_error(error_msg: &str) -> bool {
 }
 
 /// Wrap response with unified envelope including metadata
+#[allow(dead_code)]
 pub async fn wrap_with_envelope(
     response: Value,
     method: &str,
     command: &str,
     profile_name: Option<String>,
 ) -> Result<CommandResponse, String> {
+    wrap_with_envelope_and_token_type(response, method, command, profile_name, None).await
+}
+
+/// Wrap response with unified envelope including metadata and explicit token type
+pub async fn wrap_with_envelope_and_token_type(
+    response: Value,
+    method: &str,
+    command: &str,
+    profile_name: Option<String>,
+    explicit_token_type: Option<TokenType>,
+) -> Result<CommandResponse, String> {
     let profile_name_str = profile_name.unwrap_or_else(|| "default".to_string());
     let config_path = default_config_path().map_err(|e| e.to_string())?;
     let profile = resolve_profile_full(&config_path, &profile_name_str)
         .map_err(|e| format!("Failed to resolve profile '{}': {}", profile_name_str, e))?;
 
-    Ok(CommandResponse::new(
+    // Resolve token type for metadata
+    let token_type_str = if let Some(explicit) = explicit_token_type {
+        // If explicitly specified via --token-type, use that
+        Some(explicit.to_string())
+    } else if std::env::var("SLACK_TOKEN").is_ok() {
+        // If using SLACK_TOKEN, use profile's default_token_type if set, otherwise "bot"
+        Some(
+            profile
+                .default_token_type
+                .map(|t| t.to_string())
+                .unwrap_or_else(|| "bot".to_string()),
+        )
+    } else {
+        // Resolve from token store (check which token exists)
+        let token_store = create_token_store().map_err(|e| e.to_string())?;
+        let bot_token_key = make_token_key(&profile.team_id, &profile.user_id);
+        let user_token_key = format!("{}:{}:user", profile.team_id, profile.user_id);
+
+        // Try to determine which token was used based on default_token_type
+        let resolved_type = profile.default_token_type.or_else(|| {
+            // If no default, check which token exists (try user first, then bot)
+            if token_store.get(&user_token_key).is_ok() {
+                Some(TokenType::User)
+            } else if token_store.get(&bot_token_key).is_ok() {
+                Some(TokenType::Bot)
+            } else {
+                None
+            }
+        });
+
+        resolved_type.map(|t| t.to_string())
+    };
+
+    Ok(CommandResponse::with_token_type(
         response,
         Some(profile_name_str),
         profile.team_id,
         profile.user_id,
         method.to_string(),
         command.to_string(),
+        token_type_str,
     ))
 }
 
@@ -168,8 +220,14 @@ pub async fn run_search(args: &[String]) -> Result<(), String> {
         serde_json::to_string_pretty(&response).unwrap()
     } else {
         let response_value = serde_json::to_value(&response).map_err(|e| e.to_string())?;
-        let wrapped =
-            wrap_with_envelope(response_value, "search.messages", "search", profile).await?;
+        let wrapped = wrap_with_envelope_and_token_type(
+            response_value,
+            "search.messages",
+            "search",
+            profile,
+            token_type,
+        )
+        .await?;
         serde_json::to_string_pretty(&wrapped).unwrap()
     };
 
@@ -249,8 +307,14 @@ pub async fn run_conv_list(args: &[String]) -> Result<(), String> {
         serde_json::to_string_pretty(&response).unwrap()
     } else {
         let response_value = serde_json::to_value(&response).map_err(|e| e.to_string())?;
-        let wrapped =
-            wrap_with_envelope(response_value, "conversations.list", "conv list", profile).await?;
+        let wrapped = wrap_with_envelope_and_token_type(
+            response_value,
+            "conversations.list",
+            "conv list",
+            profile,
+            token_type,
+        )
+        .await?;
         serde_json::to_string_pretty(&wrapped).unwrap()
     };
 
@@ -342,11 +406,12 @@ pub async fn run_conv_history(args: &[String]) -> Result<(), String> {
         serde_json::to_string_pretty(&response).unwrap()
     } else {
         let response_value = serde_json::to_value(&response).map_err(|e| e.to_string())?;
-        let wrapped = wrap_with_envelope(
+        let wrapped = wrap_with_envelope_and_token_type(
             response_value,
             "conversations.history",
             "conv history",
             profile,
+            token_type,
         )
         .await?;
         serde_json::to_string_pretty(&wrapped).unwrap()
@@ -372,8 +437,14 @@ pub async fn run_users_info(args: &[String]) -> Result<(), String> {
         serde_json::to_string_pretty(&response).unwrap()
     } else {
         let response_value = serde_json::to_value(&response).map_err(|e| e.to_string())?;
-        let wrapped =
-            wrap_with_envelope(response_value, "users.info", "users info", profile).await?;
+        let wrapped = wrap_with_envelope_and_token_type(
+            response_value,
+            "users.info",
+            "users info",
+            profile,
+            token_type,
+        )
+        .await?;
         serde_json::to_string_pretty(&wrapped).unwrap()
     };
 
@@ -471,8 +542,14 @@ pub async fn run_msg_post(args: &[String]) -> Result<(), String> {
         serde_json::to_string_pretty(&response).unwrap()
     } else {
         let response_value = serde_json::to_value(&response).map_err(|e| e.to_string())?;
-        let wrapped =
-            wrap_with_envelope(response_value, "chat.postMessage", "msg post", profile).await?;
+        let wrapped = wrap_with_envelope_and_token_type(
+            response_value,
+            "chat.postMessage",
+            "msg post",
+            profile,
+            token_type,
+        )
+        .await?;
         serde_json::to_string_pretty(&wrapped).unwrap()
     };
 
@@ -503,8 +580,14 @@ pub async fn run_msg_update(args: &[String], non_interactive: bool) -> Result<()
         serde_json::to_string_pretty(&response).unwrap()
     } else {
         let response_value = serde_json::to_value(&response).map_err(|e| e.to_string())?;
-        let wrapped =
-            wrap_with_envelope(response_value, "chat.update", "msg update", profile).await?;
+        let wrapped = wrap_with_envelope_and_token_type(
+            response_value,
+            "chat.update",
+            "msg update",
+            profile,
+            token_type,
+        )
+        .await?;
         serde_json::to_string_pretty(&wrapped).unwrap()
     };
 
@@ -537,8 +620,14 @@ pub async fn run_msg_delete(args: &[String], non_interactive: bool) -> Result<()
         serde_json::to_string_pretty(&response).unwrap()
     } else {
         let response_value = serde_json::to_value(&response).map_err(|e| e.to_string())?;
-        let wrapped =
-            wrap_with_envelope(response_value, "chat.delete", "msg delete", profile).await?;
+        let wrapped = wrap_with_envelope_and_token_type(
+            response_value,
+            "chat.delete",
+            "msg delete",
+            profile,
+            token_type,
+        )
+        .await?;
         serde_json::to_string_pretty(&wrapped).unwrap()
     };
 
@@ -571,8 +660,14 @@ pub async fn run_react_add(args: &[String]) -> Result<(), String> {
         serde_json::to_string_pretty(&response).unwrap()
     } else {
         let response_value = serde_json::to_value(&response).map_err(|e| e.to_string())?;
-        let wrapped =
-            wrap_with_envelope(response_value, "reactions.add", "react add", profile).await?;
+        let wrapped = wrap_with_envelope_and_token_type(
+            response_value,
+            "reactions.add",
+            "react add",
+            profile,
+            token_type,
+        )
+        .await?;
         serde_json::to_string_pretty(&wrapped).unwrap()
     };
 
@@ -605,8 +700,14 @@ pub async fn run_react_remove(args: &[String], non_interactive: bool) -> Result<
         serde_json::to_string_pretty(&response).unwrap()
     } else {
         let response_value = serde_json::to_value(&response).map_err(|e| e.to_string())?;
-        let wrapped =
-            wrap_with_envelope(response_value, "reactions.remove", "react remove", profile).await?;
+        let wrapped = wrap_with_envelope_and_token_type(
+            response_value,
+            "reactions.remove",
+            "react remove",
+            profile,
+            token_type,
+        )
+        .await?;
         serde_json::to_string_pretty(&wrapped).unwrap()
     };
 
@@ -642,8 +743,14 @@ pub async fn run_file_upload(args: &[String]) -> Result<(), String> {
         serde_json::to_string_pretty(&response).unwrap()
     } else {
         let response_value = serde_json::to_value(&response).map_err(|e| e.to_string())?;
-        let wrapped =
-            wrap_with_envelope(response_value, "files.upload", "file upload", profile).await?;
+        let wrapped = wrap_with_envelope_and_token_type(
+            response_value,
+            "files.upload",
+            "file upload",
+            profile,
+            token_type,
+        )
+        .await?;
         serde_json::to_string_pretty(&wrapped).unwrap()
     };
 
