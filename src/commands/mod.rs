@@ -22,8 +22,9 @@ pub mod users_cache;
 
 pub use config::{oauth_delete, oauth_set, oauth_show, set_default_token_type};
 pub use conv::{
-    apply_filters, conv_history, conv_list, extract_conversations, ConversationFilter,
-    ConversationItem, ConversationSelector, StdinSelector,
+    apply_filters, conv_history, conv_list, extract_conversations, format_response,
+    sort_conversations, ConversationFilter, ConversationItem, ConversationSelector, OutputFormat,
+    SortDirection, SortKey, StdinSelector,
 };
 pub use file::file_upload;
 pub use msg::{msg_delete, msg_post, msg_update};

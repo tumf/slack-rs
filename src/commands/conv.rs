@@ -4,6 +4,7 @@ use crate::api::{ApiClient, ApiError, ApiMethod, ApiResponse};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::HashMap;
+use std::fmt;
 use thiserror::Error;
 
 /// Filter error types
@@ -13,6 +14,84 @@ pub enum FilterError {
     InvalidFormat(String),
     #[error("Invalid boolean value: {0}")]
     InvalidBoolean(String),
+}
+
+/// Output format for conversation list
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OutputFormat {
+    Json,
+    Jsonl,
+    Table,
+    Tsv,
+}
+
+impl OutputFormat {
+    pub fn parse(s: &str) -> Result<Self, String> {
+        match s {
+            "json" => Ok(OutputFormat::Json),
+            "jsonl" => Ok(OutputFormat::Jsonl),
+            "table" => Ok(OutputFormat::Table),
+            "tsv" => Ok(OutputFormat::Tsv),
+            _ => Err(format!(
+                "Invalid format '{}'. Valid values: json, jsonl, table, tsv",
+                s
+            )),
+        }
+    }
+}
+
+impl fmt::Display for OutputFormat {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            OutputFormat::Json => write!(f, "json"),
+            OutputFormat::Jsonl => write!(f, "jsonl"),
+            OutputFormat::Table => write!(f, "table"),
+            OutputFormat::Tsv => write!(f, "tsv"),
+        }
+    }
+}
+
+/// Sort key for conversation list
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SortKey {
+    Name,
+    Created,
+    NumMembers,
+}
+
+impl SortKey {
+    pub fn parse(s: &str) -> Result<Self, String> {
+        match s {
+            "name" => Ok(SortKey::Name),
+            "created" => Ok(SortKey::Created),
+            "num_members" => Ok(SortKey::NumMembers),
+            _ => Err(format!(
+                "Invalid sort key '{}'. Valid values: name, created, num_members",
+                s
+            )),
+        }
+    }
+}
+
+/// Sort direction
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum SortDirection {
+    #[default]
+    Asc,
+    Desc,
+}
+
+impl SortDirection {
+    pub fn parse(s: &str) -> Result<Self, String> {
+        match s {
+            "asc" => Ok(SortDirection::Asc),
+            "desc" => Ok(SortDirection::Desc),
+            _ => Err(format!(
+                "Invalid sort direction '{}'. Valid values: asc, desc",
+                s
+            )),
+        }
+    }
 }
 
 /// Filter type for conversation list
@@ -158,6 +237,194 @@ pub fn apply_filters(response: &mut ApiResponse, filters: &[ConversationFilter])
             channels_array.retain(|conv| filters.iter().all(|filter| filter.matches(conv)));
         }
     }
+}
+
+/// Sort conversations by the specified key and direction
+pub fn sort_conversations(response: &mut ApiResponse, key: SortKey, direction: SortDirection) {
+    if let Some(channels) = response.data.get_mut("channels") {
+        if let Some(channels_array) = channels.as_array_mut() {
+            channels_array.sort_by(|a, b| {
+                let ordering = match key {
+                    SortKey::Name => {
+                        let a_name = a.get("name").and_then(|v| v.as_str()).unwrap_or("");
+                        let b_name = b.get("name").and_then(|v| v.as_str()).unwrap_or("");
+                        a_name.cmp(b_name)
+                    }
+                    SortKey::Created => {
+                        let a_created = a.get("created").and_then(|v| v.as_i64()).unwrap_or(0);
+                        let b_created = b.get("created").and_then(|v| v.as_i64()).unwrap_or(0);
+                        a_created.cmp(&b_created)
+                    }
+                    SortKey::NumMembers => {
+                        let a_members = a.get("num_members").and_then(|v| v.as_i64()).unwrap_or(0);
+                        let b_members = b.get("num_members").and_then(|v| v.as_i64()).unwrap_or(0);
+                        a_members.cmp(&b_members)
+                    }
+                };
+
+                match direction {
+                    SortDirection::Asc => ordering,
+                    SortDirection::Desc => ordering.reverse(),
+                }
+            });
+        }
+    }
+}
+
+/// Format response for output
+pub fn format_response(response: &ApiResponse, format: OutputFormat) -> Result<String, String> {
+    match format {
+        OutputFormat::Json => serde_json::to_string_pretty(&response)
+            .map_err(|e| format!("Failed to serialize JSON: {}", e)),
+        OutputFormat::Jsonl => {
+            if let Some(channels) = response.data.get("channels") {
+                if let Some(channels_array) = channels.as_array() {
+                    let lines: Vec<String> = channels_array
+                        .iter()
+                        .filter_map(|conv| serde_json::to_string(conv).ok())
+                        .collect();
+                    Ok(lines.join("\n"))
+                } else {
+                    Ok(String::new())
+                }
+            } else {
+                Ok(String::new())
+            }
+        }
+        OutputFormat::Table => format_as_table(response),
+        OutputFormat::Tsv => format_as_tsv(response),
+    }
+}
+
+/// Format response as table
+fn format_as_table(response: &ApiResponse) -> Result<String, String> {
+    let channels = match response.data.get("channels").and_then(|v| v.as_array()) {
+        Some(ch) => ch,
+        None => return Ok(String::new()),
+    };
+
+    if channels.is_empty() {
+        return Ok(String::new());
+    }
+
+    // Calculate column widths
+    let mut max_id = "ID".len();
+    let mut max_name = "NAME".len();
+    let max_private = "PRIVATE".len();
+    let max_member = "MEMBER".len();
+    let mut max_num_members = "NUM_MEMBERS".len();
+
+    for conv in channels {
+        if let Some(id) = conv.get("id").and_then(|v| v.as_str()) {
+            max_id = max_id.max(id.len());
+        }
+        if let Some(name) = conv.get("name").and_then(|v| v.as_str()) {
+            max_name = max_name.max(name.len());
+        }
+        if let Some(num) = conv.get("num_members").and_then(|v| v.as_i64()) {
+            max_num_members = max_num_members.max(num.to_string().len());
+        }
+    }
+
+    // Build header
+    let mut output = String::new();
+    output.push_str(&format!(
+        "{:width_id$}  {:width_name$}  {:width_private$}  {:width_member$}  {:width_num$}\n",
+        "ID",
+        "NAME",
+        "PRIVATE",
+        "MEMBER",
+        "NUM_MEMBERS",
+        width_id = max_id,
+        width_name = max_name,
+        width_private = max_private,
+        width_member = max_member,
+        width_num = max_num_members,
+    ));
+
+    // Build separator
+    output.push_str(&format!(
+        "{}  {}  {}  {}  {}\n",
+        "-".repeat(max_id),
+        "-".repeat(max_name),
+        "-".repeat(max_private),
+        "-".repeat(max_member),
+        "-".repeat(max_num_members),
+    ));
+
+    // Build rows
+    for conv in channels {
+        let id = conv.get("id").and_then(|v| v.as_str()).unwrap_or("");
+        let name = conv.get("name").and_then(|v| v.as_str()).unwrap_or("");
+        let is_private = conv
+            .get("is_private")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+        let is_member = conv
+            .get("is_member")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+        let num_members = conv.get("num_members").and_then(|v| v.as_i64());
+
+        let num_members_str = num_members.map(|n| n.to_string()).unwrap_or_default();
+
+        output.push_str(&format!(
+            "{:width_id$}  {:width_name$}  {:width_private$}  {:width_member$}  {:width_num$}\n",
+            id,
+            name,
+            is_private,
+            is_member,
+            num_members_str,
+            width_id = max_id,
+            width_name = max_name,
+            width_private = max_private,
+            width_member = max_member,
+            width_num = max_num_members,
+        ));
+    }
+
+    Ok(output)
+}
+
+/// Format response as TSV
+fn format_as_tsv(response: &ApiResponse) -> Result<String, String> {
+    let channels = match response.data.get("channels").and_then(|v| v.as_array()) {
+        Some(ch) => ch,
+        None => return Ok(String::new()),
+    };
+
+    if channels.is_empty() {
+        return Ok(String::new());
+    }
+
+    let mut output = String::new();
+
+    // Header
+    output.push_str("id\tname\tis_private\tis_member\tnum_members\n");
+
+    // Rows
+    for conv in channels {
+        let id = conv.get("id").and_then(|v| v.as_str()).unwrap_or("");
+        let name = conv.get("name").and_then(|v| v.as_str()).unwrap_or("");
+        let is_private = conv
+            .get("is_private")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+        let is_member = conv
+            .get("is_member")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+        let num_members = conv.get("num_members").and_then(|v| v.as_i64());
+
+        let num_members_str = num_members.map(|n| n.to_string()).unwrap_or_default();
+
+        output.push_str(&format!(
+            "{}\t{}\t{}\t{}\t{}\n",
+            id, name, is_private, is_member, num_members_str
+        ));
+    }
+
+    Ok(output)
 }
 
 /// Conversation item for display
@@ -550,5 +817,268 @@ mod tests {
 
         let selector = MockSelector { selected_index: 1 };
         assert_eq!(selector.select(&items).unwrap(), "C2");
+    }
+
+    #[test]
+    fn test_output_format_parse() {
+        assert_eq!(OutputFormat::parse("json").unwrap(), OutputFormat::Json);
+        assert_eq!(OutputFormat::parse("jsonl").unwrap(), OutputFormat::Jsonl);
+        assert_eq!(OutputFormat::parse("table").unwrap(), OutputFormat::Table);
+        assert_eq!(OutputFormat::parse("tsv").unwrap(), OutputFormat::Tsv);
+        assert!(OutputFormat::parse("invalid").is_err());
+    }
+
+    #[test]
+    fn test_sort_key_parse() {
+        assert_eq!(SortKey::parse("name").unwrap(), SortKey::Name);
+        assert_eq!(SortKey::parse("created").unwrap(), SortKey::Created);
+        assert_eq!(SortKey::parse("num_members").unwrap(), SortKey::NumMembers);
+        assert!(SortKey::parse("invalid").is_err());
+    }
+
+    #[test]
+    fn test_sort_direction_parse() {
+        assert_eq!(SortDirection::parse("asc").unwrap(), SortDirection::Asc);
+        assert_eq!(SortDirection::parse("desc").unwrap(), SortDirection::Desc);
+        assert!(SortDirection::parse("invalid").is_err());
+    }
+
+    #[test]
+    fn test_sort_conversations_by_name() {
+        let mut response = ApiResponse {
+            ok: true,
+            data: HashMap::from([(
+                "channels".to_string(),
+                json!([
+                    {"id": "C1", "name": "zebra"},
+                    {"id": "C2", "name": "alpha"},
+                    {"id": "C3", "name": "beta"},
+                ]),
+            )]),
+            error: None,
+        };
+
+        sort_conversations(&mut response, SortKey::Name, SortDirection::Asc);
+
+        let channels = response.data.get("channels").unwrap().as_array().unwrap();
+        assert_eq!(channels[0].get("name").unwrap().as_str().unwrap(), "alpha");
+        assert_eq!(channels[1].get("name").unwrap().as_str().unwrap(), "beta");
+        assert_eq!(channels[2].get("name").unwrap().as_str().unwrap(), "zebra");
+    }
+
+    #[test]
+    fn test_sort_conversations_by_name_desc() {
+        let mut response = ApiResponse {
+            ok: true,
+            data: HashMap::from([(
+                "channels".to_string(),
+                json!([
+                    {"id": "C1", "name": "alpha"},
+                    {"id": "C2", "name": "zebra"},
+                    {"id": "C3", "name": "beta"},
+                ]),
+            )]),
+            error: None,
+        };
+
+        sort_conversations(&mut response, SortKey::Name, SortDirection::Desc);
+
+        let channels = response.data.get("channels").unwrap().as_array().unwrap();
+        assert_eq!(channels[0].get("name").unwrap().as_str().unwrap(), "zebra");
+        assert_eq!(channels[1].get("name").unwrap().as_str().unwrap(), "beta");
+        assert_eq!(channels[2].get("name").unwrap().as_str().unwrap(), "alpha");
+    }
+
+    #[test]
+    fn test_sort_conversations_by_created() {
+        let mut response = ApiResponse {
+            ok: true,
+            data: HashMap::from([(
+                "channels".to_string(),
+                json!([
+                    {"id": "C1", "name": "newest", "created": 300},
+                    {"id": "C2", "name": "oldest", "created": 100},
+                    {"id": "C3", "name": "middle", "created": 200},
+                ]),
+            )]),
+            error: None,
+        };
+
+        sort_conversations(&mut response, SortKey::Created, SortDirection::Asc);
+
+        let channels = response.data.get("channels").unwrap().as_array().unwrap();
+        assert_eq!(channels[0].get("created").unwrap().as_i64().unwrap(), 100);
+        assert_eq!(channels[1].get("created").unwrap().as_i64().unwrap(), 200);
+        assert_eq!(channels[2].get("created").unwrap().as_i64().unwrap(), 300);
+    }
+
+    #[test]
+    fn test_sort_conversations_by_num_members() {
+        let mut response = ApiResponse {
+            ok: true,
+            data: HashMap::from([(
+                "channels".to_string(),
+                json!([
+                    {"id": "C1", "name": "large", "num_members": 100},
+                    {"id": "C2", "name": "small", "num_members": 10},
+                    {"id": "C3", "name": "medium", "num_members": 50},
+                ]),
+            )]),
+            error: None,
+        };
+
+        sort_conversations(&mut response, SortKey::NumMembers, SortDirection::Asc);
+
+        let channels = response.data.get("channels").unwrap().as_array().unwrap();
+        assert_eq!(
+            channels[0].get("num_members").unwrap().as_i64().unwrap(),
+            10
+        );
+        assert_eq!(
+            channels[1].get("num_members").unwrap().as_i64().unwrap(),
+            50
+        );
+        assert_eq!(
+            channels[2].get("num_members").unwrap().as_i64().unwrap(),
+            100
+        );
+    }
+
+    #[test]
+    fn test_sort_conversations_missing_fields() {
+        let mut response = ApiResponse {
+            ok: true,
+            data: HashMap::from([(
+                "channels".to_string(),
+                json!([
+                    {"id": "C1", "name": "has_members", "num_members": 50},
+                    {"id": "C2", "name": "no_members"},
+                    {"id": "C3", "name": "also_has", "num_members": 10},
+                ]),
+            )]),
+            error: None,
+        };
+
+        sort_conversations(&mut response, SortKey::NumMembers, SortDirection::Asc);
+
+        let channels = response.data.get("channels").unwrap().as_array().unwrap();
+        // Missing field treated as 0, so it should be first
+        assert_eq!(
+            channels[0].get("name").unwrap().as_str().unwrap(),
+            "no_members"
+        );
+        assert_eq!(
+            channels[1].get("num_members").unwrap().as_i64().unwrap(),
+            10
+        );
+        assert_eq!(
+            channels[2].get("num_members").unwrap().as_i64().unwrap(),
+            50
+        );
+    }
+
+    #[test]
+    fn test_format_response_jsonl() {
+        let response = ApiResponse {
+            ok: true,
+            data: HashMap::from([(
+                "channels".to_string(),
+                json!([
+                    {"id": "C1", "name": "general"},
+                    {"id": "C2", "name": "random"},
+                ]),
+            )]),
+            error: None,
+        };
+
+        let output = format_response(&response, OutputFormat::Jsonl).unwrap();
+        let lines: Vec<&str> = output.lines().collect();
+        assert_eq!(lines.len(), 2);
+        assert!(lines[0].contains("\"id\":\"C1\""));
+        assert!(lines[1].contains("\"id\":\"C2\""));
+    }
+
+    #[test]
+    fn test_format_response_tsv() {
+        let response = ApiResponse {
+            ok: true,
+            data: HashMap::from([(
+                "channels".to_string(),
+                json!([
+                    {"id": "C1", "name": "general", "is_private": false, "is_member": true, "num_members": 42},
+                    {"id": "C2", "name": "private", "is_private": true, "is_member": false},
+                ]),
+            )]),
+            error: None,
+        };
+
+        let output = format_response(&response, OutputFormat::Tsv).unwrap();
+        let lines: Vec<&str> = output.lines().collect();
+        assert_eq!(lines.len(), 3); // header + 2 rows
+        assert_eq!(lines[0], "id\tname\tis_private\tis_member\tnum_members");
+        assert_eq!(lines[1], "C1\tgeneral\tfalse\ttrue\t42");
+        assert_eq!(lines[2], "C2\tprivate\ttrue\tfalse\t"); // num_members missing -> empty
+    }
+
+    #[test]
+    fn test_format_response_table() {
+        let response = ApiResponse {
+            ok: true,
+            data: HashMap::from([(
+                "channels".to_string(),
+                json!([
+                    {"id": "C1", "name": "general", "is_private": false, "is_member": true, "num_members": 42},
+                ]),
+            )]),
+            error: None,
+        };
+
+        let output = format_response(&response, OutputFormat::Table).unwrap();
+        assert!(output.contains("ID"));
+        assert!(output.contains("NAME"));
+        assert!(output.contains("PRIVATE"));
+        assert!(output.contains("MEMBER"));
+        assert!(output.contains("NUM_MEMBERS"));
+        assert!(output.contains("C1"));
+        assert!(output.contains("general"));
+        assert!(output.contains("42"));
+    }
+
+    #[test]
+    fn test_filter_then_sort() {
+        let mut response = ApiResponse {
+            ok: true,
+            data: HashMap::from([(
+                "channels".to_string(),
+                json!([
+                    {"id": "C1", "name": "test-zebra", "is_member": true},
+                    {"id": "C2", "name": "test-alpha", "is_member": true},
+                    {"id": "C3", "name": "other", "is_member": true},
+                    {"id": "C4", "name": "test-beta", "is_member": false},
+                ]),
+            )]),
+            error: None,
+        };
+
+        // Apply filter (name:test*, is_member:true)
+        let filters = vec![
+            ConversationFilter::Name("test*".to_string()),
+            ConversationFilter::IsMember(true),
+        ];
+        apply_filters(&mut response, &filters);
+
+        // Apply sort (name, asc)
+        sort_conversations(&mut response, SortKey::Name, SortDirection::Asc);
+
+        let channels = response.data.get("channels").unwrap().as_array().unwrap();
+        assert_eq!(channels.len(), 2); // C1 and C2
+        assert_eq!(
+            channels[0].get("name").unwrap().as_str().unwrap(),
+            "test-alpha"
+        );
+        assert_eq!(
+            channels[1].get("name").unwrap().as_str().unwrap(),
+            "test-zebra"
+        );
     }
 }
