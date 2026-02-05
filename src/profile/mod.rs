@@ -14,6 +14,7 @@
 pub mod resolver;
 pub mod storage;
 pub mod token_store;
+pub mod token_type;
 pub mod types;
 
 // Re-export commonly used types and functions
@@ -24,4 +25,5 @@ pub use token_store::{
     make_token_key, store_oauth_client_secret, FileTokenStore, InMemoryTokenStore,
     KeyringTokenStore, TokenStore, TokenStoreError,
 };
+pub use token_type::{TokenType, TokenTypeError};
 pub use types::{Profile, ProfileError, ProfilesConfig};

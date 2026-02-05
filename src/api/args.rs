@@ -5,6 +5,7 @@
 //! - Key-value pairs (e.g., "channel=C123456" "text=hello")
 //! - Flags: --json, --get
 
+use crate::profile::TokenType;
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use thiserror::Error;
@@ -37,6 +38,9 @@ pub struct ApiCallArgs {
 
     /// Use GET method instead of POST
     pub use_get: bool,
+
+    /// Token type preference (CLI flag override)
+    pub token_type: Option<TokenType>,
 }
 
 impl ApiCallArgs {
@@ -50,15 +54,26 @@ impl ApiCallArgs {
         let mut params = HashMap::new();
         let mut use_json = false;
         let mut use_get = false;
+        let mut token_type = None;
 
-        for arg in &args[1..] {
+        let mut i = 1;
+        while i < args.len() {
+            let arg = &args[i];
             if arg == "--json" {
                 use_json = true;
             } else if arg == "--get" {
                 use_get = true;
+            } else if arg == "--token-type" {
+                i += 1;
+                if i < args.len() {
+                    token_type = Some(
+                        args[i]
+                            .parse::<TokenType>()
+                            .map_err(|e| ArgsError::InvalidJson(e.to_string()))?,
+                    );
+                }
             } else if arg.starts_with("--") {
                 // Ignore unknown flags for forward compatibility
-                continue;
             } else {
                 // Parse key=value
                 if let Some((key, value)) = arg.split_once('=') {
@@ -67,6 +82,7 @@ impl ApiCallArgs {
                     return Err(ArgsError::InvalidKeyValue(arg.clone()));
                 }
             }
+            i += 1;
         }
 
         Ok(Self {
@@ -74,6 +90,7 @@ impl ApiCallArgs {
             params,
             use_json,
             use_get,
+            token_type,
         })
     }
 
@@ -205,6 +222,7 @@ mod tests {
             .collect(),
             use_json: true,
             use_get: false,
+            token_type: None,
         };
 
         let json = args.to_json();
@@ -225,6 +243,7 @@ mod tests {
             .collect(),
             use_json: false,
             use_get: false,
+            token_type: None,
         };
 
         let form = args.to_form();

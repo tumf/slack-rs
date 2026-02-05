@@ -408,6 +408,7 @@ fn save_profile_and_credentials(creds: SaveCredentials) -> Result<(), OAuthError
         scopes: Some(creds.scopes.to_vec()), // Legacy field
         bot_scopes: Some(creds.bot_scopes.to_vec()),
         user_scopes: Some(creds.user_scopes.to_vec()),
+        default_token_type: None,
     };
 
     profiles_config
@@ -539,6 +540,7 @@ pub async fn login(
         scopes: None,
         bot_scopes: None,
         user_scopes: None,
+        default_token_type: None,
     };
 
     config
@@ -811,6 +813,7 @@ mod tests {
                 scopes: None,
                 bot_scopes: None,
                 user_scopes: None,
+                default_token_type: None,
             },
         );
         save_config(&config_path, &config).unwrap();

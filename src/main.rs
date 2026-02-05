@@ -131,6 +131,12 @@ async fn main() {
                         }
                     }
                 }
+                "set" => {
+                    if let Err(e) = run_config_set(&args[3..]) {
+                        eprintln!("Config set failed: {}", e);
+                        std::process::exit(1);
+                    }
+                }
                 _ => {
                     print_config_usage(&args[0]);
                 }
@@ -309,6 +315,7 @@ fn print_help() {
     println!("    config oauth set <profile>       Set OAuth configuration for a profile");
     println!("    config oauth show <profile>      Show OAuth configuration for a profile");
     println!("    config oauth delete <profile>    Delete OAuth configuration for a profile");
+    println!("    config set <profile> --token-type <type>  Set default token type (bot/user)");
     println!("    search <query>                   Search messages");
     println!("    conv list                        List conversations");
     println!("    conv history <channel>           Get conversation history");
@@ -348,6 +355,7 @@ fn print_usage() {
     println!("  config oauth set <profile>     - Set OAuth configuration for a profile");
     println!("  config oauth show <profile>    - Show OAuth configuration for a profile");
     println!("  config oauth delete <profile>  - Delete OAuth configuration for a profile");
+    println!("  config set <profile> --token-type <type> - Set default token type (bot/user)");
     println!("  search <query>                 - Search messages (supports --count, --page, --sort, --sort_dir)");
     println!("  conv list                      - List conversations");
     println!("  conv history <channel>         - Get conversation history");
@@ -450,6 +458,7 @@ fn print_config_usage(prog: &str) {
     );
     println!("  {} config oauth show <profile>", prog);
     println!("  {} config oauth delete <profile>", prog);
+    println!("  {} config set <profile> --token-type <type>  - Set default token type (bot/user)", prog);
 }
 
 fn print_config_oauth_usage(prog: &str) {
@@ -690,6 +699,45 @@ fn run_config_oauth_delete(args: &[String]) -> Result<(), String> {
 
     let profile_name = args[0].clone();
     commands::oauth_delete(profile_name).map_err(|e| e.to_string())
+}
+
+/// Run config set command
+fn run_config_set(args: &[String]) -> Result<(), String> {
+    let mut profile_name: Option<String> = None;
+    let mut token_type: Option<profile::TokenType> = None;
+
+    let mut i = 0;
+    while i < args.len() {
+        if args[i].starts_with("--") {
+            match args[i].as_str() {
+                "--token-type" => {
+                    i += 1;
+                    if i < args.len() {
+                        token_type = Some(
+                            args[i]
+                                .parse::<profile::TokenType>()
+                                .map_err(|e| format!("Invalid token type: {}", e))?,
+                        );
+                    } else {
+                        return Err("--token-type requires a value".to_string());
+                    }
+                }
+                _ => {
+                    return Err(format!("Unknown option: {}", args[i]));
+                }
+            }
+        } else if profile_name.is_none() {
+            profile_name = Some(args[i].clone());
+        } else {
+            return Err(format!("Unexpected argument: {}", args[i]));
+        }
+        i += 1;
+    }
+
+    let profile = profile_name.ok_or_else(|| "Profile name is required".to_string())?;
+    let ttype = token_type.ok_or_else(|| "--token-type is required".to_string())?;
+
+    commands::set_default_token_type(profile, ttype).map_err(|e| e.to_string())
 }
 
 async fn handle_export_command(args: &[String]) {
@@ -957,24 +1005,55 @@ async fn run_api_call(args: Vec<String>) -> Result<(), Box<dyn std::error::Error
         user_id: profile.user_id.clone(),
     };
 
-    // Create token key from team_id and user_id
-    let token_key = make_token_key(&profile.team_id, &profile.user_id);
+    // Resolve token type: CLI flag > profile default > fallback to bot
+    let resolved_token_type = profile::TokenType::resolve(
+        api_args.token_type,
+        profile.default_token_type,
+        profile::TokenType::Bot,
+    );
+
+    // Create token key from team_id, user_id, and token type
+    let token_key_bot = make_token_key(&profile.team_id, &profile.user_id);
+    let token_key_user = format!("{}_user", token_key_bot);
+
+    // Select the appropriate token key based on resolved token type
+    let token_key = match resolved_token_type {
+        profile::TokenType::Bot => token_key_bot.clone(),
+        profile::TokenType::User => token_key_user.clone(),
+    };
 
     // Retrieve token from token store
     // Try file store first, fall back to environment variable
-    let token = {
-        let file_store =
-            FileTokenStore::new().map_err(|e| format!("Failed to create token store: {}", e))?;
-        match file_store.get(&token_key) {
-            Ok(t) => t,
-            Err(_) => {
-                // If file store fails, check if there's a token in environment
+    let file_store =
+        FileTokenStore::new().map_err(|e| format!("Failed to create token store: {}", e))?;
+    let token = match file_store.get(&token_key) {
+        Ok(t) => t,
+        Err(_) => {
+            // If requested token type not found, try fallback
+            if resolved_token_type == profile::TokenType::User {
+                // Fallback to bot token if user token not found
+                if let Ok(bot_token) = file_store.get(&token_key_bot) {
+                    eprintln!(
+                        "Warning: User token not found, falling back to bot token for profile '{}'",
+                        profile_name
+                    );
+                    bot_token
+                } else if let Ok(env_token) = std::env::var("SLACK_TOKEN") {
+                    env_token
+                } else {
+                    return Err(format!(
+                        "No {} token found for profile '{}' ({}:{}). Set SLACK_TOKEN environment variable or store token in file store.",
+                        resolved_token_type, profile_name, profile.team_id, profile.user_id
+                    ).into());
+                }
+            } else {
+                // Check environment variable
                 if let Ok(env_token) = std::env::var("SLACK_TOKEN") {
                     env_token
                 } else {
                     return Err(format!(
-                        "No token found for profile '{}' ({}:{}). Set SLACK_TOKEN environment variable or store token in file store.",
-                        profile_name, profile.team_id, profile.user_id
+                        "No {} token found for profile '{}' ({}:{}). Set SLACK_TOKEN environment variable or store token in file store.",
+                        resolved_token_type, profile_name, profile.team_id, profile.user_id
                     ).into());
                 }
             }
@@ -984,8 +1063,15 @@ async fn run_api_call(args: Vec<String>) -> Result<(), Box<dyn std::error::Error
     // Create API client
     let client = ApiClient::new();
 
-    // Execute API call
-    let response = execute_api_call(&client, &api_args, &token, &context).await?;
+    // Execute API call with token type information
+    let response = execute_api_call(
+        &client,
+        &api_args,
+        &token,
+        &context,
+        resolved_token_type.as_str(),
+    )
+    .await?;
 
     // Print response as JSON
     let json = serde_json::to_string_pretty(&response)?;
@@ -1103,6 +1189,7 @@ fn example_profile_management() {
         scopes: None,
         bot_scopes: None,
         user_scopes: None,
+        default_token_type: None,
     };
 
     // Use add() to prevent duplicates
@@ -1137,6 +1224,7 @@ fn demonstrate_profile_persistence() {
         scopes: None,
         bot_scopes: None,
         user_scopes: None,
+        default_token_type: None,
     };
 
     let profile2 = Profile {
@@ -1149,6 +1237,7 @@ fn demonstrate_profile_persistence() {
         scopes: None,
         bot_scopes: None,
         user_scopes: None,
+        default_token_type: None,
     };
 
     // Demonstrate add() - should succeed for new profile
@@ -1174,6 +1263,7 @@ fn demonstrate_profile_persistence() {
         scopes: None,
         bot_scopes: None,
         user_scopes: None,
+        default_token_type: None,
     };
     match config.set_or_update("personal".to_string(), updated_profile2) {
         Ok(_) => println!("Updated 'personal' profile using set_or_update()"),

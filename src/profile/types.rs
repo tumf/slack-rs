@@ -2,6 +2,8 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use thiserror::Error;
 
+use super::token_type::TokenType;
+
 #[derive(Debug, Error)]
 pub enum ProfileError {
     #[error("Profile name already exists: {0}")]
@@ -31,6 +33,9 @@ pub struct Profile {
     /// User OAuth scopes (new field)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub user_scopes: Option<Vec<String>>,
+    /// Default token type for this profile (optional for backward compatibility)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub default_token_type: Option<TokenType>,
 }
 
 impl Profile {
@@ -66,6 +71,7 @@ impl Profile {
             scopes: None, // Deprecated field, kept for backward compatibility
             bot_scopes,
             user_scopes,
+            default_token_type: None,
         }
     }
 }
@@ -200,6 +206,7 @@ mod tests {
             scopes: None,
             bot_scopes: None,
             user_scopes: None,
+            default_token_type: None,
         };
 
         config.set("default".to_string(), profile.clone());
@@ -220,6 +227,7 @@ mod tests {
             scopes: None,
             bot_scopes: None,
             user_scopes: None,
+            default_token_type: None,
         };
 
         config.set("test".to_string(), profile.clone());
@@ -243,6 +251,7 @@ mod tests {
                 scopes: None,
                 bot_scopes: None,
                 user_scopes: None,
+                default_token_type: None,
             },
         );
         config.set(
@@ -257,6 +266,7 @@ mod tests {
                 scopes: None,
                 bot_scopes: None,
                 user_scopes: None,
+                default_token_type: None,
             },
         );
 
@@ -277,6 +287,7 @@ mod tests {
             scopes: None,
             bot_scopes: None,
             user_scopes: None,
+            default_token_type: None,
         };
 
         let json = serde_json::to_string(&profile).unwrap();
@@ -299,6 +310,7 @@ mod tests {
                 scopes: None,
                 bot_scopes: None,
                 user_scopes: None,
+                default_token_type: None,
             },
         );
 
@@ -320,6 +332,7 @@ mod tests {
             scopes: None,
             bot_scopes: None,
             user_scopes: None,
+            default_token_type: None,
         };
         let profile2 = Profile {
             team_id: "T789".to_string(),
@@ -331,6 +344,7 @@ mod tests {
             scopes: None,
             bot_scopes: None,
             user_scopes: None,
+            default_token_type: None,
         };
 
         // First add should succeed
@@ -360,6 +374,7 @@ mod tests {
             scopes: None,
             bot_scopes: None,
             user_scopes: None,
+            default_token_type: None,
         };
 
         // Adding new profile should succeed
@@ -382,6 +397,7 @@ mod tests {
             scopes: None,
             bot_scopes: None,
             user_scopes: None,
+            default_token_type: None,
         };
         let profile2 = Profile {
             team_id: "T123".to_string(),
@@ -393,6 +409,7 @@ mod tests {
             scopes: None,
             bot_scopes: None,
             user_scopes: None,
+            default_token_type: None,
         };
 
         config
@@ -419,6 +436,7 @@ mod tests {
             scopes: None,
             bot_scopes: None,
             user_scopes: None,
+            default_token_type: None,
         };
         let profile2 = Profile {
             team_id: "T789".to_string(),
@@ -430,6 +448,7 @@ mod tests {
             scopes: None,
             bot_scopes: None,
             user_scopes: None,
+            default_token_type: None,
         };
 
         config
@@ -458,6 +477,7 @@ mod tests {
             scopes: None,
             bot_scopes: None,
             user_scopes: None,
+            default_token_type: None,
         };
         let profile2 = Profile {
             team_id: "T123".to_string(),
@@ -469,6 +489,7 @@ mod tests {
             scopes: None,
             bot_scopes: None,
             user_scopes: None,
+            default_token_type: None,
         };
 
         config.set_or_update("old".to_string(), profile1).unwrap();
@@ -522,6 +543,7 @@ mod tests {
             scopes: None,
             bot_scopes: None,
             user_scopes: None,
+            default_token_type: None,
         };
 
         let json = serde_json::to_string(&profile).unwrap();
@@ -544,6 +566,7 @@ mod tests {
             scopes: None,
             bot_scopes: None,
             user_scopes: None,
+            default_token_type: None,
         };
 
         let json = serde_json::to_string(&profile).unwrap();
@@ -564,6 +587,7 @@ mod tests {
             scopes: Some(vec!["chat:write".to_string(), "users:read".to_string()]),
             bot_scopes: None,
             user_scopes: None,
+            default_token_type: None,
         };
 
         let json = serde_json::to_string(&profile).unwrap();
@@ -594,6 +618,7 @@ mod tests {
             scopes: None,
             bot_scopes: None,
             user_scopes: None,
+            default_token_type: None,
         };
 
         let json = serde_json::to_string(&profile).unwrap();
@@ -619,6 +644,7 @@ mod tests {
             scopes: Some(vec!["chat:write".to_string()]),
             bot_scopes: None,
             user_scopes: None,
+            default_token_type: None,
         };
 
         config
@@ -636,6 +662,7 @@ mod tests {
             scopes: Some(vec!["chat:write".to_string()]),
             bot_scopes: None,
             user_scopes: None,
+            default_token_type: None,
         };
 
         // This should succeed and update the profile
@@ -665,6 +692,7 @@ mod tests {
             scopes: Some(vec!["chat:write".to_string()]),
             bot_scopes: None,
             user_scopes: None,
+            default_token_type: None,
         };
 
         config
@@ -682,6 +710,7 @@ mod tests {
             scopes: None,
             bot_scopes: None,
             user_scopes: None,
+            default_token_type: None,
         };
 
         // This should succeed but keep the real values
@@ -735,6 +764,7 @@ mod tests {
             scopes: None,
             bot_scopes: Some(vec!["chat:write".to_string()]),
             user_scopes: Some(vec!["users:read".to_string()]),
+            default_token_type: None,
         };
 
         assert_eq!(
@@ -745,6 +775,78 @@ mod tests {
             profile.get_user_scopes(),
             Some(vec!["users:read".to_string()])
         );
+    }
+
+    #[test]
+    fn test_backward_compatibility_profile_without_default_token_type() {
+        // Test that old profiles.json without default_token_type can be deserialized
+        let json = r#"{
+            "version": 1,
+            "profiles": {
+                "default": {
+                    "team_id": "T123",
+                    "user_id": "U456",
+                    "team_name": "Test Team",
+                    "user_name": "Test User"
+                }
+            }
+        }"#;
+
+        let config: ProfilesConfig = serde_json::from_str(json).unwrap();
+        assert_eq!(config.version, 1);
+        assert_eq!(config.profiles.len(), 1);
+
+        let profile = config.get("default").unwrap();
+        assert_eq!(profile.team_id, "T123");
+        assert_eq!(profile.user_id, "U456");
+        assert_eq!(profile.default_token_type, None);
+    }
+
+    #[test]
+    fn test_profile_with_default_token_type_serialization() {
+        // Test that new profiles with default_token_type serialize correctly
+        let profile = Profile {
+            team_id: "T123".to_string(),
+            user_id: "U456".to_string(),
+            team_name: Some("Test Team".to_string()),
+            user_name: Some("Test User".to_string()),
+            client_id: None,
+            redirect_uri: None,
+            scopes: None,
+            bot_scopes: None,
+            user_scopes: None,
+            default_token_type: Some(super::super::token_type::TokenType::Bot),
+        };
+
+        let json = serde_json::to_string(&profile).unwrap();
+        let deserialized: Profile = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(profile.team_id, deserialized.team_id);
+        assert_eq!(
+            deserialized.default_token_type,
+            Some(super::super::token_type::TokenType::Bot)
+        );
+    }
+
+    #[test]
+    fn test_profile_without_default_token_type_omits_field() {
+        // Test that profiles without default_token_type don't include the field in JSON
+        let profile = Profile {
+            team_id: "T123".to_string(),
+            user_id: "U456".to_string(),
+            team_name: Some("Test Team".to_string()),
+            user_name: Some("Test User".to_string()),
+            client_id: None,
+            redirect_uri: None,
+            scopes: None,
+            bot_scopes: None,
+            user_scopes: None,
+            default_token_type: None,
+        };
+
+        let json = serde_json::to_string(&profile).unwrap();
+        // The JSON should not contain "default_token_type" field due to skip_serializing_if
+        assert!(!json.contains("default_token_type"));
     }
 
     #[test]
@@ -763,6 +865,7 @@ mod tests {
             scopes: None,
             bot_scopes: None,
             user_scopes: None,
+            default_token_type: None,
         };
         config
             .set_or_update("existing".to_string(), real_profile)
@@ -779,6 +882,7 @@ mod tests {
             scopes: None,
             bot_scopes: None,
             user_scopes: None,
+            default_token_type: None,
         };
 
         // This should succeed without conflicts
@@ -809,6 +913,7 @@ mod backward_compat_tests {
             scopes: Some(vec!["chat:write".to_string(), "users:read".to_string()]),
             bot_scopes: None,
             user_scopes: None,
+            default_token_type: None,
         };
 
         let bot_scopes = profile.get_bot_scopes();
@@ -831,6 +936,7 @@ mod backward_compat_tests {
             scopes: Some(vec!["old:scope".to_string()]),
             bot_scopes: Some(vec!["new:scope".to_string()]),
             user_scopes: None,
+            default_token_type: None,
         };
 
         let bot_scopes = profile.get_bot_scopes();
@@ -850,6 +956,7 @@ mod backward_compat_tests {
             scopes: Some(vec!["chat:write".to_string()]),
             bot_scopes: None,
             user_scopes: None,
+            default_token_type: None,
         };
 
         let user_scopes = profile.get_user_scopes();

@@ -222,6 +222,7 @@ pub fn import_profiles<T: TokenStore>(token_store: &T, options: &ImportOptions) 
             scopes: None,       // Not exported/imported for security
             bot_scopes: None,   // Not exported/imported for security
             user_scopes: None,  // Not exported/imported for security
+            default_token_type: None,
         };
 
         config.set(name.clone(), profile);
@@ -377,6 +378,7 @@ mod tests {
                 scopes: None,
                 bot_scopes: None,
                 user_scopes: None,
+                default_token_type: None,
             },
         );
         save_config(&config_path, &config).unwrap();
