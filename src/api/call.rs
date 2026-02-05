@@ -107,19 +107,35 @@ pub async fn execute_api_call(
     Ok(api_response)
 }
 
-/// Display error guidance to stderr if the response contains a known error
-pub fn display_error_guidance(response: &ApiCallResponse) {
+/// Build error guidance string from an API call response
+///
+/// Returns a guidance string if the response contains a known error code.
+/// Returns `None` for success responses or unknown error codes.
+///
+/// # Arguments
+/// * `response` - The API call response to analyze
+///
+/// # Returns
+/// * `Some(String)` - Formatted guidance message with Error/Cause/Resolution
+/// * `None` - No guidance available (success or unknown error)
+pub fn build_error_guidance(response: &ApiCallResponse) -> Option<String> {
     // Check if response has an error
     if let Some(ok) = response.response.get("ok").and_then(|v| v.as_bool()) {
         if !ok {
             // Try to get error code from response
             if let Some(error_code) = response.response.get("error").and_then(|v| v.as_str()) {
-                // Display guidance if available
-                if let Some(guidance) = format_error_guidance(error_code) {
-                    eprintln!("{}", guidance);
-                }
+                // Return guidance if available
+                return format_error_guidance(error_code);
             }
         }
+    }
+    None
+}
+
+/// Display error guidance to stderr if the response contains a known error
+pub fn display_error_guidance(response: &ApiCallResponse) {
+    if let Some(guidance) = build_error_guidance(response) {
+        eprintln!("{}", guidance);
     }
 }
 
@@ -285,5 +301,194 @@ mod tests {
 
         // This should display guidance to stderr
         display_error_guidance(&response);
+    }
+
+    // Tests for build_error_guidance pure function
+
+    #[test]
+    fn test_build_error_guidance_missing_scope() {
+        let response = ApiCallResponse {
+            response: json!({
+                "ok": false,
+                "error": "missing_scope"
+            }),
+            meta: ApiCallMeta {
+                profile_name: Some("default".to_string()),
+                team_id: "T123ABC".to_string(),
+                user_id: "U456DEF".to_string(),
+                method: "chat.postMessage".to_string(),
+                command: "api call".to_string(),
+                token_type: "bot".to_string(),
+            },
+        };
+
+        let guidance = build_error_guidance(&response);
+        assert!(guidance.is_some());
+        let guidance = guidance.unwrap();
+        assert!(guidance.contains("Error:"));
+        assert!(guidance.contains("Cause:"));
+        assert!(guidance.contains("Resolution:"));
+        assert!(guidance.contains("missing_scope"));
+    }
+
+    #[test]
+    fn test_build_error_guidance_not_allowed_token_type() {
+        let response = ApiCallResponse {
+            response: json!({
+                "ok": false,
+                "error": "not_allowed_token_type"
+            }),
+            meta: ApiCallMeta {
+                profile_name: Some("default".to_string()),
+                team_id: "T123ABC".to_string(),
+                user_id: "U456DEF".to_string(),
+                method: "conversations.history".to_string(),
+                command: "api call".to_string(),
+                token_type: "bot".to_string(),
+            },
+        };
+
+        let guidance = build_error_guidance(&response);
+        assert!(guidance.is_some());
+        let guidance = guidance.unwrap();
+        assert!(guidance.contains("Error:"));
+        assert!(guidance.contains("Cause:"));
+        assert!(guidance.contains("Resolution:"));
+        assert!(guidance.contains("not_allowed_token_type"));
+    }
+
+    #[test]
+    fn test_build_error_guidance_invalid_auth() {
+        let response = ApiCallResponse {
+            response: json!({
+                "ok": false,
+                "error": "invalid_auth"
+            }),
+            meta: ApiCallMeta {
+                profile_name: Some("default".to_string()),
+                team_id: "T123ABC".to_string(),
+                user_id: "U456DEF".to_string(),
+                method: "auth.test".to_string(),
+                command: "api call".to_string(),
+                token_type: "bot".to_string(),
+            },
+        };
+
+        let guidance = build_error_guidance(&response);
+        assert!(guidance.is_some());
+        let guidance = guidance.unwrap();
+        assert!(guidance.contains("Error:"));
+        assert!(guidance.contains("Cause:"));
+        assert!(guidance.contains("Resolution:"));
+        assert!(guidance.contains("invalid_auth"));
+    }
+
+    #[test]
+    fn test_build_error_guidance_unknown_error() {
+        let response = ApiCallResponse {
+            response: json!({
+                "ok": false,
+                "error": "unknown_error_code"
+            }),
+            meta: ApiCallMeta {
+                profile_name: Some("default".to_string()),
+                team_id: "T123ABC".to_string(),
+                user_id: "U456DEF".to_string(),
+                method: "chat.postMessage".to_string(),
+                command: "api call".to_string(),
+                token_type: "bot".to_string(),
+            },
+        };
+
+        let guidance = build_error_guidance(&response);
+        assert!(guidance.is_none());
+    }
+
+    #[test]
+    fn test_build_error_guidance_success_response() {
+        let response = ApiCallResponse {
+            response: json!({
+                "ok": true,
+                "channel": "C123456",
+                "ts": "1234567890.123456"
+            }),
+            meta: ApiCallMeta {
+                profile_name: Some("default".to_string()),
+                team_id: "T123ABC".to_string(),
+                user_id: "U456DEF".to_string(),
+                method: "chat.postMessage".to_string(),
+                command: "api call".to_string(),
+                token_type: "bot".to_string(),
+            },
+        };
+
+        let guidance = build_error_guidance(&response);
+        assert!(guidance.is_none());
+    }
+
+    #[test]
+    fn test_build_error_guidance_token_revoked() {
+        let response = ApiCallResponse {
+            response: json!({
+                "ok": false,
+                "error": "token_revoked"
+            }),
+            meta: ApiCallMeta {
+                profile_name: Some("default".to_string()),
+                team_id: "T123ABC".to_string(),
+                user_id: "U456DEF".to_string(),
+                method: "auth.test".to_string(),
+                command: "api call".to_string(),
+                token_type: "bot".to_string(),
+            },
+        };
+
+        let guidance = build_error_guidance(&response);
+        assert!(guidance.is_some());
+        let guidance = guidance.unwrap();
+        assert!(guidance.contains("Error:"));
+        assert!(guidance.contains("Cause:"));
+        assert!(guidance.contains("Resolution:"));
+        assert!(guidance.contains("token_revoked"));
+    }
+
+    #[test]
+    fn test_build_error_guidance_no_error_field() {
+        let response = ApiCallResponse {
+            response: json!({
+                "ok": false
+            }),
+            meta: ApiCallMeta {
+                profile_name: Some("default".to_string()),
+                team_id: "T123ABC".to_string(),
+                user_id: "U456DEF".to_string(),
+                method: "chat.postMessage".to_string(),
+                command: "api call".to_string(),
+                token_type: "bot".to_string(),
+            },
+        };
+
+        let guidance = build_error_guidance(&response);
+        assert!(guidance.is_none());
+    }
+
+    #[test]
+    fn test_build_error_guidance_no_ok_field() {
+        let response = ApiCallResponse {
+            response: json!({
+                "error": "missing_scope"
+            }),
+            meta: ApiCallMeta {
+                profile_name: Some("default".to_string()),
+                team_id: "T123ABC".to_string(),
+                user_id: "U456DEF".to_string(),
+                method: "chat.postMessage".to_string(),
+                command: "api call".to_string(),
+                token_type: "bot".to_string(),
+            },
+        };
+
+        let guidance = build_error_guidance(&response);
+        assert!(guidance.is_none());
     }
 }
