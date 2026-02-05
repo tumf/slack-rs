@@ -1,0 +1,4 @@
+- [ ] `auth status` の表示に必要な値を組み立てる純関数を追加し、`default_token_type` の優先順位をその関数内で決定する（確認: `status` が新関数の結果を使って表示する）
+- [ ] `default_token_type` が `user`/`bot` のときにそれが表示されるユニットテストを追加する（確認: `cargo test test_status_default_token_type_*` が成功する）
+- [ ] `default_token_type` が未設定のときに推測ロジックが使われるユニットテストを追加する（確認: `cargo test test_status_default_token_type_fallback` が成功する）
+- [ ] 表示の回帰がないことを既存テストで担保するか、必要なら最小の回帰テストを追加する（確認: `cargo test` が成功する）
