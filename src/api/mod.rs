@@ -12,12 +12,18 @@
 pub mod args;
 pub mod call;
 pub mod client;
+pub mod guidance;
 pub mod types;
 
 // Re-export commonly used types for generic API calls
 pub use args::{ApiCallArgs, ArgsError};
-pub use call::{execute_api_call, ApiCallContext, ApiCallError, ApiCallResponse};
+pub use call::{
+    display_error_guidance, execute_api_call, ApiCallContext, ApiCallError, ApiCallResponse,
+};
 pub use client::{ApiClient, ApiClientConfig, ApiClientError, ApiError, RequestBody};
 
 // Re-export types for wrapper commands
 pub use types::{ApiMethod, ApiResponse};
+
+// Re-export error guidance utilities
+pub use guidance::{format_error_guidance, get_error_guidance, ErrorGuidance};
