@@ -224,12 +224,33 @@ pub async fn wrap_with_envelope_and_token_type(
     ))
 }
 
-/// Get option value from args (e.g., --key=value)
+/// Get option value from args
+/// Supports both --key=value and --key value formats
+/// When using space-separated format, value must not start with '-'
 pub fn get_option(args: &[String], prefix: &str) -> Option<String> {
-    args.iter()
+    // First try --key=value format
+    if let Some(value) = args
+        .iter()
         .find(|arg| arg.starts_with(prefix))
         .and_then(|arg| arg.strip_prefix(prefix))
         .map(|s| s.to_string())
+    {
+        return Some(value);
+    }
+
+    // Then try --key value format (space-separated)
+    // Extract the flag name without the '=' suffix
+    let flag = prefix.strip_suffix('=').unwrap_or(prefix);
+    if let Some(pos) = args.iter().position(|arg| arg == flag) {
+        if let Some(value) = args.get(pos + 1) {
+            // Only treat as value if it doesn't start with '-'
+            if !value.starts_with('-') {
+                return Some(value.clone());
+            }
+        }
+    }
+
+    None
 }
 
 /// Parse token type from command line arguments
@@ -297,12 +318,37 @@ pub async fn run_search(args: &[String]) -> Result<(), String> {
 }
 
 /// Get all options with a specific prefix from args
+/// Supports both --key=value and --key value formats (can be mixed)
+/// When using space-separated format, value must not start with '-'
 pub fn get_all_options(args: &[String], prefix: &str) -> Vec<String> {
-    args.iter()
-        .filter(|arg| arg.starts_with(prefix))
-        .filter_map(|arg| arg.strip_prefix(prefix))
-        .map(|s| s.to_string())
-        .collect()
+    let mut results = Vec::new();
+
+    // Collect --key=value format
+    results.extend(
+        args.iter()
+            .filter(|arg| arg.starts_with(prefix))
+            .filter_map(|arg| arg.strip_prefix(prefix))
+            .map(|s| s.to_string()),
+    );
+
+    // Collect --key value format (space-separated)
+    let flag = prefix.strip_suffix('=').unwrap_or(prefix);
+    let mut i = 0;
+    while i < args.len() {
+        if args[i] == flag {
+            if let Some(value) = args.get(i + 1) {
+                // Only treat as value if it doesn't start with '-'
+                if !value.starts_with('-') {
+                    results.push(value.clone());
+                    i += 2; // Skip both flag and value
+                    continue;
+                }
+            }
+        }
+        i += 1;
+    }
+
+    results
 }
 
 pub async fn run_conv_list(args: &[String]) -> Result<(), String> {
@@ -976,6 +1022,7 @@ pub fn print_conv_usage(prog: &str) {
         prog
     );
     println!("    List conversations with optional filtering and sorting");
+    println!("    Options accept both --option=value and --option value formats");
     println!("    Filters: name:<glob>, is_member:true|false, is_private:true|false");
     println!("      - name:<glob>: Filter by channel name (supports * and ? wildcards)");
     println!("      - is_member:true|false: Filter by membership status");
@@ -997,6 +1044,7 @@ pub fn print_conv_usage(prog: &str) {
         prog
     );
     println!("    Search conversations by name pattern (applies name:<pattern> filter)");
+    println!("    Options accept both --option=value and --option value formats");
     println!("    --select: Interactively select from results and output channel ID only");
     println!();
     println!(
@@ -1004,6 +1052,7 @@ pub fn print_conv_usage(prog: &str) {
         prog
     );
     println!("    Interactively select a conversation and output its channel ID");
+    println!("    Options accept both --option=value and --option value formats");
     println!();
     println!(
         "  {} conv history <channel> [--limit=N] [--oldest=TS] [--latest=TS] [--profile=NAME] [--token-type=bot|user]",
@@ -1014,6 +1063,7 @@ pub fn print_conv_usage(prog: &str) {
         prog
     );
     println!("    Select channel interactively before fetching history");
+    println!("    Options accept both --option=value and --option value formats");
 }
 
 pub fn print_users_usage(prog: &str) {
@@ -1027,6 +1077,7 @@ pub fn print_users_usage(prog: &str) {
         prog
     );
     println!("  {} users resolve-mentions <text> [--profile=NAME] [--format=display_name|real_name|username]", prog);
+    println!("  Options accept both --option=value and --option value formats");
 }
 
 pub fn print_msg_usage(prog: &str) {
@@ -1046,6 +1097,7 @@ pub fn print_msg_usage(prog: &str) {
         prog
     );
     println!("    Requires SLACKCLI_ALLOW_WRITE=true environment variable");
+    println!("  Options accept both --option=value and --option value formats");
 }
 
 pub fn print_react_usage(prog: &str) {
@@ -1060,6 +1112,7 @@ pub fn print_react_usage(prog: &str) {
         prog
     );
     println!("    Requires SLACKCLI_ALLOW_WRITE=true environment variable");
+    println!("  Options accept both --option=value and --option value formats");
 }
 
 pub fn print_file_usage(prog: &str) {
@@ -1068,6 +1121,7 @@ pub fn print_file_usage(prog: &str) {
         "  {} file upload <path> [--channel=ID] [--channels=IDs] [--title=TITLE] [--comment=TEXT] [--profile=NAME] [--token-type=bot|user]",
         prog
     );
+    println!("  Options accept both --option=value and --option value formats");
 }
 
 #[cfg(test)]
@@ -1255,5 +1309,193 @@ mod tests {
 
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), "xoxb-env-token");
+    }
+
+    // Tests for get_option with space-separated format
+    #[test]
+    fn test_get_option_equals_format() {
+        let args = vec!["cmd".to_string(), "--filter=is_private:true".to_string()];
+        assert_eq!(
+            get_option(&args, "--filter="),
+            Some("is_private:true".to_string())
+        );
+    }
+
+    #[test]
+    fn test_get_option_space_separated() {
+        let args = vec![
+            "cmd".to_string(),
+            "--filter".to_string(),
+            "is_private:true".to_string(),
+        ];
+        assert_eq!(
+            get_option(&args, "--filter="),
+            Some("is_private:true".to_string())
+        );
+    }
+
+    #[test]
+    fn test_get_option_space_separated_rejects_dash_value() {
+        // Value starting with '-' should not be treated as value
+        let args = vec![
+            "cmd".to_string(),
+            "--filter".to_string(),
+            "--other".to_string(),
+        ];
+        assert_eq!(get_option(&args, "--filter="), None);
+    }
+
+    #[test]
+    fn test_get_option_space_separated_missing_value() {
+        let args = vec!["cmd".to_string(), "--filter".to_string()];
+        assert_eq!(get_option(&args, "--filter="), None);
+    }
+
+    #[test]
+    fn test_get_option_prefers_equals_format() {
+        // When both formats exist, equals format should be returned first
+        let args = vec![
+            "--filter=value1".to_string(),
+            "--filter".to_string(),
+            "value2".to_string(),
+        ];
+        assert_eq!(get_option(&args, "--filter="), Some("value1".to_string()));
+    }
+
+    // Tests for get_all_options with mixed formats
+    #[test]
+    fn test_get_all_options_equals_format() {
+        let args = vec![
+            "cmd".to_string(),
+            "--filter=is_private:true".to_string(),
+            "--filter=is_member:true".to_string(),
+        ];
+        let result = get_all_options(&args, "--filter=");
+        assert_eq!(result, vec!["is_private:true", "is_member:true"]);
+    }
+
+    #[test]
+    fn test_get_all_options_space_separated() {
+        let args = vec![
+            "cmd".to_string(),
+            "--filter".to_string(),
+            "is_private:true".to_string(),
+            "--filter".to_string(),
+            "is_member:true".to_string(),
+        ];
+        let result = get_all_options(&args, "--filter=");
+        assert_eq!(result, vec!["is_private:true", "is_member:true"]);
+    }
+
+    #[test]
+    fn test_get_all_options_mixed_format() {
+        let args = vec![
+            "cmd".to_string(),
+            "--filter=is_private:true".to_string(),
+            "--filter".to_string(),
+            "is_member:true".to_string(),
+            "--filter=name:test".to_string(),
+            "--filter".to_string(),
+            "is_archived:false".to_string(),
+        ];
+        let result = get_all_options(&args, "--filter=");
+        assert_eq!(
+            result,
+            vec![
+                "is_private:true",
+                "name:test",
+                "is_member:true",
+                "is_archived:false"
+            ]
+        );
+    }
+
+    #[test]
+    fn test_get_all_options_rejects_dash_values() {
+        let args = vec![
+            "cmd".to_string(),
+            "--filter=value1".to_string(),
+            "--filter".to_string(),
+            "--other".to_string(), // Should be ignored
+            "--filter".to_string(),
+            "value2".to_string(),
+        ];
+        let result = get_all_options(&args, "--filter=");
+        assert_eq!(result, vec!["value1", "value2"]);
+    }
+
+    #[test]
+    fn test_get_all_options_space_separated_at_end() {
+        // --filter at the end without value should be ignored
+        let args = vec![
+            "cmd".to_string(),
+            "--filter=value1".to_string(),
+            "--filter".to_string(),
+        ];
+        let result = get_all_options(&args, "--filter=");
+        assert_eq!(result, vec!["value1"]);
+    }
+
+    // Integration tests for conv commands with space-separated options
+    #[test]
+    fn test_conv_list_filter_space_separated() {
+        // Test that filter parsing works with space-separated format
+        let args = vec![
+            "slack".to_string(),
+            "conv".to_string(),
+            "list".to_string(),
+            "--filter".to_string(),
+            "is_private:true".to_string(),
+        ];
+        let filters = get_all_options(&args, "--filter=");
+        assert_eq!(filters.len(), 1);
+        assert_eq!(filters[0], "is_private:true");
+    }
+
+    #[test]
+    fn test_conv_list_multiple_filters_mixed() {
+        let args = vec![
+            "slack".to_string(),
+            "conv".to_string(),
+            "list".to_string(),
+            "--filter=is_private:true".to_string(),
+            "--filter".to_string(),
+            "is_member:true".to_string(),
+        ];
+        let filters = get_all_options(&args, "--filter=");
+        assert_eq!(filters.len(), 2);
+        assert_eq!(filters[0], "is_private:true");
+        assert_eq!(filters[1], "is_member:true");
+    }
+
+    #[test]
+    fn test_conv_search_options_space_separated() {
+        let args = vec![
+            "slack".to_string(),
+            "conv".to_string(),
+            "search".to_string(),
+            "pattern".to_string(),
+            "--format".to_string(),
+            "table".to_string(),
+            "--sort".to_string(),
+            "name".to_string(),
+        ];
+        assert_eq!(get_option(&args, "--format="), Some("table".to_string()));
+        assert_eq!(get_option(&args, "--sort="), Some("name".to_string()));
+    }
+
+    #[test]
+    fn test_search_command_options_space_separated() {
+        let args = vec![
+            "slack".to_string(),
+            "search".to_string(),
+            "query".to_string(),
+            "--count".to_string(),
+            "10".to_string(),
+            "--sort".to_string(),
+            "timestamp".to_string(),
+        ];
+        assert_eq!(get_option(&args, "--count="), Some("10".to_string()));
+        assert_eq!(get_option(&args, "--sort="), Some("timestamp".to_string()));
     }
 }
