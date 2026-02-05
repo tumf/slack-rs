@@ -54,7 +54,8 @@ async fn main() {
             }
             match args[2].as_str() {
                 "login" => {
-                    if let Err(e) = cli::run_auth_login(&args[3..], ctx.is_non_interactive()).await {
+                    if let Err(e) = cli::run_auth_login(&args[3..], ctx.is_non_interactive()).await
+                    {
                         eprintln!("Login failed: {}", e);
                         std::process::exit(1);
                     }
@@ -536,8 +537,6 @@ fn print_config_oauth_usage(prog: &str) {
     println!("  {} config oauth delete work", prog);
 }
 
-
-
 /// Run config oauth set command
 fn run_config_oauth_set(args: &[String]) -> Result<(), String> {
     let mut profile_name: Option<String> = None;
@@ -651,12 +650,6 @@ fn run_config_set(args: &[String]) -> Result<(), String> {
 
     commands::set_default_token_type(profile, ttype).map_err(|e| e.to_string())
 }
-
-
-
-
-
-
 
 /// Demonstrates the profile storage functionality
 #[allow(dead_code)]
@@ -953,5 +946,3 @@ fn demonstrate_keyring_token_storage() {
 
     println!();
 }
-
-
