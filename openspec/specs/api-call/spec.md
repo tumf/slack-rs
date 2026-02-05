@@ -2,7 +2,6 @@
 
 ## Purpose
 Provides a generic API call interface to invoke any Slack Web API method with proper authentication, retry logic, and flexible parameter handling.
-
 ## Requirements
 ### Requirement: Can call any Slack API method
 Any Slack Web API method MUST be callable via `https://slack.com/api/{method}`. (MUST)
@@ -52,3 +51,13 @@ Slack API response MUST be preserved in `response`, even when `ok=false`. (MUST)
 - Given Slack API returns `ok=false`
 - When executing `api call`
 - Then `response.ok` is returned as `false`
+
+### Requirement: Prioritize User Token when private_channel is specified
+When `types` includes `private_channel` in `api call conversations.list`, User Token MUST be prioritized if `--token-type` is not specified. (MUST)
+#### Scenario: Prioritize user token when private_channel is specified
+- Given executing `api call conversations.list` with `types=private_channel`
+- And `--token-type` is not specified
+- And User Token exists
+- When calling the API
+- Then User Token is used
+
