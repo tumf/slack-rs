@@ -624,9 +624,35 @@ async fn run_auth_login(args: &[String], non_interactive: bool) -> Result<(), St
 
     // If cloudflared or ngrok is specified, use extended login flow
     if cloudflared_path.is_some() || ngrok_path.is_some() {
-        // Prompt for client_id if not provided
+        // Collect missing parameters in non-interactive mode
+        if non_interactive {
+            let mut missing = Vec::new();
+            if client_id.is_none() {
+                missing.push("--client-id");
+            }
+            if bot_scopes.is_none() {
+                missing.push("--bot-scopes");
+            }
+            if user_scopes.is_none() {
+                missing.push("--user-scopes");
+            }
+            if !missing.is_empty() {
+                return Err(format!(
+                    "Missing required parameters in non-interactive mode: {}\n\
+                    Provide them via CLI flags:\n\
+                    Example: slack-rs auth login --cloudflared --client-id <id> --bot-scopes <scopes> --user-scopes <scopes>",
+                    missing.join(", ")
+                ));
+            }
+        }
+
+        // Prompt for client_id if not provided (only in interactive mode)
         let client_id = if let Some(id) = client_id {
             id
+        } else if non_interactive {
+            return Err(
+                "Client ID is required in non-interactive mode. Use --client-id flag.".to_string(),
+            );
         } else {
             use std::io::{self, Write};
             print!("Enter Slack Client ID: ");
@@ -646,9 +672,13 @@ async fn run_auth_login(args: &[String], non_interactive: bool) -> Result<(), St
             debug::log(format!("user_scopes_count={}", user_scopes.len()));
         }
 
-        // Prompt for client_secret
-        let client_secret = auth::prompt_for_client_secret()
-            .map_err(|e| format!("Failed to read client secret: {}", e))?;
+        // Prompt for client_secret (only in interactive mode)
+        let client_secret = if non_interactive {
+            return Err("Client secret cannot be provided in non-interactive mode with --cloudflared/--ngrok. Use the standard login flow (without --cloudflared/--ngrok) to save credentials first.".to_string());
+        } else {
+            auth::prompt_for_client_secret()
+                .map_err(|e| format!("Failed to read client secret: {}", e))?
+        };
 
         // Call extended login with cloudflared support
         auth::login_with_credentials_extended(
