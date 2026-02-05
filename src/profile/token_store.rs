@@ -139,7 +139,8 @@ impl FileTokenStore {
             .home_dir()
             .to_path_buf();
 
-        let config_dir = home.join(".config/slack-rs");
+        // Use separate join calls to ensure consistent path separators on Windows
+        let config_dir = home.join(".config").join("slack-rs");
         Ok(config_dir.join("tokens.json"))
     }
 

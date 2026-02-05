@@ -907,9 +907,14 @@ fn generate_and_save_manifest(
     .map_err(|e| OAuthError::ConfigError(format!("Failed to generate manifest: {}", e)))?;
 
     // Determine save path using unified config directory
-    let home = std::env::var("HOME")
-        .map_err(|_| OAuthError::ConfigError("HOME environment variable not set".to_string()))?;
-    let config_dir = PathBuf::from(home).join(".config/slack-rs");
+    // Use directories::BaseDirs for cross-platform home directory detection
+    let home = directories::BaseDirs::new()
+        .ok_or_else(|| OAuthError::ConfigError("Failed to determine home directory".to_string()))?
+        .home_dir()
+        .to_path_buf();
+
+    // Use separate join calls to ensure consistent path separators on Windows
+    let config_dir = home.join(".config").join("slack-rs");
 
     // Create directory if it doesn't exist
     fs::create_dir_all(&config_dir).map_err(|e| {
