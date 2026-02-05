@@ -1,0 +1,4 @@
+- [ ] `src/api/call.rs` にガイダンス文字列を生成する純関数を追加し、`display_error_guidance` がそれを利用するようにする（確認: 既存関数の実装が新関数を経由する）
+- [ ] 既知エラー（例: `missing_scope`）で `Error:`/`Cause:`/`Resolution:` を含む文字列が返るユニットテストを追加する（確認: `cargo test test_build_error_guidance_*` が成功する）
+- [ ] 未知エラーと `ok=true` で `None` が返るユニットテストを追加する（確認: `cargo test test_build_error_guidance_*` が成功する）
+- [ ] 既存の JSON 出力が変わらないことを確認する回帰テストを追加するか、既存テストで担保されていることを明記する（確認: `cargo test` が成功する）
