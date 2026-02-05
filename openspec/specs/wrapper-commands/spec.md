@@ -162,3 +162,81 @@ When `private_channel` is requested without User Token available, an error MUST 
 - When executing `conv list --types private_channel`
 - Then an error indicating User Token is required is returned
 
+### Requirement: Wrapper commands output is normalized
+ラッパーコマンドの JSON 出力は `response`/`meta` のエンベロープで返し、`meta.profile_name`, `meta.team_id`, `meta.user_id`, `meta.method`, `meta.command` を含むこと。`--raw` が指定された場合は Slack API レスポンスをそのまま返すこと。(MUST)
+
+#### Scenario: `conv list` は統一フォーマットで返る
+- Given 有効な profile と token が存在する
+- When `conv list` を実行する
+- Then `meta.command` は `conv list` である
+- And `meta.method` は `conversations.list` である
+- And `response` に Slack API レスポンスが入る
+
+#### Scenario: `--raw` 指定時は Slack API レスポンスを返す
+- Given 有効な profile と token が存在する
+- When `conv list --raw` を実行する
+- Then 出力は Slack API レスポンスの JSON そのままである
+- And `meta` フィールドは含まれない
+
+### Requirement: Wrapper commands show guidance for known Slack error codes
+ラッパーコマンドの実行結果が `ok=false` かつ `error` が既知のコードに一致する場合、標準エラー出力に原因と解決策のガイダンスを表示すること。JSON 出力の内容は変更せず、追加情報は標準エラー出力に限定すること。(MUST)
+
+#### Scenario: `missing_scope` のガイダンスが表示される
+- Given Slack API が `ok=false` と `error=missing_scope` を返す
+- When `conv list --types=private_channel` を実行する
+- Then 標準エラー出力に原因と解決策が表示される
+- And JSON 出力は Slack のレスポンスのままである
+
+### Requirement: `conv list` は `--format` で出力形式を切り替えられる
+`conv list` は `--format` で `json`/`jsonl`/`table`/`tsv` を受け付け、指定された形式で結果を出力しなければならない。(MUST)
+`--format` が未指定の場合は、従来と同等の JSON 出力を維持しなければならない。(MUST)
+
+#### Scenario: `--format jsonl` は 1 行 1 チャンネルで出力される
+- Given 有効な profile と token が存在する
+- When `conv list --format jsonl` を実行する
+- Then 出力はチャンネルごとに 1 行の JSON である
+
+#### Scenario: 不正な `--format` はエラーになる
+- Given `conv list --format nope` を実行する
+- When 出力形式の解釈に失敗する
+- Then 許容値（`json`/`jsonl`/`table`/`tsv`）を含むエラーが表示される
+
+### Requirement: `conv list` は `table`/`tsv` で `num_members` の欠落値を空欄として出力する
+Slack API の応答で `channel.num_members` が欠落または `null` の場合、`--format table` および `--format tsv` は `num_members` を空欄として出力しなければならない。(MUST)
+このとき `num_members` を `0` として出力してはならない（不明の意味を保持するため）。(MUST)
+
+#### Scenario: `--format tsv` で `num_members` が欠落している場合は空欄で出力される
+- Given Slack API の取得結果に `num_members` が欠落（または `null`）のチャンネルが含まれる
+- When `conv list --format tsv` を実行する
+- Then 該当チャンネルの出力行において `num_members` フィールドは空欄である（例: 最終フィールドが空のタブ区切りになる）
+
+#### Scenario: `--format table` で `num_members` が欠落している場合は空欄で出力される
+- Given Slack API の取得結果に `num_members` が欠落（または `null`）のチャンネルが含まれる
+- When `conv list --format table` を実行する
+- Then 該当チャンネルの `num_members` 列は空欄として表示される
+
+### Requirement: `conv list` の `--raw` は JSON 出力時のみ有効である
+`--raw` は出力フォーマットが JSON のとき（デフォルト/`--format json`）のみ有効/意味がある。(MUST)
+`--format` が `jsonl`/`table`/`tsv` の場合に `--raw` が指定されたとき、コマンドはエラーにしなければならない。(MUST)
+エラーメッセージは `--raw` と指定された `--format` が互換でないことを示さなければならない。(MUST)
+
+#### Scenario: `--format tsv` と `--raw` の併用はエラーになる
+- Given `conv list --format tsv --raw` を実行する
+- When オプションの整合性検証に失敗する
+- Then `--raw` と `--format tsv` が互換でないことを示すエラーが表示される
+
+### Requirement: `conv list` は `--sort` と `--sort-dir` で結果を並び替えられる
+`conv list` は `--sort` が指定された場合、取得結果に対して `name`/`created`/`num_members` のいずれかでソートを適用しなければならない。(MUST)
+`--sort-dir` は `asc`/`desc` を受け付け、ソート方向を制御しなければならない。(MUST)
+ソートは `--filter` による絞り込みの後に適用されなければならない。(MUST)
+
+#### Scenario: `name` で降順ソートする
+- Given 取得結果に `name` が異なる複数のチャンネルが含まれる
+- When `conv list --sort name --sort-dir desc --format tsv` を実行する
+- Then 出力行は `name` の降順に並ぶ
+
+#### Scenario: 不正な `--sort`/`--sort-dir` はエラーになる
+- Given `conv list --sort nope --sort-dir sideways` を実行する
+- When ソート指定の解釈に失敗する
+- Then 許容値（`name`/`created`/`num_members`, `asc`/`desc`）を含むエラーが表示される
+

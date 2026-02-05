@@ -24,7 +24,9 @@ use std::process::Command;
 /// * `bot_scopes` - Optional bot scopes from CLI
 /// * `user_scopes` - Optional user scopes from CLI
 /// * `base_url` - Optional base URL for testing
+/// * `non_interactive` - Whether running in non-interactive mode
 #[allow(dead_code)]
+#[allow(clippy::too_many_arguments)]
 pub async fn login_with_credentials(
     client_id: Option<String>,
     profile_name: Option<String>,
@@ -33,6 +35,7 @@ pub async fn login_with_credentials(
     bot_scopes: Option<Vec<String>>,
     user_scopes: Option<Vec<String>>,
     base_url: Option<String>,
+    non_interactive: bool,
 ) -> Result<(), OAuthError> {
     let profile_name = profile_name.unwrap_or_else(|| "default".to_string());
 
@@ -41,30 +44,82 @@ pub async fn login_with_credentials(
         .map_err(|e| OAuthError::ConfigError(format!("Failed to get config path: {}", e)))?;
     let existing_config = load_config(&config_path).ok();
 
+    // In non-interactive mode, collect all missing parameters first before returning error
+    if non_interactive {
+        let mut missing_params = Vec::new();
+
+        // Check client_id
+        let has_client_id = client_id.is_some()
+            || existing_config
+                .as_ref()
+                .and_then(|c| c.get(&profile_name))
+                .and_then(|p| p.client_id.as_ref())
+                .is_some();
+        if !has_client_id {
+            missing_params.push("--client-id <id>");
+        }
+
+        // Check bot_scopes
+        let has_bot_scopes = bot_scopes.is_some()
+            || existing_config
+                .as_ref()
+                .and_then(|c| c.get(&profile_name))
+                .and_then(|p| p.get_bot_scopes())
+                .is_some();
+        if !has_bot_scopes {
+            missing_params.push("--bot-scopes <scopes>");
+        }
+
+        // Check user_scopes
+        let has_user_scopes = user_scopes.is_some()
+            || existing_config
+                .as_ref()
+                .and_then(|c| c.get(&profile_name))
+                .and_then(|p| p.get_user_scopes())
+                .is_some();
+        if !has_user_scopes {
+            missing_params.push("--user-scopes <scopes>");
+        }
+
+        // If any parameters are missing, return comprehensive error
+        if !missing_params.is_empty() {
+            let missing_list = missing_params.join(", ");
+            return Err(OAuthError::ConfigError(format!(
+                "Missing required OAuth parameters in non-interactive mode: {}\n\
+                Provide them via CLI flags or save with 'config oauth set':\n\
+                Example: slack-rs auth login --client-id <id> --bot-scopes <scopes> --user-scopes <scopes>",
+                missing_list
+            )));
+        }
+    }
+
     // Resolve OAuth config with priority: CLI arg > saved in profile > prompt (not fallback)
     let (final_client_id, final_redirect_uri, final_bot_scopes, final_user_scopes) =
         if let Some(config) = &existing_config {
             if let Some(profile) = config.get(&profile_name) {
-                // Client ID: CLI arg > profile > prompt
+                // Client ID: CLI arg > profile > prompt (if interactive) or error
                 let resolved_client_id = match client_id {
                     Some(id) => id,
                     None => {
                         if let Some(saved_id) = &profile.client_id {
                             saved_id.clone()
                         } else {
-                            prompt_for_client_id()?
+                            prompt_for_client_id_with_mode(non_interactive)?
                         }
                     }
                 };
 
-                // Redirect URI: profile > prompt (not fallback)
+                // Redirect URI: profile > prompt (if interactive) or use default
                 let resolved_redirect_uri = if let Some(saved_uri) = &profile.redirect_uri {
                     saved_uri.clone()
+                } else if non_interactive {
+                    // In non-interactive mode, use the default redirect_uri
+                    redirect_uri.clone()
                 } else {
                     prompt_for_redirect_uri(&redirect_uri)?
                 };
 
-                // Bot scopes: CLI arg > profile.bot_scopes > profile.scopes (legacy) > prompt
+                // Bot scopes: CLI arg > profile.bot_scopes > profile.scopes (legacy) > prompt (if interactive)
                 let resolved_bot_scopes = if let Some(cli_bot_scopes) = bot_scopes {
                     cli_bot_scopes
                 } else if let Some(saved_bot_scopes) = profile.get_bot_scopes() {
@@ -73,7 +128,7 @@ pub async fn login_with_credentials(
                     prompt_for_bot_scopes()?
                 };
 
-                // User scopes: CLI arg > profile.user_scopes > prompt
+                // User scopes: CLI arg > profile.user_scopes > prompt (if interactive)
                 let resolved_user_scopes = if let Some(cli_user_scopes) = user_scopes {
                     cli_user_scopes
                 } else if let Some(saved_user_scopes) = profile.get_user_scopes() {
@@ -90,13 +145,23 @@ pub async fn login_with_credentials(
                 )
             } else {
                 // Profile doesn't exist, prompt for all OAuth config
-                let resolved_client_id =
-                    client_id.unwrap_or_else(|| prompt_for_client_id().unwrap());
-                let resolved_redirect_uri = prompt_for_redirect_uri(&redirect_uri)?;
-                let resolved_bot_scopes =
-                    bot_scopes.unwrap_or_else(|| prompt_for_bot_scopes().unwrap());
-                let resolved_user_scopes =
-                    user_scopes.unwrap_or_else(|| prompt_for_user_scopes().unwrap());
+                let resolved_client_id = match client_id {
+                    Some(id) => id,
+                    None => prompt_for_client_id_with_mode(non_interactive)?,
+                };
+                let resolved_redirect_uri = if non_interactive {
+                    redirect_uri.clone()
+                } else {
+                    prompt_for_redirect_uri(&redirect_uri)?
+                };
+                let resolved_bot_scopes = match bot_scopes {
+                    Some(scopes) => scopes,
+                    None => prompt_for_bot_scopes()?,
+                };
+                let resolved_user_scopes = match user_scopes {
+                    Some(scopes) => scopes,
+                    None => prompt_for_user_scopes()?,
+                };
                 (
                     resolved_client_id,
                     resolved_redirect_uri,
@@ -106,12 +171,23 @@ pub async fn login_with_credentials(
             }
         } else {
             // No config file exists, prompt for all OAuth config
-            let resolved_client_id = client_id.unwrap_or_else(|| prompt_for_client_id().unwrap());
-            let resolved_redirect_uri = prompt_for_redirect_uri(&redirect_uri)?;
-            let resolved_bot_scopes =
-                bot_scopes.unwrap_or_else(|| prompt_for_bot_scopes().unwrap());
-            let resolved_user_scopes =
-                user_scopes.unwrap_or_else(|| prompt_for_user_scopes().unwrap());
+            let resolved_client_id = match client_id {
+                Some(id) => id,
+                None => prompt_for_client_id_with_mode(non_interactive)?,
+            };
+            let resolved_redirect_uri = if non_interactive {
+                redirect_uri.clone()
+            } else {
+                prompt_for_redirect_uri(&redirect_uri)?
+            };
+            let resolved_bot_scopes = match bot_scopes {
+                Some(scopes) => scopes,
+                None => prompt_for_bot_scopes()?,
+            };
+            let resolved_user_scopes = match user_scopes {
+                Some(scopes) => scopes,
+                None => prompt_for_user_scopes()?,
+            };
             (
                 resolved_client_id,
                 resolved_redirect_uri,
@@ -120,20 +196,27 @@ pub async fn login_with_credentials(
             )
         };
 
-    // Client secret resolution: Token store > prompt
+    // Client secret resolution: Token store > prompt (if interactive) or error
     let token_store = create_token_store()
         .map_err(|e| OAuthError::ConfigError(format!("Failed to create token store: {}", e)))?;
-    let final_client_secret =
-        match crate::profile::get_oauth_client_secret(&*token_store, &profile_name) {
-            Ok(secret) => {
-                println!("Using saved client secret from token store.");
-                secret
+    let final_client_secret = match crate::profile::get_oauth_client_secret(
+        &*token_store,
+        &profile_name,
+    ) {
+        Ok(secret) => {
+            println!("Using saved client secret from token store.");
+            secret
+        }
+        Err(_) => {
+            // Not found in token store, prompt for it or error in non-interactive mode
+            if non_interactive {
+                return Err(OAuthError::ConfigError(
+                        "Client secret is required. In non-interactive mode, save it first with 'config oauth set'".to_string()
+                    ));
             }
-            Err(_) => {
-                // Not found in token store, prompt for it
-                prompt_for_client_secret()?
-            }
-        };
+            prompt_for_client_secret()?
+        }
+    };
 
     // Create OAuth config
     // For backward compatibility, treat final_scopes as bot_scopes
@@ -174,7 +257,19 @@ pub async fn login_with_credentials(
 }
 
 /// Prompt user for OAuth client ID
+#[allow(dead_code)]
 fn prompt_for_client_id() -> Result<String, OAuthError> {
+    prompt_for_client_id_with_mode(false)
+}
+
+/// Prompt user for OAuth client ID with non-interactive mode support
+fn prompt_for_client_id_with_mode(non_interactive: bool) -> Result<String, OAuthError> {
+    if non_interactive {
+        return Err(OAuthError::ConfigError(
+            "Client ID is required. In non-interactive mode, provide it via --client-id flag or save it in config with 'config oauth set'".to_string()
+        ));
+    }
+
     loop {
         print!("Enter OAuth client ID: ");
         io::stdout()

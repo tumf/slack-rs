@@ -599,6 +599,92 @@ slack-rs api call search.messages query="important" count=20
 slack-rs api call chat.postMessage channel=C123 text="Hello" thread_ts=1234567.123
 ```
 
+### Output Format
+
+All commands output JSON with a unified envelope structure that includes both the Slack API response and execution metadata.
+
+**Default output (with envelope):**
+```json
+{
+  "response": {
+    "ok": true,
+    "channels": [
+      {"id": "C123", "name": "general"}
+    ]
+  },
+  "meta": {
+    "profile_name": "default",
+    "team_id": "T123ABC",
+    "user_id": "U456DEF",
+    "method": "conversations.list",
+    "command": "conv list"
+  }
+}
+```
+
+The `meta` object provides useful context:
+- `profile_name`: Profile used for the request (null if not specified)
+- `team_id`: Slack team/workspace ID
+- `user_id`: User ID from the profile
+- `method`: Slack API method called
+- `command`: CLI command executed (e.g., "api call", "conv list", "msg post")
+
+**Raw output (Slack API response only):**
+
+Use the `--raw` flag to get the Slack API response without the envelope wrapper. This is useful for:
+- Compatibility with existing scripts that expect raw Slack responses
+- Piping output directly to `jq` or other tools
+- Simpler output when metadata is not needed
+
+```bash
+# With envelope (default)
+slack-rs conv list
+# Output includes both "response" and "meta"
+
+# Raw Slack API response only
+slack-rs conv list --raw
+# Output is the Slack API response without envelope
+
+# Works with all commands
+slack-rs api call conversations.list --raw
+slack-rs msg post C123 "Hello" --raw
+slack-rs search "query" --raw
+```
+
+**Accessing data with jq:**
+
+```bash
+# With envelope (default) - access response data
+slack-rs conv list | jq '.response.channels[].name'
+
+# With envelope - access metadata
+slack-rs conv list | jq '.meta.command'
+
+# Raw output - direct access (for backward compatibility)
+slack-rs conv list --raw | jq '.channels[].name'
+```
+
+**Migration guide for existing scripts:**
+
+If you have existing scripts that parse the output, you can:
+1. Add `--raw` flag to maintain current behavior
+2. Update scripts to extract from `.response` field
+3. Optionally use `.meta` for additional context
+
+```bash
+# Old script (worked before, but now needs update)
+CHANNEL=$(slack-rs conv list | jq -r '.channels[0].id')
+
+# Option 1: Use --raw flag (quick fix)
+CHANNEL=$(slack-rs conv list --raw | jq -r '.channels[0].id')
+
+# Option 2: Extract from .response (recommended)
+CHANNEL=$(slack-rs conv list | jq -r '.response.channels[0].id')
+
+# Option 3: Use metadata too
+RESULT=$(slack-rs conv list | jq -r '{channel: .response.channels[0].id, team: .meta.team_id}')
+```
+
 ## Configuration
 
 ### Environment Variables

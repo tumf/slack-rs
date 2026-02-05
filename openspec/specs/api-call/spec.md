@@ -39,11 +39,19 @@ On 429 response, MUST wait according to `Retry-After` and retry up to a maximum 
 - Then wait for the specified seconds and retry
 
 ### Requirement: Include meta in output
-Output JSON MUST include `meta.profile_name`, `meta.team_id`, `meta.user_id`, `meta.method`, and `meta.token_type`. (MUST)
-#### Scenario: token_type is included in output
-- Given executing `api call`
-- When calling API with a valid token
-- Then `meta.token_type` contains `user` or `bot`
+出力 JSON は `meta.profile_name`, `meta.team_id`, `meta.user_id`, `meta.method` に加えて `meta.command` を含むこと。`--raw` が指定されていない場合は `response`/`meta` のエンベロープで出力すること。`--raw` が指定された場合は Slack API レスポンスをそのまま返し、`meta` を付与しないこと。(MUST)
+
+#### Scenario: 既定出力は `response`/`meta` で返る
+- Given 有効な profile と token が存在する
+- When `api call conversations.list` を実行する
+- Then `meta.command` は `api call` である
+- And `response` に Slack API レスポンスが入る
+
+#### Scenario: `--raw` 指定時はエンベロープを省略する
+- Given 有効な profile と token が存在する
+- When `api call conversations.list --raw` を実行する
+- Then 出力は Slack API レスポンスの JSON そのままである
+- And `meta` フィールドは含まれない
 
 ### Requirement: Return Slack API response as-is
 Slack API response MUST be preserved in `response`, even when `ok=false`. (MUST)
@@ -73,4 +81,13 @@ When the specified token type does not exist, MUST fail with a clear error. (MUS
 - And User Token is not saved
 - When executing `api call`
 - Then an error indicating missing token is returned
+
+### Requirement: Provide guidance for known Slack error codes
+`api call` の実行結果が `ok=false` かつ `error` が既知のコード（`not_allowed_token_type`, `missing_scope`, `invalid_auth` など）に一致する場合、標準エラー出力に原因と解決策のガイダンスを表示すること。JSON 出力の `response` は変更せず、追加情報は標準エラー出力に限定すること。(MUST)
+
+#### Scenario: `not_allowed_token_type` のガイダンスが表示される
+- Given Slack API が `ok=false` と `error=not_allowed_token_type` を返す
+- When `api call search.messages` を実行する
+- Then 標準エラー出力に原因と解決策が表示される
+- And JSON 出力の `response` は Slack のレスポンスのままである
 

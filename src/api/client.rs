@@ -12,6 +12,7 @@ use std::collections::HashMap;
 use std::time::Duration;
 use thiserror::Error;
 
+use super::guidance::format_error_guidance;
 use super::types::{ApiMethod, ApiResponse};
 
 /// API client errors (for wrapper commands)
@@ -35,6 +36,9 @@ pub enum ApiError {
 
     #[error("Destructive operation cancelled")]
     OperationCancelled,
+
+    #[error("Non-interactive mode error: {0}")]
+    NonInteractiveError(String),
 }
 
 /// API client errors (for generic API calls)
@@ -189,11 +193,14 @@ impl ApiClient {
         let response_json: ApiResponse = response.json().await?;
 
         if !response_json.ok {
-            return Err(ApiError::SlackError(
-                response_json
-                    .error
-                    .unwrap_or_else(|| "Unknown error".to_string()),
-            ));
+            let error_code = response_json.error.as_deref().unwrap_or("Unknown error");
+
+            // Display error guidance if available
+            if let Some(guidance) = format_error_guidance(error_code) {
+                eprintln!("{}", guidance);
+            }
+
+            return Err(ApiError::SlackError(error_code.to_string()));
         }
 
         Ok(response_json)

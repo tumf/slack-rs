@@ -1,0 +1,8 @@
+- [x] `conv list --format` を実装する（確認: `json`/`jsonl`/`table`/`tsv` が選択でき、未指定時は従来と同等の JSON が出る）
+- [x] `--raw` は JSON 出力時（デフォルト/`--format json`）のみ有効にする（確認: `--format jsonl`/`table`/`tsv` と併用すると互換性エラーになる）
+- [x] `conv list --sort` と `--sort-dir` を実装する（確認: `name`/`created`/`num_members` で並び替えでき、`asc`/`desc` を切り替えられる）
+- [x] 不正な `--format`/`--sort`/`--sort-dir` 指定時に分かりやすいエラーを返す（確認: 許容値がメッセージに含まれる）
+- [x] 既存の `--filter` と組み合わせた場合の適用順（フィルタ→ソート→整形）を保証する（確認: フィルタ後の集合に対してソートがかかる）
+- [x] テストを追加する（確認: 少なくとも `--sort name` と `--format tsv` の出力順/形式を検証する）
+- [x] `num_members` が欠落/`null` の場合に `--format tsv`/`table` で空欄として出力されることをテストする（確認: TSV は該当フィールドが空、table は num_members 列が空表示）
+- [x] 既存テストを実行して回帰がないことを確認する（確認: `cargo test` が成功する）
