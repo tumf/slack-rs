@@ -2,6 +2,7 @@
 
 use crate::api::ApiClient;
 use crate::commands;
+use crate::commands::ConversationSelector;
 use crate::profile::{
     default_config_path, load_config, make_token_key, FileTokenStore, TokenStore,
 };
@@ -65,22 +66,105 @@ pub async fn run_search(args: &[String]) -> Result<(), String> {
     Ok(())
 }
 
+/// Get all options with a specific prefix from args
+pub fn get_all_options(args: &[String], prefix: &str) -> Vec<String> {
+    args.iter()
+        .filter(|arg| arg.starts_with(prefix))
+        .filter_map(|arg| arg.strip_prefix(prefix))
+        .map(|s| s.to_string())
+        .collect()
+}
+
 pub async fn run_conv_list(args: &[String]) -> Result<(), String> {
     let types = get_option(args, "--types=");
     let limit = get_option(args, "--limit=").and_then(|s| s.parse().ok());
     let profile = get_option(args, "--profile=");
+    let filter_strings = get_all_options(args, "--filter=");
+
+    // Parse filters
+    let filters: Result<Vec<_>, _> = filter_strings
+        .iter()
+        .map(|s| commands::ConversationFilter::parse(s))
+        .collect();
+    let filters = filters.map_err(|e| e.to_string())?;
 
     let client = get_api_client(profile).await?;
-    let response = commands::conv_list(&client, types, limit)
+    let mut response = commands::conv_list(&client, types, limit)
         .await
         .map_err(|e| e.to_string())?;
+
+    // Apply filters
+    commands::apply_filters(&mut response, &filters);
 
     println!("{}", serde_json::to_string_pretty(&response).unwrap());
     Ok(())
 }
 
+pub async fn run_conv_select(args: &[String]) -> Result<(), String> {
+    let types = get_option(args, "--types=");
+    let limit = get_option(args, "--limit=").and_then(|s| s.parse().ok());
+    let profile = get_option(args, "--profile=");
+    let filter_strings = get_all_options(args, "--filter=");
+
+    // Parse filters
+    let filters: Result<Vec<_>, _> = filter_strings
+        .iter()
+        .map(|s| commands::ConversationFilter::parse(s))
+        .collect();
+    let filters = filters.map_err(|e| e.to_string())?;
+
+    let client = get_api_client(profile).await?;
+    let mut response = commands::conv_list(&client, types, limit)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    // Apply filters
+    commands::apply_filters(&mut response, &filters);
+
+    // Extract conversations and present selection
+    let items = commands::extract_conversations(&response);
+    let selector = commands::StdinSelector;
+    let channel_id = selector.select(&items)?;
+
+    println!("{}", channel_id);
+    Ok(())
+}
+
 pub async fn run_conv_history(args: &[String]) -> Result<(), String> {
-    let channel = args[3].clone();
+    let interactive = has_flag(args, "--interactive");
+
+    let channel = if interactive {
+        // Use conv_select logic to get channel
+        let types = get_option(args, "--types=");
+        let profile = get_option(args, "--profile=");
+        let filter_strings = get_all_options(args, "--filter=");
+
+        // Parse filters
+        let filters: Result<Vec<_>, _> = filter_strings
+            .iter()
+            .map(|s| commands::ConversationFilter::parse(s))
+            .collect();
+        let filters = filters.map_err(|e| e.to_string())?;
+
+        let client = get_api_client(profile.clone()).await?;
+        let mut response = commands::conv_list(&client, types, None)
+            .await
+            .map_err(|e| e.to_string())?;
+
+        // Apply filters
+        commands::apply_filters(&mut response, &filters);
+
+        // Extract conversations and present selection
+        let items = commands::extract_conversations(&response);
+        let selector = commands::StdinSelector;
+        selector.select(&items)?
+    } else {
+        if args.len() < 4 {
+            return Err("Channel argument required when --interactive is not used".to_string());
+        }
+        args[3].clone()
+    };
+
     let limit = get_option(args, "--limit=").and_then(|s| s.parse().ok());
     let oldest = get_option(args, "--oldest=");
     let latest = get_option(args, "--latest=");
@@ -302,13 +386,24 @@ pub async fn run_file_upload(args: &[String]) -> Result<(), String> {
 pub fn print_conv_usage(prog: &str) {
     println!("Conv command usage:");
     println!(
-        "  {} conv list [--types=TYPE] [--limit=N] [--profile=NAME]",
+        "  {} conv list [--types=TYPE] [--limit=N] [--filter=KEY:VALUE]... [--profile=NAME]",
         prog
     );
+    println!("    Filters: name:<glob>, is_member:true|false, is_private:true|false");
+    println!(
+        "  {} conv select [--types=TYPE] [--filter=KEY:VALUE]... [--profile=NAME]",
+        prog
+    );
+    println!("    Interactively select a conversation and output its channel ID");
     println!(
         "  {} conv history <channel> [--limit=N] [--oldest=TS] [--latest=TS] [--profile=NAME]",
         prog
     );
+    println!(
+        "  {} conv history --interactive [--types=TYPE] [--filter=KEY:VALUE]... [--limit=N] [--profile=NAME]",
+        prog
+    );
+    println!("    Select channel interactively before fetching history");
 }
 
 pub fn print_users_usage(prog: &str) {

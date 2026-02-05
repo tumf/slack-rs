@@ -21,7 +21,10 @@ pub mod users;
 pub mod users_cache;
 
 pub use config::{oauth_delete, oauth_set, oauth_show};
-pub use conv::{conv_history, conv_list};
+pub use conv::{
+    apply_filters, conv_history, conv_list, extract_conversations, ConversationFilter,
+    ConversationItem, ConversationSelector, StdinSelector,
+};
 pub use file::file_upload;
 pub use msg::{msg_delete, msg_post, msg_update};
 pub use react::{react_add, react_remove};

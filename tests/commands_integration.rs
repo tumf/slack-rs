@@ -5,6 +5,7 @@
 use serial_test::serial;
 use slack_rs::api::ApiClient;
 use slack_rs::commands;
+use slack_rs::commands::ConversationSelector;
 use std::collections::HashMap;
 use wiremock::matchers::{body_string_contains, header, method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
@@ -564,4 +565,103 @@ async fn test_file_upload_nonexistent_file() {
 
     assert!(result.is_err());
     assert!(result.unwrap_err().to_string().contains("File not found"));
+}
+
+#[tokio::test]
+async fn test_conv_list_with_filters() {
+    let mock_server = MockServer::start().await;
+
+    // Mock conversations.list response
+    let response_data = serde_json::json!({
+        "ok": true,
+        "channels": [
+            {"id": "C1", "name": "test-public", "is_member": true, "is_private": false},
+            {"id": "C2", "name": "test-private", "is_member": true, "is_private": true},
+            {"id": "C3", "name": "general", "is_member": true, "is_private": false},
+            {"id": "C4", "name": "test-nomember", "is_member": false, "is_private": false},
+        ]
+    });
+
+    Mock::given(method("GET"))
+        .and(path("/conversations.list"))
+        .and(header("authorization", "Bearer test_token"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(&response_data))
+        .expect(1)
+        .mount(&mock_server)
+        .await;
+
+    let client = ApiClient::new_with_base_url("test_token".to_string(), mock_server.uri());
+
+    // Get the conversation list
+    let mut response = commands::conv_list(&client, None, None).await.unwrap();
+
+    // Apply filters: name:test* AND is_member:true
+    let filters = vec![
+        commands::ConversationFilter::parse("name:test*").unwrap(),
+        commands::ConversationFilter::parse("is_member:true").unwrap(),
+    ];
+    commands::apply_filters(&mut response, &filters);
+
+    // Extract and verify filtered results
+    let items = commands::extract_conversations(&response);
+    assert_eq!(items.len(), 2); // C1 and C2
+    assert_eq!(items[0].id, "C1");
+    assert_eq!(items[1].id, "C2");
+}
+
+#[tokio::test]
+async fn test_conv_select_with_mock_selector() {
+    let mock_server = MockServer::start().await;
+
+    // Mock conversations.list response
+    let response_data = serde_json::json!({
+        "ok": true,
+        "channels": [
+            {"id": "C1", "name": "general", "is_private": false},
+            {"id": "C2", "name": "random", "is_private": false},
+        ]
+    });
+
+    Mock::given(method("GET"))
+        .and(path("/conversations.list"))
+        .and(header("authorization", "Bearer test_token"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(&response_data))
+        .expect(1)
+        .mount(&mock_server)
+        .await;
+
+    let client = ApiClient::new_with_base_url("test_token".to_string(), mock_server.uri());
+
+    // Get the conversation list
+    let response = commands::conv_list(&client, None, None).await.unwrap();
+    let items = commands::extract_conversations(&response);
+
+    // Use mock selector to select second item
+    struct TestSelector;
+    impl commands::ConversationSelector for TestSelector {
+        fn select(&self, items: &[commands::ConversationItem]) -> Result<String, String> {
+            Ok(items[1].id.clone())
+        }
+    }
+
+    let selector = TestSelector;
+    let selected_id = selector.select(&items).unwrap();
+    assert_eq!(selected_id, "C2");
+}
+
+#[tokio::test]
+async fn test_conversation_item_display_format() {
+    let item = commands::ConversationItem {
+        id: "C123".to_string(),
+        name: "general".to_string(),
+        is_private: false,
+    };
+    assert_eq!(item.display(), "#general (C123)");
+
+    let private_item = commands::ConversationItem {
+        id: "C456".to_string(),
+        name: "secret".to_string(),
+        is_private: true,
+    };
+    assert_eq!(private_item.display(), "#secret (C456) [private]");
 }
