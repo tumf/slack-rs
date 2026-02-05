@@ -248,6 +248,12 @@ pub fn get_all_options(args: &[String], prefix: &str) -> Vec<String> {
 }
 
 pub async fn run_conv_list(args: &[String]) -> Result<(), String> {
+    // Check for --help flag before API call
+    if has_flag(args, "--help") || has_flag(args, "-h") {
+        print_conv_usage(&args[0]);
+        return Ok(());
+    }
+
     let types = get_option(args, "--types=");
     let limit = get_option(args, "--limit=").and_then(|s| s.parse().ok());
     let profile = get_option(args, "--profile=");
@@ -329,6 +335,12 @@ pub async fn run_conv_list(args: &[String]) -> Result<(), String> {
 }
 
 pub async fn run_conv_select(args: &[String]) -> Result<(), String> {
+    // Check for --help flag before API call
+    if has_flag(args, "--help") || has_flag(args, "-h") {
+        print_conv_usage(&args[0]);
+        return Ok(());
+    }
+
     let types = get_option(args, "--types=");
     let limit = get_option(args, "--limit=").and_then(|s| s.parse().ok());
     let profile = get_option(args, "--profile=");
@@ -359,7 +371,118 @@ pub async fn run_conv_select(args: &[String]) -> Result<(), String> {
     Ok(())
 }
 
+pub async fn run_conv_search(args: &[String]) -> Result<(), String> {
+    // Check for --help flag before pattern extraction
+    if has_flag(args, "--help") || has_flag(args, "-h") {
+        print_conv_usage(&args[0]);
+        return Ok(());
+    }
+
+    // Extract the search pattern (first non-flag argument after "search")
+    let pattern = args
+        .get(3)
+        .filter(|arg| !arg.starts_with("--"))
+        .ok_or_else(|| "Search pattern is required".to_string())?
+        .clone();
+
+    let types = get_option(args, "--types=");
+    let limit = get_option(args, "--limit=").and_then(|s| s.parse().ok());
+    let profile = get_option(args, "--profile=");
+    let token_type = parse_token_type(args)?;
+    let raw = has_flag(args, "--raw");
+    let select = has_flag(args, "--select");
+
+    // Parse additional filters from --filter= flags
+    let filter_strings = get_all_options(args, "--filter=");
+
+    // Parse format option (default: json)
+    let format = if let Some(fmt_str) = get_option(args, "--format=") {
+        commands::OutputFormat::parse(&fmt_str)?
+    } else {
+        commands::OutputFormat::Json
+    };
+
+    // Validate --raw compatibility
+    if raw && format != commands::OutputFormat::Json {
+        return Err(format!(
+            "--raw is only valid with --format json, but got --format {}",
+            format
+        ));
+    }
+
+    // Parse sort options
+    let sort_key = if let Some(sort_str) = get_option(args, "--sort=") {
+        Some(commands::SortKey::parse(&sort_str)?)
+    } else {
+        None
+    };
+
+    let sort_dir = if let Some(dir_str) = get_option(args, "--sort-dir=") {
+        commands::SortDirection::parse(&dir_str)?
+    } else {
+        commands::SortDirection::default()
+    };
+
+    // Build filters: inject name:<pattern> filter + any additional filters
+    let mut filters: Vec<commands::ConversationFilter> =
+        vec![commands::ConversationFilter::Name(pattern)];
+
+    // Parse and add additional filters
+    for filter_str in filter_strings {
+        filters.push(commands::ConversationFilter::parse(&filter_str).map_err(|e| e.to_string())?);
+    }
+
+    let client = get_api_client_with_token_type(profile.clone(), token_type).await?;
+    let mut response = commands::conv_list(&client, types, limit)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    // Apply filters
+    commands::apply_filters(&mut response, &filters);
+
+    // Apply sorting if specified
+    if let Some(key) = sort_key {
+        commands::sort_conversations(&mut response, key, sort_dir);
+    }
+
+    // If --select flag is present, use interactive selection
+    if select {
+        let items = commands::extract_conversations(&response);
+        let selector = commands::StdinSelector;
+        let channel_id = selector.select(&items)?;
+        println!("{}", channel_id);
+        return Ok(());
+    }
+
+    // Format output: non-JSON formats bypass raw/envelope logic
+    let output = if format != commands::OutputFormat::Json {
+        commands::format_response(&response, format)?
+    } else if raw {
+        serde_json::to_string_pretty(&response).unwrap()
+    } else {
+        let response_value = serde_json::to_value(&response).map_err(|e| e.to_string())?;
+        let wrapped = wrap_with_envelope_and_token_type(
+            response_value,
+            "conversations.list",
+            "conv search",
+            profile,
+            token_type,
+        )
+        .await?;
+        serde_json::to_string_pretty(&wrapped).unwrap()
+    };
+
+    println!("{}", output);
+    Ok(())
+}
+
 pub async fn run_conv_history(args: &[String]) -> Result<(), String> {
+    // Check for --help flag before API call
+    if has_flag(args, "--help") || has_flag(args, "-h") {
+        print_conv_usage(&args[0]);
+        return Ok(());
+    }
+
     let interactive = has_flag(args, "--interactive");
 
     let channel = if interactive {
@@ -794,16 +917,36 @@ pub fn print_conv_usage(prog: &str) {
         "  {} conv list [--types=TYPE] [--limit=N] [--filter=KEY:VALUE]... [--format=FORMAT] [--sort=KEY] [--sort-dir=DIR] [--raw] [--profile=NAME] [--token-type=bot|user]",
         prog
     );
+    println!("    List conversations with optional filtering and sorting");
     println!("    Filters: name:<glob>, is_member:true|false, is_private:true|false");
+    println!("      - name:<glob>: Filter by channel name (supports * and ? wildcards)");
+    println!("      - is_member:true|false: Filter by membership status");
+    println!("      - is_private:true|false: Filter by channel privacy");
     println!("    Formats: json (default), jsonl, table, tsv");
+    println!("      - json: JSON format with envelope (use --raw for raw Slack API response)");
+    println!("      - jsonl: JSON Lines format (one object per line)");
+    println!("      - table: Human-readable table format");
+    println!("      - tsv: Tab-separated values");
     println!("    Sort keys: name, created, num_members");
+    println!("      - name: Sort by channel name");
+    println!("      - created: Sort by creation timestamp");
+    println!("      - num_members: Sort by member count");
     println!("    Sort direction: asc (default), desc");
     println!("    Note: --raw is only valid with --format json");
+    println!();
+    println!(
+        "  {} conv search <pattern> [--select] [--types=TYPE] [--limit=N] [--filter=KEY:VALUE]... [--format=FORMAT] [--sort=KEY] [--sort-dir=DIR] [--raw] [--profile=NAME] [--token-type=bot|user]",
+        prog
+    );
+    println!("    Search conversations by name pattern (applies name:<pattern> filter)");
+    println!("    --select: Interactively select from results and output channel ID only");
+    println!();
     println!(
         "  {} conv select [--types=TYPE] [--filter=KEY:VALUE]... [--profile=NAME]",
         prog
     );
     println!("    Interactively select a conversation and output its channel ID");
+    println!();
     println!(
         "  {} conv history <channel> [--limit=N] [--oldest=TS] [--latest=TS] [--profile=NAME] [--token-type=bot|user]",
         prog
