@@ -671,3 +671,87 @@ async fn test_conversation_item_display_format() {
     };
     assert_eq!(private_item.display(), "#secret (C456) [private]");
 }
+
+#[tokio::test]
+async fn test_conv_search_filter_injection() {
+    // Test that conv search applies name filter correctly
+    let mock_server = MockServer::start().await;
+
+    // Mock conversations.list response
+    let response_data = serde_json::json!({
+        "ok": true,
+        "channels": [
+            {"id": "C1", "name": "dev-backend", "is_member": true, "is_private": false},
+            {"id": "C2", "name": "dev-frontend", "is_member": true, "is_private": false},
+            {"id": "C3", "name": "general", "is_member": true, "is_private": false},
+            {"id": "C4", "name": "dev-ops", "is_member": false, "is_private": false},
+        ]
+    });
+
+    Mock::given(method("GET"))
+        .and(path("/conversations.list"))
+        .and(header("authorization", "Bearer test_token"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(&response_data))
+        .expect(1)
+        .mount(&mock_server)
+        .await;
+
+    let client = ApiClient::new_with_base_url("test_token".to_string(), mock_server.uri());
+
+    // Get the conversation list
+    let mut response = commands::conv_list(&client, None, None).await.unwrap();
+
+    // Apply search filter (simulates conv search "dev*")
+    let filters = vec![commands::ConversationFilter::parse("name:dev*").unwrap()];
+    commands::apply_filters(&mut response, &filters);
+
+    // Extract and verify filtered results
+    let items = commands::extract_conversations(&response);
+    assert_eq!(items.len(), 3); // C1, C2, C4
+    assert_eq!(items[0].id, "C1");
+    assert_eq!(items[1].id, "C2");
+    assert_eq!(items[2].id, "C4");
+}
+
+#[tokio::test]
+async fn test_conv_search_with_additional_filters() {
+    // Test that conv search can combine name filter with additional filters
+    let mock_server = MockServer::start().await;
+
+    // Mock conversations.list response
+    let response_data = serde_json::json!({
+        "ok": true,
+        "channels": [
+            {"id": "C1", "name": "test-public", "is_member": true, "is_private": false},
+            {"id": "C2", "name": "test-private", "is_member": true, "is_private": true},
+            {"id": "C3", "name": "test-nomember", "is_member": false, "is_private": false},
+            {"id": "C4", "name": "general", "is_member": true, "is_private": false},
+        ]
+    });
+
+    Mock::given(method("GET"))
+        .and(path("/conversations.list"))
+        .and(header("authorization", "Bearer test_token"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(&response_data))
+        .expect(1)
+        .mount(&mock_server)
+        .await;
+
+    let client = ApiClient::new_with_base_url("test_token".to_string(), mock_server.uri());
+
+    // Get the conversation list
+    let mut response = commands::conv_list(&client, None, None).await.unwrap();
+
+    // Apply search filter with additional filters (simulates conv search "test*" --filter is_member:true)
+    let filters = vec![
+        commands::ConversationFilter::parse("name:test*").unwrap(),
+        commands::ConversationFilter::parse("is_member:true").unwrap(),
+    ];
+    commands::apply_filters(&mut response, &filters);
+
+    // Extract and verify filtered results
+    let items = commands::extract_conversations(&response);
+    assert_eq!(items.len(), 2); // C1 and C2
+    assert_eq!(items[0].id, "C1");
+    assert_eq!(items[1].id, "C2");
+}

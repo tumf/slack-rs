@@ -178,6 +178,12 @@ async fn main() {
                         std::process::exit(1);
                     }
                 }
+                "search" => {
+                    if let Err(e) = run_conv_search(&args).await {
+                        eprintln!("Conv search failed: {}", e);
+                        std::process::exit(1);
+                    }
+                }
                 "history" => {
                     // --interactive flag makes channel argument optional
                     let has_interactive = args.iter().any(|arg| arg == "--interactive");
@@ -346,7 +352,8 @@ fn print_help() {
     println!("    config oauth delete <profile>    Delete OAuth configuration for a profile");
     println!("    config set <profile> --token-type <type>  Set default token type (bot/user)");
     println!("    search <query>                   Search messages");
-    println!("    conv list                        List conversations (supports --filter)");
+    println!("    conv list                        List conversations (supports --filter, --format, --sort)");
+    println!("    conv search <pattern>            Search conversations by name");
     println!("    conv select                      Interactively select a conversation");
     println!(
         "    conv history <channel>           Get conversation history (supports --interactive)"
@@ -400,7 +407,8 @@ fn print_usage() {
     println!("  config oauth delete <profile>  - Delete OAuth configuration for a profile");
     println!("  config set <profile> --token-type <type> - Set default token type (bot/user)");
     println!("  search <query>                 - Search messages (supports --count, --page, --sort, --sort_dir)");
-    println!("  conv list                      - List conversations (supports --filter)");
+    println!("  conv list                      - List conversations (supports --filter, --format, --sort)");
+    println!("  conv search <pattern>          - Search conversations by name (supports --select)");
     println!("  conv select                    - Interactively select a conversation");
     println!(
         "  conv history <channel>         - Get conversation history (supports --interactive)"
