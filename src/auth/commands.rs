@@ -1,6 +1,7 @@
 //! Auth command implementations
 
 use crate::auth::cloudflared::{CloudflaredError, CloudflaredTunnel};
+use crate::debug;
 use crate::oauth::{
     build_authorization_url, exchange_code, generate_pkce, generate_state, resolve_callback_port,
     run_callback_server, OAuthConfig, OAuthError,
@@ -349,16 +350,18 @@ async fn perform_oauth_flow(
         .as_ref()
         .and_then(|u| u.access_token.clone());
 
-    eprintln!(
-        "DEBUG: OAuth response - bot_token present: {}",
-        bot_token.is_some()
-    );
-    eprintln!(
-        "DEBUG: OAuth response - user_token present: {}",
-        user_token.is_some()
-    );
-    if let Some(ref token) = user_token {
-        eprintln!("DEBUG: User token length: {}", token.len());
+    if debug::enabled() {
+        debug::log(format!(
+            "OAuth tokens received: bot_token_present={}, user_token_present={}",
+            bot_token.is_some(),
+            user_token.is_some()
+        ));
+        if let Some(ref token) = bot_token {
+            debug::log(format!("bot_token={}", debug::token_hint(token)));
+        }
+        if let Some(ref token) = user_token {
+            debug::log(format!("user_token={}", debug::token_hint(token)));
+        }
     }
 
     // Ensure at least one token is present
@@ -429,14 +432,13 @@ fn save_profile_and_credentials(creds: SaveCredentials) -> Result<(), OAuthError
     // Save user token to separate key (team_id:user_id:user)
     if let Some(user_token) = creds.user_token {
         let user_token_key = format!("{}:{}:user", creds.team_id, creds.user_id);
-        eprintln!("DEBUG: Saving user token with key: {}", user_token_key);
-        eprintln!("DEBUG: User token length: {}", user_token.len());
+        debug::log(format!("Saving user token with key: {}", user_token_key));
         token_store
             .set(&user_token_key, user_token)
             .map_err(|e| OAuthError::ConfigError(format!("Failed to save user token: {}", e)))?;
-        eprintln!("DEBUG: User token saved successfully");
+        debug::log("User token saved successfully");
     } else {
-        eprintln!("DEBUG: No user token to save (user_token is None)");
+        debug::log("No user token to save (user_token is None)");
     }
 
     // Save client_secret to file store
@@ -965,18 +967,13 @@ pub async fn login_with_credentials_extended(
 ) -> Result<(), OAuthError> {
     let profile_name = profile_name.unwrap_or_else(|| "default".to_string());
 
-    // Debug: Show scopes being used
-    println!("🔍 Debug - login_with_credentials_extended called:");
-    println!("  Profile: {}", profile_name);
-    println!("  Bot scopes count: {}", bot_scopes.len());
-    println!("  User scopes count: {}", user_scopes.len());
-    if !bot_scopes.is_empty() {
-        println!("  Bot scopes: {}", bot_scopes.join(", "));
-    }
-    if !user_scopes.is_empty() {
-        println!("  User scopes: {}", user_scopes.join(", "));
-    } else {
-        println!("  ⚠️  WARNING: No user scopes provided!");
+    if debug::enabled() {
+        debug::log(format!(
+            "login_with_credentials_extended: profile={}, bot_scopes_count={}, user_scopes_count={}",
+            profile_name,
+            bot_scopes.len(),
+            user_scopes.len()
+        ));
     }
 
     // Resolve port early
@@ -1090,24 +1087,22 @@ pub async fn login_with_credentials_extended(
     let (team_id, team_name, user_id, bot_token, user_token) =
         perform_oauth_flow(&config, None).await?;
 
-    // Debug: Print token info
-    println!("🔍 Debug - OAuth flow completed:");
-    println!("  Team ID: {}", team_id);
-    println!("  User ID: {}", user_id);
-    println!("  Team Name: {:?}", team_name);
-    println!("  Bot token present: {}", bot_token.is_some());
-    println!("  User token present: {}", user_token.is_some());
-    if let Some(ref token) = bot_token {
-        println!(
-            "  Bot token prefix: {}...",
-            &token.chars().take(10).collect::<String>()
-        );
-    }
-    if let Some(ref token) = user_token {
-        println!(
-            "  User token prefix: {}...",
-            &token.chars().take(10).collect::<String>()
-        );
+    if debug::enabled() {
+        debug::log(format!(
+            "OAuth flow completed: team_id={}, user_id={}, team_name={:?}",
+            team_id, user_id, team_name
+        ));
+        debug::log(format!(
+            "tokens: bot_token_present={}, user_token_present={}",
+            bot_token.is_some(),
+            user_token.is_some()
+        ));
+        if let Some(ref token) = bot_token {
+            debug::log(format!("bot_token={}", debug::token_hint(token)));
+        }
+        if let Some(ref token) = user_token {
+            debug::log(format!("user_token={}", debug::token_hint(token)));
+        }
     }
 
     // Save profile

@@ -9,5 +9,6 @@ pub mod api;
 pub mod auth;
 pub mod cli;
 pub mod commands;
+pub mod debug;
 pub mod oauth;
 pub mod profile;

@@ -5,6 +5,7 @@ mod api;
 mod auth;
 mod cli;
 mod commands;
+mod debug;
 mod oauth;
 mod profile;
 
@@ -578,15 +579,10 @@ async fn run_auth_login(args: &[String]) -> Result<(), String> {
         let bot_scopes = bot_scopes.unwrap_or_else(oauth::bot_all_scopes);
         let user_scopes = user_scopes.unwrap_or_else(oauth::user_all_scopes);
 
-        // Debug: Show scopes before prompting for client_secret
-        eprintln!("🔍 Debug - main.rs preparing to call login_with_credentials_extended:");
-        eprintln!("  Bot scopes count: {}", bot_scopes.len());
-        eprintln!("  User scopes count: {}", user_scopes.len());
-        if !bot_scopes.is_empty() {
-            eprintln!("  Bot scopes: {}", bot_scopes.join(", "));
-        }
-        if !user_scopes.is_empty() {
-            eprintln!("  User scopes: {}", user_scopes.join(", "));
+        if debug::enabled() {
+            debug::log("Preparing to call login_with_credentials_extended");
+            debug::log(format!("bot_scopes_count={}", bot_scopes.len()));
+            debug::log(format!("user_scopes_count={}", user_scopes.len()));
         }
 
         // Prompt for client_secret
