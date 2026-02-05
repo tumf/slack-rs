@@ -21,9 +21,10 @@ pub mod types;
 pub use resolver::{list_profiles, resolve_profile, resolve_profile_full, ResolverError};
 pub use storage::{default_config_path, load_config, save_config, StorageError};
 pub use token_store::{
-    delete_oauth_client_secret, get_oauth_client_secret, make_oauth_client_secret_key,
-    make_token_key, store_oauth_client_secret, FileTokenStore, InMemoryTokenStore,
-    KeyringTokenStore, TokenStore, TokenStoreError,
+    create_token_store, delete_oauth_client_secret, get_oauth_client_secret,
+    make_oauth_client_secret_key, make_token_key, resolve_token_store_backend,
+    store_oauth_client_secret, FileTokenStore, InMemoryTokenStore, KeyringTokenStore, TokenStore,
+    TokenStoreBackend, TokenStoreError,
 };
 pub use token_type::{TokenType, TokenTypeError};
 pub use types::{Profile, ProfileError, ProfilesConfig};
