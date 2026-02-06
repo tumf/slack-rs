@@ -32,6 +32,11 @@ fn test_command_response_envelope() {
 
     let json = serde_json::to_value(&response).unwrap();
 
+    // Verify introspection fields
+    assert_eq!(json["schemaVersion"], 1);
+    assert_eq!(json["type"], "conversations.list");
+    assert_eq!(json["ok"], true);
+
     // Verify envelope structure
     assert!(json["response"].is_object());
     assert!(json["meta"].is_object());
@@ -138,6 +143,11 @@ fn test_command_response_with_token_type() {
     );
 
     let json = serde_json::to_value(&response).unwrap();
+
+    // Verify introspection fields
+    assert_eq!(json["schemaVersion"], 1);
+    assert_eq!(json["type"], "conversations.list");
+    assert_eq!(json["ok"], true);
 
     // Verify envelope structure
     assert!(json["response"].is_object());
