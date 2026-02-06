@@ -7,3 +7,6 @@
 ## Acceptance #1 Failure Follow-up
 - [x] `--help --json` の構造化ヘルプがサブコマンドで実行されるように CLI ルーティングへ統合する（`slack-rs msg post --help --json` が `command`/`usage`/`flags`/`examples`/`exitCodes` を返す）。
 - [x] `schema --command conv.list --output json-schema` が成功するようにコマンド名のマッピング（`conv.list` ↔ `conv list`）を追加する。
+
+## Acceptance #2 Failure Follow-up
+- [x] `--help --json` が `api call` や `auth login` など他コマンドでも構造化ヘルプを返すよう CLI ルーティングを統合する（`src/main.rs` では `conv list` と `msg post` 以外に JSON ヘルプの分岐がない）。
