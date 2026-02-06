@@ -138,6 +138,7 @@ jobs:
     name: Publish to crates.io
     needs: create-release
     runs-on: ubuntu-latest
+    if: false  # Disabled: crates.io publishing is currently stopped
     steps:
       - uses: actions/checkout@v4
         with:
