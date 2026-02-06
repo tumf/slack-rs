@@ -1,0 +1,5 @@
+- [ ] `commands --json` の出力フォーマットを定義し、CLI ルーティングと同じ情報源から生成できることを確認する（`src/cli` の定義テーブルと `slack-rs commands --json` の出力を照合）。
+- [ ] `--help --json` の構造化ヘルプを実装し、`slack-rs msg post --help --json` で `command`/`usage`/`flags`/`examples`/`exitCodes` が含まれることを確認する（ユニットテストで JSON パース検証）。
+- [ ] `schema --command <cmd> --output json-schema` の最小スキーマ出力を追加し、`schemaVersion`/`type`/`ok`/`response`/`meta` がスキーマに含まれることを確認する（ユニットテストで JSON パース検証）。
+- [ ] 統一エンベロープに `schemaVersion`/`type`/`ok` を追加し、`--raw` 指定時は追加されないことを確認する（`conv list --raw` の既存テストの挙動確認）。
+- [ ] イントロスペクション出力のテストを追加し、外部 API なしで実行できることを確認する（`cargo test --lib` で対象テストが通る）。
