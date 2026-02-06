@@ -1026,20 +1026,16 @@ fn generate_and_save_manifest(
     fs::write(&manifest_path, &manifest_yaml)
         .map_err(|e| OAuthError::ConfigError(format!("Failed to write manifest file: {}", e)))?;
 
-    // Try to copy manifest to clipboard (non-fatal if it fails)
-    match arboard::Clipboard::new() {
-        Ok(mut clipboard) => match clipboard.set_text(&manifest_yaml) {
-            Ok(_) => {
-                println!("✓ Manifest copied to clipboard!");
-            }
-            Err(e) => {
-                eprintln!("⚠️  Warning: Failed to copy manifest to clipboard: {}", e);
-                eprintln!("   You can still manually copy from the file.");
-            }
-        },
-        Err(e) => {
-            eprintln!("⚠️  Warning: Failed to access clipboard: {}", e);
-            eprintln!("   You can still manually copy from the file.");
+    // Try to copy manifest to clipboard with fallback strategies
+    use crate::auth::clipboard::{copy_to_clipboard, ClipboardResult};
+
+    match copy_to_clipboard(&manifest_yaml) {
+        ClipboardResult::Success(method) => {
+            println!("✓ Manifest copied to clipboard ({})!", method);
+        }
+        ClipboardResult::Failed => {
+            eprintln!("⚠️  Warning: Could not copy to clipboard.");
+            eprintln!("   Please manually copy from: {}", manifest_path.display());
         }
     }
 
