@@ -66,17 +66,12 @@ The `react add/remove` commands MUST call `reactions.add` / `reactions.remove` r
 write 操作（`msg post/update/delete`, `react add/remove`, `file upload`）はデフォルトで確認を求めなければならない。(MUST)
 `--yes` が指定されている場合は確認を省略しなければならない。(MUST)
 非対話モードでは `--yes` が無い場合に即時エラーにしなければならない。(MUST)
+write 操作のヘルプ/使用例には `--idempotency-key` の説明を含めなければならない。(MUST)
 
-#### Scenario: `msg post` は確認を求める
-- Given `SLACKCLI_ALLOW_WRITE` が許可されている
-- And TTY で実行している
-- When `msg post` を `--yes` なしで実行する
-- Then 実行前に確認プロンプトが表示される
-
-#### Scenario: 非対話モードで `--yes` が無い場合は失敗する
-- Given `--non-interactive` が指定されている
-- When `file upload` を `--yes` なしで実行する
-- Then 確認プロンプトを出さずにエラーになる
+#### Scenario: ヘルプに `--idempotency-key` が表示される
+- Given write 操作のヘルプ表示を確認する
+- When `msg post --help` を表示する
+- Then `--idempotency-key` の説明が含まれる
 
 ### Requirement: Write operations are controlled by environment variable
 Write operations MUST determine permission/denial based on the `SLACKCLI_ALLOW_WRITE` environment variable value.
