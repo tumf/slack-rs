@@ -13,7 +13,7 @@
 - Then 出力は Slack API レスポンスの JSON そのままである
 - And `meta` フィールドは含まれない
 
-### Requirement: Write operations require confirmation by default
+### Requirement: Destructive operations require confirmation without --yes flag
 write 操作（`msg post/update/delete`, `react add/remove`, `file upload`）はデフォルトで確認を求めなければならない。(MUST)
 `--yes` が指定されている場合は確認を省略しなければならない。(MUST)
 非対話モードでは `--yes` が無い場合に即時エラーにしなければならない。(MUST)
