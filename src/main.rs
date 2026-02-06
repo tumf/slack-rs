@@ -10,6 +10,10 @@ use slack_rs::{auth, cli, commands, profile};
 async fn main() {
     let args: Vec<String> = std::env::args().collect();
 
+    // Normalize arguments: extract global flags and reposition them after the command
+    // This allows --profile and --non-interactive to work in any position
+    let args = normalize_global_flags(&args);
+
     // Parse global --non-interactive flag
     let non_interactive = cli::has_flag(&args, "--non-interactive");
     let ctx = cli::CliContext::new(non_interactive);
@@ -392,6 +396,56 @@ async fn main() {
             print_usage();
         }
     }
+}
+
+/// Normalize global flags by moving them after the command
+/// This allows --profile and --non-interactive to work in any position
+///
+/// For example:
+/// - `slack-rs --profile work api call ...` becomes `slack-rs api call ... --profile work`
+/// - `slack-rs --non-interactive --profile test search query` becomes `slack-rs search query --non-interactive --profile test`
+fn normalize_global_flags(args: &[String]) -> Vec<String> {
+    if args.len() < 2 {
+        return args.to_vec();
+    }
+
+    let mut result = vec![args[0].clone()]; // Keep program name
+    let mut global_flags = Vec::new();
+    let mut command_and_rest = Vec::new();
+    let mut found_command = false;
+
+    let mut i = 1;
+    while i < args.len() {
+        let arg = &args[i];
+
+        // Check if this is a global flag
+        if !found_command && (arg == "--profile" || arg == "--non-interactive") {
+            global_flags.push(arg.clone());
+            // Check if this flag has a value (for --profile)
+            if arg == "--profile" && i + 1 < args.len() && !args[i + 1].starts_with("--") {
+                i += 1;
+                global_flags.push(args[i].clone());
+            }
+        } else if !found_command && arg.starts_with("--profile=") {
+            // Handle --profile=value format
+            global_flags.push(arg.clone());
+        } else if !found_command && !arg.starts_with("--") {
+            // First non-flag argument is the command
+            found_command = true;
+            command_and_rest.push(arg.clone());
+        } else {
+            // Everything else goes into command_and_rest
+            command_and_rest.push(arg.clone());
+        }
+
+        i += 1;
+    }
+
+    // Reconstruct: program name + command + rest + global flags
+    result.extend(command_and_rest);
+    result.extend(global_flags);
+
+    result
 }
 
 /// Print version information

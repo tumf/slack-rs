@@ -12,12 +12,23 @@ The `search` command MUST call `search.messages` and pass `query`, `count`, `sor
 - Then `query` is passed to `search.messages`
 
 ### Requirement: Conv list retrieves conversation list
-The `conv list` command MUST call `conversations.list` and pass `types` and `limit` parameters.
+`conv list` MUST accept `--include-private` and `--all` and reflect them in `types` resolution. (MUST)
+When both `--types` and `--include-private`/`--all` are specified simultaneously, an error MUST be returned. (MUST)
 
-#### Scenario: Specify types and limit
-- Given types and limit are specified
-- When `conv list` is executed
-- Then `types` and `limit` are passed to `conversations.list`
+#### Scenario: Specify `--include-private`
+- Given `--types` is not specified
+- When executing `conv list --include-private`
+- Then `public_channel,private_channel` is passed to `types`
+
+#### Scenario: Specify `--all`
+- Given `--types` is not specified
+- When executing `conv list --all`
+- Then `public_channel,private_channel,im,mpim` is passed to `types`
+
+#### Scenario: Use `--types` and `--all` together
+- Given `--types=public_channel` is specified
+- When executing `conv list --types=public_channel --all`
+- Then an error is returned for simultaneous use of `--types` and `--all`
 
 ### Requirement: Conv history retrieves conversation history
 The `conv history` command MUST call `conversations.history` and pass `channel`, `oldest`, `latest`, and `limit` parameters.
@@ -186,13 +197,12 @@ When `private_channel` is requested without User Token available, an error MUST 
 - And `meta` フィールドは含まれない
 
 ### Requirement: Wrapper commands show guidance for known Slack error codes
-ラッパーコマンドの実行結果が `ok=false` かつ `error` が既知のコードに一致する場合、標準エラー出力に `Error:`/`Cause:`/`Resolution:` を含むガイダンスを表示しなければならない。(MUST)
+When `channel_not_found` is returned, cause candidates and next actions MUST be displayed to stderr. (MUST)
 
-#### Scenario: `missing_scope` のガイダンスが表示される
-- Given Slack API が `ok=false` と `error=missing_scope` を返す
-- When `users info --user U123` を実行する
-- Then 標準エラー出力に `Error:`/`Cause:`/`Resolution:` が含まれる
-- And JSON 出力は Slack のレスポンスのままである
+#### Scenario: `channel_not_found` guidance is displayed
+- Given Slack API returns `ok=false` and `error=channel_not_found`
+- When executing `conv history C123`
+- Then stderr displays possibilities of "private and not joined", "token type", and "profile" with verification methods
 
 ### Requirement: `conv list` は `--format` で出力形式を切り替えられる
 `conv list` は `--format` で `json`/`jsonl`/`table`/`tsv` を受け付け、指定された形式で結果を出力しなければならない。(MUST)
@@ -297,4 +307,16 @@ Value-taking options for `conv list` (`--filter`/`--format`/`--sort`/`--sort-dir
 - Given executing `conv list --filter "is_private:true" --sort name --sort-dir desc --format table`
 - When retrieving conversation list and applying filter and sort
 - Then only channels matching `is_private:true` are output in descending order in `table` format
+
+### Requirement: Conv search matches are user-friendly by default
+`conv search` MUST use case-insensitive substring matching by default. (MUST)
+When the pattern contains `*`, glob matching MUST be used. (MUST)
+
+#### Scenario: Search with case-insensitive substring matching
+- When executing `conv search Gen`
+- Then `general` is treated as a matching candidate
+
+#### Scenario: Use glob matching when `*` is present
+- When executing `conv search "gen*"`
+- Then channel names starting with `gen` are matched
 
