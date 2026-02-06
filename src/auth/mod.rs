@@ -9,6 +9,7 @@
 //! - export: Export profiles to encrypted file
 //! - import: Import profiles from encrypted file
 
+pub mod clipboard;
 pub mod cloudflared;
 pub mod commands;
 pub mod crypto;
