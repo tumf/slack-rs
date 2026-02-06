@@ -488,14 +488,14 @@ fn print_help() {
     println!("    users info <user_id>             Get user information");
     println!("    users cache-update               Update user cache for mention resolution");
     println!("    users resolve-mentions <text>    Resolve user mentions in text");
-    println!("    msg post <channel> <text>        Post a message (requires SLACKCLI_ALLOW_WRITE=true, supports --thread-ts and --reply-broadcast)");
-    println!("    msg update <channel> <ts> <text> Update a message (requires SLACKCLI_ALLOW_WRITE=true)");
-    println!("    msg delete <channel> <ts>        Delete a message (requires SLACKCLI_ALLOW_WRITE=true)");
+    println!("    msg post <channel> <text>        Post a message (requires SLACKCLI_ALLOW_WRITE=true, supports --thread-ts, --reply-broadcast, and --idempotency-key)");
+    println!("    msg update <channel> <ts> <text> Update a message (requires SLACKCLI_ALLOW_WRITE=true, supports --idempotency-key)");
+    println!("    msg delete <channel> <ts>        Delete a message (requires SLACKCLI_ALLOW_WRITE=true, supports --idempotency-key)");
     println!(
-        "    react add <channel> <ts> <emoji> Add a reaction (requires SLACKCLI_ALLOW_WRITE=true)"
+        "    react add <channel> <ts> <emoji> Add a reaction (requires SLACKCLI_ALLOW_WRITE=true, supports --idempotency-key)"
     );
-    println!("    react remove <channel> <ts> <emoji> Remove a reaction (requires SLACKCLI_ALLOW_WRITE=true)");
-    println!("    file upload <path>               Upload a file (external upload method)");
+    println!("    react remove <channel> <ts> <emoji> Remove a reaction (requires SLACKCLI_ALLOW_WRITE=true, supports --idempotency-key)");
+    println!("    file upload <path>               Upload a file (external upload method, supports --idempotency-key)");
     println!("    demo                             Run demonstration");
     println!();
     println!("API CALL OPTIONS:");
@@ -556,16 +556,16 @@ fn print_usage() {
     println!("  users info <user_id>           - Get user information");
     println!("  users cache-update             - Update user cache for mention resolution (supports --profile, --force)");
     println!("  users resolve-mentions <text>  - Resolve user mentions in text (supports --profile, --format)");
-    println!("  msg post <channel> <text>      - Post a message (requires SLACKCLI_ALLOW_WRITE=true, supports --thread-ts and --reply-broadcast)");
-    println!("  msg update <channel> <ts> <text> - Update a message (requires SLACKCLI_ALLOW_WRITE=true)");
+    println!("  msg post <channel> <text>      - Post a message (requires SLACKCLI_ALLOW_WRITE=true, supports --thread-ts, --reply-broadcast, and --idempotency-key)");
+    println!("  msg update <channel> <ts> <text> - Update a message (requires SLACKCLI_ALLOW_WRITE=true, supports --idempotency-key)");
     println!(
-        "  msg delete <channel> <ts>      - Delete a message (requires SLACKCLI_ALLOW_WRITE=true)"
+        "  msg delete <channel> <ts>      - Delete a message (requires SLACKCLI_ALLOW_WRITE=true, supports --idempotency-key)"
     );
     println!(
-        "  react add <channel> <ts> <emoji> - Add a reaction (requires SLACKCLI_ALLOW_WRITE=true)"
+        "  react add <channel> <ts> <emoji> - Add a reaction (requires SLACKCLI_ALLOW_WRITE=true, supports --idempotency-key)"
     );
-    println!("  react remove <channel> <ts> <emoji> - Remove a reaction (requires SLACKCLI_ALLOW_WRITE=true)");
-    println!("  file upload <path>             - Upload a file using external upload method");
+    println!("  react remove <channel> <ts> <emoji> - Remove a reaction (requires SLACKCLI_ALLOW_WRITE=true, supports --idempotency-key)");
+    println!("  file upload <path>             - Upload a file using external upload method (supports --idempotency-key)");
     println!("  demo                           - Run demonstration");
     println!("  --help, -h                     - Show help");
     println!("  --version, -v                  - Show version");

@@ -36,6 +36,10 @@ pub struct CommandMeta {
     pub command: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub token_type: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub idempotency_key: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub idempotency_status: Option<String>,
 }
 
 impl CommandResponse {
@@ -70,6 +74,8 @@ impl CommandResponse {
                 method,
                 command,
                 token_type: None,
+                idempotency_key: None,
+                idempotency_status: None,
             },
         }
     }
@@ -106,7 +112,16 @@ impl CommandResponse {
                 method,
                 command,
                 token_type,
+                idempotency_key: None,
+                idempotency_status: None,
             },
         }
+    }
+
+    /// Set idempotency metadata
+    pub fn with_idempotency(mut self, key: String, status: String) -> Self {
+        self.meta.idempotency_key = Some(key);
+        self.meta.idempotency_status = Some(status);
+        self
     }
 }

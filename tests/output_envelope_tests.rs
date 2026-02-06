@@ -84,6 +84,8 @@ fn test_command_meta_serialization() {
         method: "chat.postMessage".to_string(),
         command: "msg post".to_string(),
         token_type: Some("bot".to_string()),
+        idempotency_key: None,
+        idempotency_status: None,
     };
 
     let json = serde_json::to_string(&meta).unwrap();
@@ -117,6 +119,8 @@ fn test_different_commands_have_different_command_names() {
         method: "conversations.list".to_string(),
         command: "conv list".to_string(),
         token_type: Some("bot".to_string()),
+        idempotency_key: None,
+        idempotency_status: None,
     };
 
     let api_json = serde_json::to_value(&api_meta).unwrap();
