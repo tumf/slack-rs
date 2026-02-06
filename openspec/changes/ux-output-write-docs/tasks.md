@@ -1,0 +1,6 @@
+- [ ] `SLACKRS_OUTPUT=raw|envelope` を導入し、`--raw` 未指定時の既定出力を切り替える（確認: `api call` と wrapper コマンドの出力分岐に env を反映）
+- [ ] write 操作に統一の確認フローを追加する（確認: `msg post/update/delete`、`react add/remove`、`file upload` が `--yes` でスキップ可能）
+- [ ] 非対話時に `--yes` がない write 操作を即時エラーにする（確認: `--non-interactive` でのエラーメッセージと終了経路）
+- [ ] `--debug` / `--trace` を追加し、解決済み情報を stderr に出す（確認: debug ログの出力項目と secret が出ないこと）
+- [ ] help 出力に代表例を追加する（確認: `slack-rs --help` および主要コマンドの `--help` 表示）
+- [ ] `docs/recipes.md` を追加し、profile/出力/会話/エラーの項目を含める（確認: ファイル内容に指定見出しがある）
