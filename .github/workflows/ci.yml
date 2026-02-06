@@ -10,6 +10,25 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  lint:
+    name: Lint with prek
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      
+      - name: Install prek
+        run: |
+          curl -LsSf https://github.com/j178/prek/releases/latest/download/prek-installer.sh | sh
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+      
+      - name: Run prek
+        run: prek run --all-files
+
   test:
     name: Test
     runs-on: ${{ matrix.os }}
@@ -43,14 +62,6 @@ jobs:
         with:
           path: target
           key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
-      
-      - name: Check formatting
-        run: cargo fmt -- --check
-        if: matrix.rust == 'stable' && matrix.os == 'ubuntu-latest'
-      
-      - name: Run clippy
-        run: cargo clippy -- -D warnings
-        if: matrix.rust == 'stable'
       
       - name: Build
         run: cargo build --verbose

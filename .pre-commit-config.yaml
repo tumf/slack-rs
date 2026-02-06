@@ -1,0 +1,55 @@
+# Configuration for prek (pre-commit compatible)
+# See https://prek.j178.dev/ for more information
+
+repos:
+  - repo: local
+    hooks:
+      # Check Rust code formatting
+      - id: cargo-fmt
+        name: cargo fmt
+        description: Format Rust code using rustfmt
+        entry: cargo fmt --all -- --check
+        language: system
+        types: [rust]
+        pass_filenames: false
+
+      # Run Rust linter
+      - id: cargo-clippy
+        name: cargo clippy
+        description: Lint Rust code with clippy
+        entry: cargo clippy --all-targets --all-features -- -D warnings
+        language: system
+        types: [rust]
+        pass_filenames: false
+
+      # Check for trailing whitespace (only in Rust files)
+      - id: trailing-whitespace
+        name: trailing whitespace
+        description: Check for trailing whitespace in Rust files
+        entry: bash -c 'for file in "$@"; do if grep -q "[[:space:]]$" "$file"; then echo "Trailing whitespace in $file"; exit 1; fi; done'
+        language: system
+        types: [rust]
+
+      # Ensure files end with newline
+      - id: end-of-file-fixer
+        name: end of file fixer
+        description: Ensure files end with newline
+        entry: bash -c 'for file in "$@"; do if [ -n "$(tail -c 1 "$file")" ]; then echo >> "$file"; fi; done'
+        language: system
+        types: [text]
+
+      # Check YAML syntax
+      - id: check-yaml
+        name: check yaml
+        description: Check YAML syntax
+        entry: bash -c 'for file in "$@"; do python3 -c "import yaml; yaml.safe_load(open(\"$file\"))" || exit 1; done'
+        language: system
+        types: [yaml]
+
+      # Check TOML syntax
+      - id: check-toml
+        name: check toml
+        description: Check TOML syntax (Cargo.toml)
+        entry: bash -c 'for file in "$@"; do cargo read-manifest --manifest-path "$file" > /dev/null 2>&1 || exit 1; done'
+        language: system
+        files: ^.*Cargo\.toml$

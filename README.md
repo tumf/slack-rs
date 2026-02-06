@@ -845,6 +845,51 @@ slack-rs auth import --all --in all-profiles.enc
 
 **⚠️ Warning**: Exported files contain sensitive credentials including access tokens and potentially client secrets. Treat them like passwords and store securely.
 
+## Development
+
+### Git Hooks
+
+This project uses [prek](https://prek.j178.dev/) for managing git hooks. Prek is a Rust-based implementation of pre-commit that requires no Python runtime.
+
+**Install prek:**
+
+```bash
+# macOS/Linux
+curl -LsSf https://github.com/j178/prek/releases/latest/download/prek-installer.sh | sh
+
+# Homebrew
+brew install prek
+
+# cargo
+cargo install prek
+```
+
+**Enable hooks:**
+
+```bash
+prek install
+```
+
+**Run hooks manually:**
+
+```bash
+# Run all hooks on all files
+prek run --all-files
+
+# Run specific hooks
+prek run cargo-fmt cargo-clippy
+
+# List available hooks
+prek list
+```
+
+The hooks will automatically run before each commit and include:
+- `cargo fmt` - Format Rust code
+- `cargo clippy` - Lint with clippy
+- Trailing whitespace checks
+- File endings checks
+- YAML/TOML syntax validation
+
 ## Contributing
 
 Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, coding guidelines, and submission process.
