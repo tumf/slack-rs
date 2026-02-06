@@ -155,6 +155,34 @@ pub fn has_flag(args: &[String], flag: &str) -> bool {
     args.iter().any(|arg| arg == flag)
 }
 
+/// Determine if output should be raw based on SLACKRS_OUTPUT environment variable and --raw flag
+///
+/// # Arguments
+/// * `args` - Command line arguments
+///
+/// # Returns
+/// * `true` if output should be raw (without envelope)
+/// * `false` if output should include envelope
+///
+/// # Priority
+/// 1. --raw flag (highest priority)
+/// 2. SLACKRS_OUTPUT environment variable ("raw" or "envelope")
+/// 3. Default to envelope (false)
+pub fn should_output_raw(args: &[String]) -> bool {
+    // Priority 1: --raw flag always wins
+    if has_flag(args, "--raw") {
+        return true;
+    }
+
+    // Priority 2: Check SLACKRS_OUTPUT environment variable
+    if let Ok(output_mode) = std::env::var("SLACKRS_OUTPUT") {
+        return output_mode.trim().to_lowercase() == "raw";
+    }
+
+    // Priority 3: Default to envelope (false)
+    false
+}
+
 /// Check if error message indicates non-interactive mode failure
 pub fn is_non_interactive_error(error_msg: &str) -> bool {
     error_msg.contains("Non-interactive mode error")
@@ -323,7 +351,7 @@ pub async fn run_search(args: &[String]) -> Result<(), String> {
     let sort_dir = get_option(args, "--sort_dir=");
     let profile_name = resolve_profile_name(args);
     let token_type = parse_token_type(args)?;
-    let raw = has_flag(args, "--raw");
+    let raw = should_output_raw(args);
 
     let client = get_api_client_with_token_type(Some(profile_name.clone()), token_type).await?;
     let response = commands::search(&client, query, count, page, sort, sort_dir)
@@ -401,7 +429,7 @@ pub async fn run_conv_list(args: &[String]) -> Result<(), String> {
     let profile_name = resolve_profile_name(args);
     let token_type = parse_token_type(args)?;
     let filter_strings = get_all_options(args, "--filter=");
-    let raw = has_flag(args, "--raw");
+    let raw = should_output_raw(args);
 
     // Validate: --types is mutually exclusive with --include-private and --all
     if types.is_some() && (include_private || all) {
@@ -551,7 +579,7 @@ pub async fn run_conv_search(args: &[String]) -> Result<(), String> {
     let limit = get_option(args, "--limit=").and_then(|s| s.parse().ok());
     let profile_name = resolve_profile_name(args);
     let token_type = parse_token_type(args)?;
-    let raw = has_flag(args, "--raw");
+    let raw = should_output_raw(args);
     let select = has_flag(args, "--select");
 
     // Parse additional filters from --filter= flags
@@ -686,7 +714,7 @@ pub async fn run_conv_history(args: &[String]) -> Result<(), String> {
     let latest = get_option(args, "--latest=");
     let profile_name = resolve_profile_name(args);
     let token_type = parse_token_type(args)?;
-    let raw = has_flag(args, "--raw");
+    let raw = should_output_raw(args);
 
     let client = get_api_client_with_token_type(Some(profile_name.clone()), token_type).await?;
     let response = commands::conv_history(&client, channel, limit, oldest, latest)
@@ -720,7 +748,7 @@ pub async fn run_users_info(args: &[String]) -> Result<(), String> {
     let user = args[3].clone();
     let profile_name = resolve_profile_name(args);
     let token_type = parse_token_type(args)?;
-    let raw = has_flag(args, "--raw");
+    let raw = should_output_raw(args);
 
     let client = get_api_client_with_token_type(Some(profile_name.clone()), token_type).await?;
     let response = commands::users_info(&client, user)
@@ -812,15 +840,16 @@ pub async fn run_users_resolve_mentions(args: &[String]) -> Result<(), String> {
     Ok(())
 }
 
-pub async fn run_msg_post(args: &[String]) -> Result<(), String> {
+pub async fn run_msg_post(args: &[String], non_interactive: bool) -> Result<(), String> {
     if args.len() < 5 {
-        return Err("Usage: msg post <channel> <text> [--thread-ts=TS] [--reply-broadcast] [--profile=NAME] [--token-type=bot|user]".to_string());
+        return Err("Usage: msg post <channel> <text> [--thread-ts=TS] [--reply-broadcast] [--yes] [--profile=NAME] [--token-type=bot|user]".to_string());
     }
 
     let channel = args[3].clone();
     let text = args[4].clone();
     let thread_ts = get_option(args, "--thread-ts=");
     let reply_broadcast = has_flag(args, "--reply-broadcast");
+    let yes = has_flag(args, "--yes");
     let profile_name = resolve_profile_name(args);
     let token_type = parse_token_type(args)?;
 
@@ -829,11 +858,19 @@ pub async fn run_msg_post(args: &[String]) -> Result<(), String> {
         return Err("Error: --reply-broadcast requires --thread-ts".to_string());
     }
 
-    let raw = has_flag(args, "--raw");
+    let raw = should_output_raw(args);
     let client = get_api_client_with_token_type(Some(profile_name.clone()), token_type).await?;
-    let response = commands::msg_post(&client, channel, text, thread_ts, reply_broadcast)
-        .await
-        .map_err(|e| e.to_string())?;
+    let response = commands::msg_post(
+        &client,
+        channel,
+        text,
+        thread_ts,
+        reply_broadcast,
+        yes,
+        non_interactive,
+    )
+    .await
+    .map_err(|e| e.to_string())?;
 
     // Display error guidance if response contains a known error
     crate::api::display_wrapper_error_guidance(&response);
@@ -869,7 +906,7 @@ pub async fn run_msg_update(args: &[String], non_interactive: bool) -> Result<()
     let yes = has_flag(args, "--yes");
     let profile_name = resolve_profile_name(args);
     let token_type = parse_token_type(args)?;
-    let raw = has_flag(args, "--raw");
+    let raw = should_output_raw(args);
 
     let client = get_api_client_with_token_type(Some(profile_name.clone()), token_type).await?;
     let response = commands::msg_update(&client, channel, ts, text, yes, non_interactive)
@@ -912,7 +949,7 @@ pub async fn run_msg_delete(args: &[String], non_interactive: bool) -> Result<()
     let yes = has_flag(args, "--yes");
     let profile_name = resolve_profile_name(args);
     let token_type = parse_token_type(args)?;
-    let raw = has_flag(args, "--raw");
+    let raw = should_output_raw(args);
 
     let client = get_api_client_with_token_type(Some(profile_name.clone()), token_type).await?;
     let response = commands::msg_delete(&client, channel, ts, yes, non_interactive)
@@ -942,10 +979,10 @@ pub async fn run_msg_delete(args: &[String], non_interactive: bool) -> Result<()
     Ok(())
 }
 
-pub async fn run_react_add(args: &[String]) -> Result<(), String> {
+pub async fn run_react_add(args: &[String], non_interactive: bool) -> Result<(), String> {
     if args.len() < 6 {
         return Err(
-            "Usage: react add <channel> <ts> <emoji> [--profile=NAME] [--token-type=bot|user]"
+            "Usage: react add <channel> <ts> <emoji> [--yes] [--profile=NAME] [--token-type=bot|user]"
                 .to_string(),
         );
     }
@@ -953,12 +990,13 @@ pub async fn run_react_add(args: &[String]) -> Result<(), String> {
     let channel = args[3].clone();
     let ts = args[4].clone();
     let emoji = args[5].clone();
+    let yes = has_flag(args, "--yes");
     let profile_name = resolve_profile_name(args);
     let token_type = parse_token_type(args)?;
-    let raw = has_flag(args, "--raw");
+    let raw = should_output_raw(args);
 
     let client = get_api_client_with_token_type(Some(profile_name.clone()), token_type).await?;
-    let response = commands::react_add(&client, channel, ts, emoji)
+    let response = commands::react_add(&client, channel, ts, emoji, yes, non_interactive)
         .await
         .map_err(|e| e.to_string())?;
 
@@ -998,7 +1036,7 @@ pub async fn run_react_remove(args: &[String], non_interactive: bool) -> Result<
     let yes = has_flag(args, "--yes");
     let profile_name = resolve_profile_name(args);
     let token_type = parse_token_type(args)?;
-    let raw = has_flag(args, "--raw");
+    let raw = should_output_raw(args);
 
     let client = get_api_client_with_token_type(Some(profile_name.clone()), token_type).await?;
     let response = commands::react_remove(&client, channel, ts, emoji, yes, non_interactive)
@@ -1028,10 +1066,10 @@ pub async fn run_react_remove(args: &[String], non_interactive: bool) -> Result<
     Ok(())
 }
 
-pub async fn run_file_upload(args: &[String]) -> Result<(), String> {
+pub async fn run_file_upload(args: &[String], non_interactive: bool) -> Result<(), String> {
     if args.len() < 4 {
         return Err(
-            "Usage: file upload <path> [--channel=ID] [--channels=IDs] [--title=TITLE] [--comment=TEXT] [--profile=NAME] [--token-type=bot|user]"
+            "Usage: file upload <path> [--channel=ID] [--channels=IDs] [--title=TITLE] [--comment=TEXT] [--yes] [--profile=NAME] [--token-type=bot|user]"
                 .to_string(),
         );
     }
@@ -1042,14 +1080,23 @@ pub async fn run_file_upload(args: &[String]) -> Result<(), String> {
     let channels = get_option(args, "--channel=").or_else(|| get_option(args, "--channels="));
     let title = get_option(args, "--title=");
     let comment = get_option(args, "--comment=");
+    let yes = has_flag(args, "--yes");
     let profile_name = resolve_profile_name(args);
     let token_type = parse_token_type(args)?;
-    let raw = has_flag(args, "--raw");
+    let raw = should_output_raw(args);
 
     let client = get_api_client_with_token_type(Some(profile_name.clone()), token_type).await?;
-    let response = commands::file_upload(&client, file_path, channels, title, comment)
-        .await
-        .map_err(|e| e.to_string())?;
+    let response = commands::file_upload(
+        &client,
+        file_path,
+        channels,
+        title,
+        comment,
+        yes,
+        non_interactive,
+    )
+    .await
+    .map_err(|e| e.to_string())?;
 
     // Display error guidance if response contains a known error
     crate::api::display_json_error_guidance(&response);

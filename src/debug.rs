@@ -6,6 +6,43 @@
 
 use serde_json::Value;
 
+/// Debug level for output control
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum DebugLevel {
+    /// No debug output
+    Off,
+    /// Basic debug output (--debug)
+    Debug,
+    /// Verbose trace output (--trace)
+    Trace,
+}
+
+/// Get the current debug level from environment variable or flags
+///
+/// Priority:
+/// 1. --trace flag → Trace
+/// 2. --debug flag → Debug
+/// 3. SLACK_RS_DEBUG env → Debug
+/// 4. Default → Off
+pub fn get_debug_level(args: &[String]) -> DebugLevel {
+    // Check for --trace flag
+    if args.iter().any(|arg| arg == "--trace") {
+        return DebugLevel::Trace;
+    }
+
+    // Check for --debug flag
+    if args.iter().any(|arg| arg == "--debug") {
+        return DebugLevel::Debug;
+    }
+
+    // Check environment variable
+    if enabled() {
+        return DebugLevel::Debug;
+    }
+
+    DebugLevel::Off
+}
+
 /// Returns true when debug logging is enabled.
 ///
 /// Enable with `SLACK_RS_DEBUG=1` (also accepts: true/yes/on).
@@ -23,6 +60,51 @@ pub fn enabled() -> bool {
 pub fn log(msg: impl AsRef<str>) {
     if enabled() {
         eprintln!("DEBUG: {}", msg.as_ref());
+    }
+}
+
+/// Print debug information for API call context
+///
+/// Outputs to stderr when debug level is Debug or higher.
+/// Never outputs secrets (tokens, client_secret).
+pub fn log_api_context(
+    level: DebugLevel,
+    profile_name: Option<&str>,
+    token_store_backend: &str,
+    token_type: &str,
+    method: &str,
+    endpoint: &str,
+) {
+    if level >= DebugLevel::Debug {
+        eprintln!("DEBUG: Profile: {}", profile_name.unwrap_or("<none>"));
+        eprintln!("DEBUG: Token store: {}", token_store_backend);
+        eprintln!("DEBUG: Token type: {}", token_type);
+        eprintln!("DEBUG: API method: {}", method);
+        eprintln!("DEBUG: Endpoint: {}", endpoint);
+    }
+}
+
+/// Print trace-level debug information
+///
+/// Only outputs when debug level is Trace.
+pub fn log_trace(level: DebugLevel, msg: impl AsRef<str>) {
+    if level >= DebugLevel::Trace {
+        eprintln!("TRACE: {}", msg.as_ref());
+    }
+}
+
+/// Log Slack error code if present in response
+///
+/// Outputs to stderr when debug level is Debug or higher.
+pub fn log_error_code(level: DebugLevel, response: &Value) {
+    if level >= DebugLevel::Debug {
+        if let Some(ok) = response.get("ok").and_then(|v| v.as_bool()) {
+            if !ok {
+                if let Some(error_code) = response.get("error").and_then(|v| v.as_str()) {
+                    eprintln!("DEBUG: Slack error code: {}", error_code);
+                }
+            }
+        }
     }
 }
 

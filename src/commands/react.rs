@@ -12,6 +12,8 @@ use std::collections::HashMap;
 /// * `channel` - Channel ID
 /// * `timestamp` - Message timestamp
 /// * `name` - Emoji name (without colons, e.g., "thumbsup")
+/// * `yes` - Skip confirmation prompt
+/// * `non_interactive` - Whether running in non-interactive mode
 ///
 /// # Returns
 /// * `Ok(ApiResponse)` with reaction confirmation
@@ -21,8 +23,17 @@ pub async fn react_add(
     channel: String,
     timestamp: String,
     name: String,
+    yes: bool,
+    non_interactive: bool,
 ) -> Result<ApiResponse, ApiError> {
     check_write_allowed()?;
+
+    // Build hint with example command for non-interactive mode
+    let hint = format!(
+        "Example: slack-rs react add {} {} {} --yes",
+        channel, timestamp, name
+    );
+    confirm_destructive_with_hint(yes, "add this reaction", non_interactive, Some(&hint))?;
 
     let mut params = HashMap::new();
     params.insert("channel".to_string(), json!(channel));
@@ -85,6 +96,8 @@ mod tests {
             "C123456".to_string(),
             "1234567890.123456".to_string(),
             "thumbsup".to_string(),
+            true,
+            false,
         )
         .await;
         assert!(result.is_err());

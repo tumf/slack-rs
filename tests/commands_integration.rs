@@ -3,7 +3,7 @@
 //! Tests that each command calls the correct Slack API methods with proper parameters
 
 use serial_test::serial;
-use slack_rs::api::ApiClient;
+use slack_rs::api::{ApiClient, ApiError};
 use slack_rs::commands;
 use slack_rs::commands::ConversationSelector;
 use std::collections::HashMap;
@@ -66,6 +66,8 @@ async fn test_msg_post_with_thread_ts() {
         "thread reply".to_string(),
         Some("1234567890.111111".to_string()),
         false,
+        true,
+        false,
     )
     .await;
 
@@ -99,6 +101,8 @@ async fn test_msg_post_with_thread_ts_and_reply_broadcast() {
         "broadcast reply".to_string(),
         Some("1234567890.111111".to_string()),
         true, // reply_broadcast = true
+        true,
+        false,
     )
     .await;
 
@@ -130,6 +134,8 @@ async fn test_msg_post_without_thread_ts_ignores_reply_broadcast() {
         "normal message".to_string(),
         None, // no thread_ts
         true, // reply_broadcast = true (should be ignored)
+        true,
+        false,
     )
     .await;
 
@@ -194,6 +200,8 @@ async fn test_msg_post_requires_allow_write() {
         "test message".to_string(),
         None,
         false,
+        true,
+        false,
     )
     .await;
 
@@ -229,6 +237,8 @@ async fn test_msg_post_calls_correct_api_with_allow_write() {
         "C123456".to_string(),
         "test message".to_string(),
         None,
+        false,
+        true,
         false,
     )
     .await;
@@ -358,6 +368,8 @@ async fn test_react_add_requires_allow_write() {
         "C123456".to_string(),
         "1234567890.123456".to_string(),
         "thumbsup".to_string(),
+        true,
+        false,
     )
     .await;
 
@@ -392,6 +404,8 @@ async fn test_react_add_calls_correct_api() {
         "C123456".to_string(),
         "1234567890.123456".to_string(),
         "thumbsup".to_string(),
+        true,
+        false,
     )
     .await;
 
@@ -463,8 +477,16 @@ async fn test_file_upload_requires_allow_write() {
     let mock_server = MockServer::start().await;
     let client = ApiClient::new_with_base_url("test_token".to_string(), mock_server.uri());
 
-    let result =
-        commands::file_upload(&client, "/tmp/test.txt".to_string(), None, None, None).await;
+    let result = commands::file_upload(
+        &client,
+        "/tmp/test.txt".to_string(),
+        None,
+        None,
+        None,
+        true,
+        false,
+    )
+    .await;
 
     assert!(result.is_err());
     assert!(result
@@ -543,6 +565,8 @@ async fn test_file_upload_external_flow() {
         Some("C123456".to_string()),
         Some("Test File".to_string()),
         Some("Test comment".to_string()),
+        true,
+        false,
     )
     .await;
 
@@ -566,6 +590,8 @@ async fn test_file_upload_nonexistent_file() {
         None,
         None,
         None,
+        true,
+        false,
     )
     .await;
 
