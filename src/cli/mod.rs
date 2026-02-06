@@ -1585,4 +1585,72 @@ mod tests {
         );
         assert!(has_flag(&args_with_private, "--include-private"));
     }
+
+    #[test]
+    fn test_conv_list_types_resolution_logic() {
+        // Test types resolution without flags
+        let args_no_flags = vec!["slack".to_string(), "conv".to_string(), "list".to_string()];
+        let types = get_option(&args_no_flags, "--types=");
+        let include_private = has_flag(&args_no_flags, "--include-private");
+        let all = has_flag(&args_no_flags, "--all");
+        assert!(types.is_none());
+        assert!(!include_private);
+        assert!(!all);
+
+        // Test with --include-private
+        let args_private = vec![
+            "slack".to_string(),
+            "conv".to_string(),
+            "list".to_string(),
+            "--include-private".to_string(),
+        ];
+        let types = get_option(&args_private, "--types=");
+        let include_private = has_flag(&args_private, "--include-private");
+        let all = has_flag(&args_private, "--all");
+        assert!(types.is_none());
+        assert!(include_private);
+        assert!(!all);
+
+        // Test with --all
+        let args_all = vec![
+            "slack".to_string(),
+            "conv".to_string(),
+            "list".to_string(),
+            "--all".to_string(),
+        ];
+        let types = get_option(&args_all, "--types=");
+        let include_private = has_flag(&args_all, "--include-private");
+        let all = has_flag(&args_all, "--all");
+        assert!(types.is_none());
+        assert!(!include_private);
+        assert!(all);
+
+        // Test mutual exclusion: --types with --include-private
+        let args_conflict1 = vec![
+            "slack".to_string(),
+            "conv".to_string(),
+            "list".to_string(),
+            "--types=public_channel".to_string(),
+            "--include-private".to_string(),
+        ];
+        let types = get_option(&args_conflict1, "--types=");
+        let include_private = has_flag(&args_conflict1, "--include-private");
+        assert!(types.is_some());
+        assert!(include_private);
+        // This should trigger error in run_conv_list
+
+        // Test mutual exclusion: --types with --all
+        let args_conflict2 = vec![
+            "slack".to_string(),
+            "conv".to_string(),
+            "list".to_string(),
+            "--types=public_channel".to_string(),
+            "--all".to_string(),
+        ];
+        let types = get_option(&args_conflict2, "--types=");
+        let all = has_flag(&args_conflict2, "--all");
+        assert!(types.is_some());
+        assert!(all);
+        // This should trigger error in run_conv_list
+    }
 }
