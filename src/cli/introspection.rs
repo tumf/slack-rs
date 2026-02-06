@@ -408,6 +408,13 @@ pub fn get_command_definitions() -> Vec<CommandDef> {
                     description: "Profile name".to_string(),
                     default: Some("default".to_string()),
                 },
+                FlagDef {
+                    name: "--idempotency-key".to_string(),
+                    flag_type: "string".to_string(),
+                    required: false,
+                    description: "Idempotency key for preventing duplicate operations".to_string(),
+                    default: None,
+                },
             ],
             examples: vec![ExampleDef {
                 description: "Post message".to_string(),
@@ -429,13 +436,22 @@ pub fn get_command_definitions() -> Vec<CommandDef> {
             name: "msg update".to_string(),
             description: "Update a message".to_string(),
             usage: "slack-rs msg update <channel> <ts> <text> [flags]".to_string(),
-            flags: vec![FlagDef {
-                name: "--profile".to_string(),
-                flag_type: "string".to_string(),
-                required: false,
-                description: "Profile name".to_string(),
-                default: Some("default".to_string()),
-            }],
+            flags: vec![
+                FlagDef {
+                    name: "--profile".to_string(),
+                    flag_type: "string".to_string(),
+                    required: false,
+                    description: "Profile name".to_string(),
+                    default: Some("default".to_string()),
+                },
+                FlagDef {
+                    name: "--idempotency-key".to_string(),
+                    flag_type: "string".to_string(),
+                    required: false,
+                    description: "Idempotency key for preventing duplicate operations".to_string(),
+                    default: None,
+                },
+            ],
             examples: vec![ExampleDef {
                 description: "Update message".to_string(),
                 command: "slack-rs msg update C123 1234567890.123456 'Updated text'".to_string(),
@@ -456,13 +472,22 @@ pub fn get_command_definitions() -> Vec<CommandDef> {
             name: "msg delete".to_string(),
             description: "Delete a message".to_string(),
             usage: "slack-rs msg delete <channel> <ts> [flags]".to_string(),
-            flags: vec![FlagDef {
-                name: "--profile".to_string(),
-                flag_type: "string".to_string(),
-                required: false,
-                description: "Profile name".to_string(),
-                default: Some("default".to_string()),
-            }],
+            flags: vec![
+                FlagDef {
+                    name: "--profile".to_string(),
+                    flag_type: "string".to_string(),
+                    required: false,
+                    description: "Profile name".to_string(),
+                    default: Some("default".to_string()),
+                },
+                FlagDef {
+                    name: "--idempotency-key".to_string(),
+                    flag_type: "string".to_string(),
+                    required: false,
+                    description: "Idempotency key for preventing duplicate operations".to_string(),
+                    default: None,
+                },
+            ],
             examples: vec![ExampleDef {
                 description: "Delete message".to_string(),
                 command: "slack-rs msg delete C123 1234567890.123456".to_string(),
@@ -510,13 +535,22 @@ pub fn get_command_definitions() -> Vec<CommandDef> {
             name: "react add".to_string(),
             description: "Add a reaction to a message".to_string(),
             usage: "slack-rs react add <channel> <ts> <emoji> [flags]".to_string(),
-            flags: vec![FlagDef {
-                name: "--profile".to_string(),
-                flag_type: "string".to_string(),
-                required: false,
-                description: "Profile name".to_string(),
-                default: Some("default".to_string()),
-            }],
+            flags: vec![
+                FlagDef {
+                    name: "--profile".to_string(),
+                    flag_type: "string".to_string(),
+                    required: false,
+                    description: "Profile name".to_string(),
+                    default: Some("default".to_string()),
+                },
+                FlagDef {
+                    name: "--idempotency-key".to_string(),
+                    flag_type: "string".to_string(),
+                    required: false,
+                    description: "Idempotency key for preventing duplicate operations".to_string(),
+                    default: None,
+                },
+            ],
             examples: vec![ExampleDef {
                 description: "Add reaction".to_string(),
                 command: "slack-rs react add C123 1234567890.123456 thumbsup".to_string(),
@@ -537,13 +571,22 @@ pub fn get_command_definitions() -> Vec<CommandDef> {
             name: "react remove".to_string(),
             description: "Remove a reaction from a message".to_string(),
             usage: "slack-rs react remove <channel> <ts> <emoji> [flags]".to_string(),
-            flags: vec![FlagDef {
-                name: "--profile".to_string(),
-                flag_type: "string".to_string(),
-                required: false,
-                description: "Profile name".to_string(),
-                default: Some("default".to_string()),
-            }],
+            flags: vec![
+                FlagDef {
+                    name: "--profile".to_string(),
+                    flag_type: "string".to_string(),
+                    required: false,
+                    description: "Profile name".to_string(),
+                    default: Some("default".to_string()),
+                },
+                FlagDef {
+                    name: "--idempotency-key".to_string(),
+                    flag_type: "string".to_string(),
+                    required: false,
+                    description: "Idempotency key for preventing duplicate operations".to_string(),
+                    default: None,
+                },
+            ],
             examples: vec![ExampleDef {
                 description: "Remove reaction".to_string(),
                 command: "slack-rs react remove C123 1234567890.123456 thumbsup".to_string(),
@@ -564,13 +607,22 @@ pub fn get_command_definitions() -> Vec<CommandDef> {
             name: "file upload".to_string(),
             description: "Upload a file".to_string(),
             usage: "slack-rs file upload <path> [flags]".to_string(),
-            flags: vec![FlagDef {
-                name: "--profile".to_string(),
-                flag_type: "string".to_string(),
-                required: false,
-                description: "Profile name".to_string(),
-                default: Some("default".to_string()),
-            }],
+            flags: vec![
+                FlagDef {
+                    name: "--profile".to_string(),
+                    flag_type: "string".to_string(),
+                    required: false,
+                    description: "Profile name".to_string(),
+                    default: Some("default".to_string()),
+                },
+                FlagDef {
+                    name: "--idempotency-key".to_string(),
+                    flag_type: "string".to_string(),
+                    required: false,
+                    description: "Idempotency key for preventing duplicate operations".to_string(),
+                    default: None,
+                },
+            ],
             examples: vec![ExampleDef {
                 description: "Upload file".to_string(),
                 command: "slack-rs file upload document.pdf".to_string(),
