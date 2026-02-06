@@ -364,11 +364,33 @@ pub async fn run_conv_list(args: &[String]) -> Result<(), String> {
     }
 
     let types = get_option(args, "--types=");
+    let include_private = has_flag(args, "--include-private");
+    let all = has_flag(args, "--all");
     let limit = get_option(args, "--limit=").and_then(|s| s.parse().ok());
     let profile = get_option(args, "--profile=");
     let token_type = parse_token_type(args)?;
     let filter_strings = get_all_options(args, "--filter=");
     let raw = has_flag(args, "--raw");
+
+    // Validate: --types is mutually exclusive with --include-private and --all
+    if types.is_some() && (include_private || all) {
+        return Err("Error: --types cannot be used with --include-private or --all".to_string());
+    }
+
+    // Resolve types based on flags
+    let resolved_types = if let Some(explicit_types) = types {
+        // User explicitly specified types
+        Some(explicit_types)
+    } else if all {
+        // --all flag: include all conversation types
+        Some("public_channel,private_channel,im,mpim".to_string())
+    } else if include_private {
+        // --include-private flag: include public and private channels
+        Some("public_channel,private_channel".to_string())
+    } else {
+        // No flags: use default (public_channel only)
+        None
+    };
 
     // Parse format option (default: json)
     let format = if let Some(fmt_str) = get_option(args, "--format=") {
@@ -406,7 +428,7 @@ pub async fn run_conv_list(args: &[String]) -> Result<(), String> {
     let filters = filters.map_err(|e| e.to_string())?;
 
     let client = get_api_client_with_token_type(profile.clone(), token_type).await?;
-    let mut response = commands::conv_list(&client, types, limit)
+    let mut response = commands::conv_list(&client, resolved_types, limit)
         .await
         .map_err(|e| e.to_string())?;
 
@@ -1023,11 +1045,18 @@ pub async fn run_file_upload(args: &[String]) -> Result<(), String> {
 pub fn print_conv_usage(prog: &str) {
     println!("Conv command usage:");
     println!(
-        "  {} conv list [--types=TYPE] [--limit=N] [--filter=KEY:VALUE]... [--format=FORMAT] [--sort=KEY] [--sort-dir=DIR] [--raw] [--profile=NAME] [--token-type=bot|user]",
+        "  {} conv list [--types=TYPE] [--include-private] [--all] [--limit=N] [--filter=KEY:VALUE]... [--format=FORMAT] [--sort=KEY] [--sort-dir=DIR] [--raw] [--profile=NAME] [--token-type=bot|user]",
         prog
     );
     println!("    List conversations with optional filtering and sorting");
     println!("    Options accept both --option=value and --option value formats");
+    println!("    Type shortcuts (mutually exclusive with --types):");
+    println!(
+        "      - --include-private: Include private channels (public_channel,private_channel)"
+    );
+    println!(
+        "      - --all: Include all conversation types (public_channel,private_channel,im,mpim)"
+    );
     println!("    Filters: name:<glob>, is_member:true|false, is_private:true|false");
     println!("      - name:<glob>: Filter by channel name (supports * and ? wildcards)");
     println!("      - is_member:true|false: Filter by membership status");
@@ -1502,5 +1531,126 @@ mod tests {
         ];
         assert_eq!(get_option(&args, "--count="), Some("10".to_string()));
         assert_eq!(get_option(&args, "--sort="), Some("timestamp".to_string()));
+    }
+
+    #[test]
+    fn test_conv_list_include_private_flag() {
+        let args = vec![
+            "slack".to_string(),
+            "conv".to_string(),
+            "list".to_string(),
+            "--include-private".to_string(),
+        ];
+        assert!(has_flag(&args, "--include-private"));
+        assert!(!has_flag(&args, "--all"));
+    }
+
+    #[test]
+    fn test_conv_list_all_flag() {
+        let args = vec![
+            "slack".to_string(),
+            "conv".to_string(),
+            "list".to_string(),
+            "--all".to_string(),
+        ];
+        assert!(!has_flag(&args, "--include-private"));
+        assert!(has_flag(&args, "--all"));
+    }
+
+    #[test]
+    fn test_conv_list_types_exclude_private_all() {
+        // This test verifies the flag detection logic
+        // The actual exclusivity check happens in run_conv_list
+        let args_with_types = vec![
+            "slack".to_string(),
+            "conv".to_string(),
+            "list".to_string(),
+            "--types=public_channel".to_string(),
+        ];
+        assert_eq!(
+            get_option(&args_with_types, "--types="),
+            Some("public_channel".to_string())
+        );
+
+        let args_with_private = vec![
+            "slack".to_string(),
+            "conv".to_string(),
+            "list".to_string(),
+            "--types=public_channel".to_string(),
+            "--include-private".to_string(),
+        ];
+        assert_eq!(
+            get_option(&args_with_private, "--types="),
+            Some("public_channel".to_string())
+        );
+        assert!(has_flag(&args_with_private, "--include-private"));
+    }
+
+    #[test]
+    fn test_conv_list_types_resolution_logic() {
+        // Test types resolution without flags
+        let args_no_flags = vec!["slack".to_string(), "conv".to_string(), "list".to_string()];
+        let types = get_option(&args_no_flags, "--types=");
+        let include_private = has_flag(&args_no_flags, "--include-private");
+        let all = has_flag(&args_no_flags, "--all");
+        assert!(types.is_none());
+        assert!(!include_private);
+        assert!(!all);
+
+        // Test with --include-private
+        let args_private = vec![
+            "slack".to_string(),
+            "conv".to_string(),
+            "list".to_string(),
+            "--include-private".to_string(),
+        ];
+        let types = get_option(&args_private, "--types=");
+        let include_private = has_flag(&args_private, "--include-private");
+        let all = has_flag(&args_private, "--all");
+        assert!(types.is_none());
+        assert!(include_private);
+        assert!(!all);
+
+        // Test with --all
+        let args_all = vec![
+            "slack".to_string(),
+            "conv".to_string(),
+            "list".to_string(),
+            "--all".to_string(),
+        ];
+        let types = get_option(&args_all, "--types=");
+        let include_private = has_flag(&args_all, "--include-private");
+        let all = has_flag(&args_all, "--all");
+        assert!(types.is_none());
+        assert!(!include_private);
+        assert!(all);
+
+        // Test mutual exclusion: --types with --include-private
+        let args_conflict1 = vec![
+            "slack".to_string(),
+            "conv".to_string(),
+            "list".to_string(),
+            "--types=public_channel".to_string(),
+            "--include-private".to_string(),
+        ];
+        let types = get_option(&args_conflict1, "--types=");
+        let include_private = has_flag(&args_conflict1, "--include-private");
+        assert!(types.is_some());
+        assert!(include_private);
+        // This should trigger error in run_conv_list
+
+        // Test mutual exclusion: --types with --all
+        let args_conflict2 = vec![
+            "slack".to_string(),
+            "conv".to_string(),
+            "list".to_string(),
+            "--types=public_channel".to_string(),
+            "--all".to_string(),
+        ];
+        let types = get_option(&args_conflict2, "--types=");
+        let all = has_flag(&args_conflict2, "--all");
+        assert!(types.is_some());
+        assert!(all);
+        // This should trigger error in run_conv_list
     }
 }
