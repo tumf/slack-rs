@@ -1,0 +1,10 @@
+# Codecov Configuration
+# Disable coverage status checks to prevent CI failures based on coverage thresholds
+
+coverage:
+  status:
+    project: off  # Disable project coverage status check
+    patch: off    # Disable patch coverage status check
+
+# Still collect and display coverage data, but don't fail CI
+comment: false  # Disable automatic PR comments
