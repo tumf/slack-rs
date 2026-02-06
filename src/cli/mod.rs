@@ -14,6 +14,7 @@ pub use introspection::{
 use crate::api::{ApiClient, CommandResponse};
 use crate::commands;
 use crate::commands::ConversationSelector;
+use crate::debug;
 use crate::profile::{
     create_token_store, default_config_path, load_config, make_token_key, resolve_profile_full,
     TokenStore, TokenType,
@@ -486,10 +487,60 @@ pub async fn run_conv_list(args: &[String]) -> Result<(), String> {
         .collect();
     let filters = filters.map_err(|e| e.to_string())?;
 
+    // Get debug level from args
+    let debug_level = debug::get_debug_level(args);
+
+    // Log debug information if --debug or --trace flag is present
+    let token_store_backend = if std::env::var("SLACK_TOKEN").is_ok() {
+        "environment"
+    } else {
+        "keyring/file"
+    };
+
+    // Resolve actual token type for debug output
+    let resolved_token_type = if let Some(explicit) = token_type {
+        explicit
+    } else {
+        // Get profile to check default_token_type
+        let config_path = default_config_path().map_err(|e| e.to_string())?;
+        let profile = resolve_profile_full(&config_path, &profile_name)
+            .map_err(|e| format!("Failed to resolve profile '{}': {}", profile_name, e))?;
+
+        if let Some(default_type) = profile.default_token_type {
+            default_type
+        } else {
+            // Infer from token availability
+            let token_store = create_token_store().map_err(|e| e.to_string())?;
+            let user_token_key = format!("{}:{}:user", profile.team_id, profile.user_id);
+            if token_store.get(&user_token_key).is_ok() {
+                TokenType::User
+            } else {
+                TokenType::Bot
+            }
+        }
+    };
+
+    let endpoint = "https://slack.com/api/conversations.list";
+
+    debug::log_api_context(
+        debug_level,
+        Some(&profile_name),
+        token_store_backend,
+        resolved_token_type.as_str(),
+        "conversations.list",
+        endpoint,
+    );
+
     let client = get_api_client_with_token_type(Some(profile_name.clone()), token_type).await?;
     let mut response = commands::conv_list(&client, resolved_types, limit)
         .await
         .map_err(|e| e.to_string())?;
+
+    // Log error code if present
+    debug::log_error_code(
+        debug_level,
+        &serde_json::to_value(&response).unwrap_or_default(),
+    );
 
     // Display error guidance if response contains a known error
     crate::api::display_wrapper_error_guidance(&response);
@@ -716,10 +767,58 @@ pub async fn run_conv_history(args: &[String]) -> Result<(), String> {
     let token_type = parse_token_type(args)?;
     let raw = should_output_raw(args);
 
+    // Get debug level from args
+    let debug_level = debug::get_debug_level(args);
+
+    // Log debug information if --debug or --trace flag is present
+    let token_store_backend = if std::env::var("SLACK_TOKEN").is_ok() {
+        "environment"
+    } else {
+        "keyring/file"
+    };
+
+    // Resolve actual token type for debug output
+    let resolved_token_type = if let Some(explicit) = token_type {
+        explicit
+    } else {
+        let config_path = default_config_path().map_err(|e| e.to_string())?;
+        let profile = resolve_profile_full(&config_path, &profile_name)
+            .map_err(|e| format!("Failed to resolve profile '{}': {}", profile_name, e))?;
+
+        if let Some(default_type) = profile.default_token_type {
+            default_type
+        } else {
+            let token_store = create_token_store().map_err(|e| e.to_string())?;
+            let user_token_key = format!("{}:{}:user", profile.team_id, profile.user_id);
+            if token_store.get(&user_token_key).is_ok() {
+                TokenType::User
+            } else {
+                TokenType::Bot
+            }
+        }
+    };
+
+    let endpoint = "https://slack.com/api/conversations.history";
+
+    debug::log_api_context(
+        debug_level,
+        Some(&profile_name),
+        token_store_backend,
+        resolved_token_type.as_str(),
+        "conversations.history",
+        endpoint,
+    );
+
     let client = get_api_client_with_token_type(Some(profile_name.clone()), token_type).await?;
     let response = commands::conv_history(&client, channel, limit, oldest, latest)
         .await
         .map_err(|e| e.to_string())?;
+
+    // Log error code if present
+    debug::log_error_code(
+        debug_level,
+        &serde_json::to_value(&response).unwrap_or_default(),
+    );
 
     // Display error guidance if response contains a known error
     crate::api::display_wrapper_error_guidance(&response);
@@ -750,10 +849,58 @@ pub async fn run_users_info(args: &[String]) -> Result<(), String> {
     let token_type = parse_token_type(args)?;
     let raw = should_output_raw(args);
 
+    // Get debug level from args
+    let debug_level = debug::get_debug_level(args);
+
+    // Log debug information if --debug or --trace flag is present
+    let token_store_backend = if std::env::var("SLACK_TOKEN").is_ok() {
+        "environment"
+    } else {
+        "keyring/file"
+    };
+
+    // Resolve actual token type for debug output
+    let resolved_token_type = if let Some(explicit) = token_type {
+        explicit
+    } else {
+        let config_path = default_config_path().map_err(|e| e.to_string())?;
+        let profile = resolve_profile_full(&config_path, &profile_name)
+            .map_err(|e| format!("Failed to resolve profile '{}': {}", profile_name, e))?;
+
+        if let Some(default_type) = profile.default_token_type {
+            default_type
+        } else {
+            let token_store = create_token_store().map_err(|e| e.to_string())?;
+            let user_token_key = format!("{}:{}:user", profile.team_id, profile.user_id);
+            if token_store.get(&user_token_key).is_ok() {
+                TokenType::User
+            } else {
+                TokenType::Bot
+            }
+        }
+    };
+
+    let endpoint = "https://slack.com/api/users.info";
+
+    debug::log_api_context(
+        debug_level,
+        Some(&profile_name),
+        token_store_backend,
+        resolved_token_type.as_str(),
+        "users.info",
+        endpoint,
+    );
+
     let client = get_api_client_with_token_type(Some(profile_name.clone()), token_type).await?;
     let response = commands::users_info(&client, user)
         .await
         .map_err(|e| e.to_string())?;
+
+    // Log error code if present
+    debug::log_error_code(
+        debug_level,
+        &serde_json::to_value(&response).unwrap_or_default(),
+    );
 
     // Display error guidance if response contains a known error
     crate::api::display_wrapper_error_guidance(&response);
