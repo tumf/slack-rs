@@ -374,9 +374,7 @@ pub async fn run_conv_list(args: &[String]) -> Result<(), String> {
 
     // Validate: --types is mutually exclusive with --include-private and --all
     if types.is_some() && (include_private || all) {
-        return Err(
-            "Error: --types cannot be used with --include-private or --all".to_string()
-        );
+        return Err("Error: --types cannot be used with --include-private or --all".to_string());
     }
 
     // Resolve types based on flags
@@ -1053,8 +1051,12 @@ pub fn print_conv_usage(prog: &str) {
     println!("    List conversations with optional filtering and sorting");
     println!("    Options accept both --option=value and --option value formats");
     println!("    Type shortcuts (mutually exclusive with --types):");
-    println!("      - --include-private: Include private channels (public_channel,private_channel)");
-    println!("      - --all: Include all conversation types (public_channel,private_channel,im,mpim)");
+    println!(
+        "      - --include-private: Include private channels (public_channel,private_channel)"
+    );
+    println!(
+        "      - --all: Include all conversation types (public_channel,private_channel,im,mpim)"
+    );
     println!("    Filters: name:<glob>, is_member:true|false, is_private:true|false");
     println!("      - name:<glob>: Filter by channel name (supports * and ? wildcards)");
     println!("      - is_member:true|false: Filter by membership status");
