@@ -104,7 +104,13 @@ mod tests {
         let params = serde_json::Map::new();
 
         let result = handler
-            .check(None, "T123".into(), "U456".into(), "chat.postMessage".into(), &params)
+            .check(
+                None,
+                "T123".into(),
+                "U456".into(),
+                "chat.postMessage".into(),
+                &params,
+            )
             .unwrap();
 
         assert!(matches!(result, IdempotencyCheckResult::NoKey));
@@ -216,6 +222,9 @@ mod tests {
             &params2,
         );
 
-        assert!(matches!(result2, Err(IdempotencyError::FingerprintMismatch)));
+        assert!(matches!(
+            result2,
+            Err(IdempotencyError::FingerprintMismatch)
+        ));
     }
 }

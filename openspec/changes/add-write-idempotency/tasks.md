@@ -4,3 +4,8 @@
 - [x] エンベロープ meta に `idempotency_key` と `idempotency_status` を追加し、キー指定時のみ出力する。完了確認: `--idempotency-key` 付き実行時の JSON に meta が含まれることをテストで確認する。
 - [x] write 操作のヘルプ/イントロスペクション出力に `--idempotency-key` を追加する。完了確認: `--help --json` またはヘルプ文字列でフラグが表示されることを確認する。
 - [x] 追加テストの実行（`cargo test` の関連テスト）。完了確認: 追加分のテストが成功すること。
+
+## Acceptance #1 Failure Follow-up
+- [x] `print_msg_usage` のヘルプ/使用例に `--idempotency-key` を追加する。
+- [x] `print_react_usage` のヘルプ/使用例に `--idempotency-key` を追加する。
+- [x] `print_file_usage` のヘルプ/使用例に `--idempotency-key` を追加する。

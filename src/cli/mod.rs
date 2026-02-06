@@ -988,7 +988,9 @@ pub async fn run_users_resolve_mentions(args: &[String]) -> Result<(), String> {
 }
 
 /// Get team_id and user_id from profile
-async fn get_team_and_user_ids_from_profile(profile_name: &str) -> Result<(String, String), String> {
+async fn get_team_and_user_ids_from_profile(
+    profile_name: &str,
+) -> Result<(String, String), String> {
     let config_path = default_config_path().map_err(|e| e.to_string())?;
     let profile = resolve_profile_full(&config_path, profile_name)
         .map_err(|e| format!("Failed to resolve profile '{}': {}", profile_name, e))?;
@@ -1022,7 +1024,7 @@ pub async fn run_msg_post(args: &[String], non_interactive: bool) -> Result<(), 
     // Check idempotency if key provided
     let (response_value, idempotency_status) = if let Some(key) = idempotency_key.clone() {
         let mut handler = IdempotencyHandler::new().map_err(|e| e.to_string())?;
-        
+
         // Build params for fingerprinting
         let mut params = serde_json::Map::new();
         params.insert("channel".to_string(), serde_json::json!(channel.clone()));
@@ -1037,18 +1039,26 @@ pub async fn run_msg_post(args: &[String], non_interactive: bool) -> Result<(), 
         // Get team_id and user_id from profile
         let (team_id, user_id) = get_team_and_user_ids_from_profile(&profile_name).await?;
 
-        match handler.check(
-            Some(key.clone()),
-            team_id.clone(),
-            user_id.clone(),
-            "chat.postMessage".to_string(),
-            &params,
-        ).map_err(|e| e.to_string())? {
-            IdempotencyCheckResult::Replay { response, status, .. } => {
+        match handler
+            .check(
+                Some(key.clone()),
+                team_id.clone(),
+                user_id.clone(),
+                "chat.postMessage".to_string(),
+                &params,
+            )
+            .map_err(|e| e.to_string())?
+        {
+            IdempotencyCheckResult::Replay {
+                response, status, ..
+            } => {
                 // Return cached response
                 (response, Some(status))
             }
-            IdempotencyCheckResult::Execute { key: scoped_key, fingerprint } => {
+            IdempotencyCheckResult::Execute {
+                key: scoped_key,
+                fingerprint,
+            } => {
                 // Execute and store
                 let response = commands::msg_post(
                     &client,
@@ -1063,12 +1073,16 @@ pub async fn run_msg_post(args: &[String], non_interactive: bool) -> Result<(), 
                 .map_err(|e| e.to_string())?;
 
                 let response_value = serde_json::to_value(&response).map_err(|e| e.to_string())?;
-                
+
                 // Store result
-                handler.store(scoped_key, fingerprint, response_value.clone())
+                handler
+                    .store(scoped_key, fingerprint, response_value.clone())
                     .map_err(|e| e.to_string())?;
 
-                (response_value, Some(crate::idempotency::IdempotencyStatus::Executed))
+                (
+                    response_value,
+                    Some(crate::idempotency::IdempotencyStatus::Executed),
+                )
             }
             IdempotencyCheckResult::NoKey => unreachable!(),
         }
@@ -1086,11 +1100,16 @@ pub async fn run_msg_post(args: &[String], non_interactive: bool) -> Result<(), 
         .await
         .map_err(|e| e.to_string())?;
 
-        (serde_json::to_value(&response).map_err(|e| e.to_string())?, None)
+        (
+            serde_json::to_value(&response).map_err(|e| e.to_string())?,
+            None,
+        )
     };
 
     // Display error guidance if response contains a known error
-    if let Ok(api_response) = serde_json::from_value::<crate::api::ApiResponse>(response_value.clone()) {
+    if let Ok(api_response) =
+        serde_json::from_value::<crate::api::ApiResponse>(response_value.clone())
+    {
         crate::api::display_wrapper_error_guidance(&api_response);
     }
 
@@ -1146,7 +1165,7 @@ pub async fn run_msg_update(args: &[String], non_interactive: bool) -> Result<()
     // Check idempotency if key provided
     let (response_value, idempotency_status) = if let Some(key) = idempotency_key.clone() {
         let mut handler = IdempotencyHandler::new().map_err(|e| e.to_string())?;
-        
+
         let mut params = serde_json::Map::new();
         params.insert("channel".to_string(), serde_json::json!(channel.clone()));
         params.insert("ts".to_string(), serde_json::json!(ts.clone()));
@@ -1154,18 +1173,35 @@ pub async fn run_msg_update(args: &[String], non_interactive: bool) -> Result<()
 
         let (team_id, user_id) = get_team_and_user_ids_from_profile(&profile_name).await?;
 
-        match handler.check(Some(key.clone()), team_id, user_id, "chat.update".to_string(), &params)
-            .map_err(|e| e.to_string())? {
-            IdempotencyCheckResult::Replay { response, status, .. } => {
-                (response, Some(status))
-            }
-            IdempotencyCheckResult::Execute { key: scoped_key, fingerprint } => {
-                let response = commands::msg_update(&client, channel, ts, text, yes, non_interactive)
-                    .await
-                    .map_err(|e| e.to_string())?;
+        match handler
+            .check(
+                Some(key.clone()),
+                team_id,
+                user_id,
+                "chat.update".to_string(),
+                &params,
+            )
+            .map_err(|e| e.to_string())?
+        {
+            IdempotencyCheckResult::Replay {
+                response, status, ..
+            } => (response, Some(status)),
+            IdempotencyCheckResult::Execute {
+                key: scoped_key,
+                fingerprint,
+            } => {
+                let response =
+                    commands::msg_update(&client, channel, ts, text, yes, non_interactive)
+                        .await
+                        .map_err(|e| e.to_string())?;
                 let response_value = serde_json::to_value(&response).map_err(|e| e.to_string())?;
-                handler.store(scoped_key, fingerprint, response_value.clone()).map_err(|e| e.to_string())?;
-                (response_value, Some(crate::idempotency::IdempotencyStatus::Executed))
+                handler
+                    .store(scoped_key, fingerprint, response_value.clone())
+                    .map_err(|e| e.to_string())?;
+                (
+                    response_value,
+                    Some(crate::idempotency::IdempotencyStatus::Executed),
+                )
             }
             IdempotencyCheckResult::NoKey => unreachable!(),
         }
@@ -1173,10 +1209,15 @@ pub async fn run_msg_update(args: &[String], non_interactive: bool) -> Result<()
         let response = commands::msg_update(&client, channel, ts, text, yes, non_interactive)
             .await
             .map_err(|e| e.to_string())?;
-        (serde_json::to_value(&response).map_err(|e| e.to_string())?, None)
+        (
+            serde_json::to_value(&response).map_err(|e| e.to_string())?,
+            None,
+        )
     };
 
-    if let Ok(api_response) = serde_json::from_value::<crate::api::ApiResponse>(response_value.clone()) {
+    if let Ok(api_response) =
+        serde_json::from_value::<crate::api::ApiResponse>(response_value.clone())
+    {
         crate::api::display_wrapper_error_guidance(&api_response);
     }
 
@@ -1235,34 +1276,72 @@ pub async fn run_msg_delete(args: &[String], non_interactive: bool) -> Result<()
         params.insert("channel".to_string(), serde_json::json!(channel.clone()));
         params.insert("ts".to_string(), serde_json::json!(ts.clone()));
         let (team_id, user_id) = get_team_and_user_ids_from_profile(&profile_name).await?;
-        match handler.check(Some(key.clone()), team_id, user_id, "chat.delete".to_string(), &params).map_err(|e| e.to_string())? {
-            IdempotencyCheckResult::Replay { response, status, .. } => (response, Some(status)),
-            IdempotencyCheckResult::Execute { key: scoped_key, fingerprint } => {
-                let response = commands::msg_delete(&client, channel, ts, yes, non_interactive).await.map_err(|e| e.to_string())?;
+        match handler
+            .check(
+                Some(key.clone()),
+                team_id,
+                user_id,
+                "chat.delete".to_string(),
+                &params,
+            )
+            .map_err(|e| e.to_string())?
+        {
+            IdempotencyCheckResult::Replay {
+                response, status, ..
+            } => (response, Some(status)),
+            IdempotencyCheckResult::Execute {
+                key: scoped_key,
+                fingerprint,
+            } => {
+                let response = commands::msg_delete(&client, channel, ts, yes, non_interactive)
+                    .await
+                    .map_err(|e| e.to_string())?;
                 let response_value = serde_json::to_value(&response).map_err(|e| e.to_string())?;
-                handler.store(scoped_key, fingerprint, response_value.clone()).map_err(|e| e.to_string())?;
-                (response_value, Some(crate::idempotency::IdempotencyStatus::Executed))
+                handler
+                    .store(scoped_key, fingerprint, response_value.clone())
+                    .map_err(|e| e.to_string())?;
+                (
+                    response_value,
+                    Some(crate::idempotency::IdempotencyStatus::Executed),
+                )
             }
             IdempotencyCheckResult::NoKey => unreachable!(),
         }
     } else {
-        let response = commands::msg_delete(&client, channel, ts, yes, non_interactive).await.map_err(|e| e.to_string())?;
-        (serde_json::to_value(&response).map_err(|e| e.to_string())?, None)
+        let response = commands::msg_delete(&client, channel, ts, yes, non_interactive)
+            .await
+            .map_err(|e| e.to_string())?;
+        (
+            serde_json::to_value(&response).map_err(|e| e.to_string())?,
+            None,
+        )
     };
 
-    if let Ok(api_response) = serde_json::from_value::<crate::api::ApiResponse>(response_value.clone()) {
+    if let Ok(api_response) =
+        serde_json::from_value::<crate::api::ApiResponse>(response_value.clone())
+    {
         crate::api::display_wrapper_error_guidance(&api_response);
     }
 
     let output = if raw {
         serde_json::to_string_pretty(&response_value).unwrap()
     } else {
-        let mut wrapped = wrap_with_envelope_and_token_type(response_value, "chat.delete", "msg delete", Some(profile_name), token_type).await?;
+        let mut wrapped = wrap_with_envelope_and_token_type(
+            response_value,
+            "chat.delete",
+            "msg delete",
+            Some(profile_name),
+            token_type,
+        )
+        .await?;
         if let (Some(key), Some(status)) = (idempotency_key, idempotency_status) {
-            wrapped = wrapped.with_idempotency(key, match status {
-                crate::idempotency::IdempotencyStatus::Executed => "executed".to_string(),
-                crate::idempotency::IdempotencyStatus::Replayed => "replayed".to_string(),
-            });
+            wrapped = wrapped.with_idempotency(
+                key,
+                match status {
+                    crate::idempotency::IdempotencyStatus::Executed => "executed".to_string(),
+                    crate::idempotency::IdempotencyStatus::Replayed => "replayed".to_string(),
+                },
+            );
         }
         serde_json::to_string_pretty(&wrapped).unwrap()
     };
@@ -1299,34 +1378,73 @@ pub async fn run_react_add(args: &[String], non_interactive: bool) -> Result<(),
         params.insert("timestamp".to_string(), serde_json::json!(ts.clone()));
         params.insert("name".to_string(), serde_json::json!(emoji.clone()));
         let (team_id, user_id) = get_team_and_user_ids_from_profile(&profile_name).await?;
-        match handler.check(Some(key.clone()), team_id, user_id, "reactions.add".to_string(), &params).map_err(|e| e.to_string())? {
-            IdempotencyCheckResult::Replay { response, status, .. } => (response, Some(status)),
-            IdempotencyCheckResult::Execute { key: scoped_key, fingerprint } => {
-                let response = commands::react_add(&client, channel, ts, emoji, yes, non_interactive).await.map_err(|e| e.to_string())?;
+        match handler
+            .check(
+                Some(key.clone()),
+                team_id,
+                user_id,
+                "reactions.add".to_string(),
+                &params,
+            )
+            .map_err(|e| e.to_string())?
+        {
+            IdempotencyCheckResult::Replay {
+                response, status, ..
+            } => (response, Some(status)),
+            IdempotencyCheckResult::Execute {
+                key: scoped_key,
+                fingerprint,
+            } => {
+                let response =
+                    commands::react_add(&client, channel, ts, emoji, yes, non_interactive)
+                        .await
+                        .map_err(|e| e.to_string())?;
                 let response_value = serde_json::to_value(&response).map_err(|e| e.to_string())?;
-                handler.store(scoped_key, fingerprint, response_value.clone()).map_err(|e| e.to_string())?;
-                (response_value, Some(crate::idempotency::IdempotencyStatus::Executed))
+                handler
+                    .store(scoped_key, fingerprint, response_value.clone())
+                    .map_err(|e| e.to_string())?;
+                (
+                    response_value,
+                    Some(crate::idempotency::IdempotencyStatus::Executed),
+                )
             }
             IdempotencyCheckResult::NoKey => unreachable!(),
         }
     } else {
-        let response = commands::react_add(&client, channel, ts, emoji, yes, non_interactive).await.map_err(|e| e.to_string())?;
-        (serde_json::to_value(&response).map_err(|e| e.to_string())?, None)
+        let response = commands::react_add(&client, channel, ts, emoji, yes, non_interactive)
+            .await
+            .map_err(|e| e.to_string())?;
+        (
+            serde_json::to_value(&response).map_err(|e| e.to_string())?,
+            None,
+        )
     };
 
-    if let Ok(api_response) = serde_json::from_value::<crate::api::ApiResponse>(response_value.clone()) {
+    if let Ok(api_response) =
+        serde_json::from_value::<crate::api::ApiResponse>(response_value.clone())
+    {
         crate::api::display_wrapper_error_guidance(&api_response);
     }
 
     let output = if raw {
         serde_json::to_string_pretty(&response_value).unwrap()
     } else {
-        let mut wrapped = wrap_with_envelope_and_token_type(response_value, "reactions.add", "react add", Some(profile_name), token_type).await?;
+        let mut wrapped = wrap_with_envelope_and_token_type(
+            response_value,
+            "reactions.add",
+            "react add",
+            Some(profile_name),
+            token_type,
+        )
+        .await?;
         if let (Some(key), Some(status)) = (idempotency_key, idempotency_status) {
-            wrapped = wrapped.with_idempotency(key, match status {
-                crate::idempotency::IdempotencyStatus::Executed => "executed".to_string(),
-                crate::idempotency::IdempotencyStatus::Replayed => "replayed".to_string(),
-            });
+            wrapped = wrapped.with_idempotency(
+                key,
+                match status {
+                    crate::idempotency::IdempotencyStatus::Executed => "executed".to_string(),
+                    crate::idempotency::IdempotencyStatus::Replayed => "replayed".to_string(),
+                },
+            );
         }
         serde_json::to_string_pretty(&wrapped).unwrap()
     };
@@ -1362,34 +1480,73 @@ pub async fn run_react_remove(args: &[String], non_interactive: bool) -> Result<
         params.insert("timestamp".to_string(), serde_json::json!(ts.clone()));
         params.insert("name".to_string(), serde_json::json!(emoji.clone()));
         let (team_id, user_id) = get_team_and_user_ids_from_profile(&profile_name).await?;
-        match handler.check(Some(key.clone()), team_id, user_id, "reactions.remove".to_string(), &params).map_err(|e| e.to_string())? {
-            IdempotencyCheckResult::Replay { response, status, .. } => (response, Some(status)),
-            IdempotencyCheckResult::Execute { key: scoped_key, fingerprint } => {
-                let response = commands::react_remove(&client, channel, ts, emoji, yes, non_interactive).await.map_err(|e| e.to_string())?;
+        match handler
+            .check(
+                Some(key.clone()),
+                team_id,
+                user_id,
+                "reactions.remove".to_string(),
+                &params,
+            )
+            .map_err(|e| e.to_string())?
+        {
+            IdempotencyCheckResult::Replay {
+                response, status, ..
+            } => (response, Some(status)),
+            IdempotencyCheckResult::Execute {
+                key: scoped_key,
+                fingerprint,
+            } => {
+                let response =
+                    commands::react_remove(&client, channel, ts, emoji, yes, non_interactive)
+                        .await
+                        .map_err(|e| e.to_string())?;
                 let response_value = serde_json::to_value(&response).map_err(|e| e.to_string())?;
-                handler.store(scoped_key, fingerprint, response_value.clone()).map_err(|e| e.to_string())?;
-                (response_value, Some(crate::idempotency::IdempotencyStatus::Executed))
+                handler
+                    .store(scoped_key, fingerprint, response_value.clone())
+                    .map_err(|e| e.to_string())?;
+                (
+                    response_value,
+                    Some(crate::idempotency::IdempotencyStatus::Executed),
+                )
             }
             IdempotencyCheckResult::NoKey => unreachable!(),
         }
     } else {
-        let response = commands::react_remove(&client, channel, ts, emoji, yes, non_interactive).await.map_err(|e| e.to_string())?;
-        (serde_json::to_value(&response).map_err(|e| e.to_string())?, None)
+        let response = commands::react_remove(&client, channel, ts, emoji, yes, non_interactive)
+            .await
+            .map_err(|e| e.to_string())?;
+        (
+            serde_json::to_value(&response).map_err(|e| e.to_string())?,
+            None,
+        )
     };
 
-    if let Ok(api_response) = serde_json::from_value::<crate::api::ApiResponse>(response_value.clone()) {
+    if let Ok(api_response) =
+        serde_json::from_value::<crate::api::ApiResponse>(response_value.clone())
+    {
         crate::api::display_wrapper_error_guidance(&api_response);
     }
 
     let output = if raw {
         serde_json::to_string_pretty(&response_value).unwrap()
     } else {
-        let mut wrapped = wrap_with_envelope_and_token_type(response_value, "reactions.remove", "react remove", Some(profile_name), token_type).await?;
+        let mut wrapped = wrap_with_envelope_and_token_type(
+            response_value,
+            "reactions.remove",
+            "react remove",
+            Some(profile_name),
+            token_type,
+        )
+        .await?;
         if let (Some(key), Some(status)) = (idempotency_key, idempotency_status) {
-            wrapped = wrapped.with_idempotency(key, match status {
-                crate::idempotency::IdempotencyStatus::Executed => "executed".to_string(),
-                crate::idempotency::IdempotencyStatus::Replayed => "replayed".to_string(),
-            });
+            wrapped = wrapped.with_idempotency(
+                key,
+                match status {
+                    crate::idempotency::IdempotencyStatus::Executed => "executed".to_string(),
+                    crate::idempotency::IdempotencyStatus::Replayed => "replayed".to_string(),
+                },
+            );
         }
         serde_json::to_string_pretty(&wrapped).unwrap()
     };
@@ -1434,19 +1591,61 @@ pub async fn run_file_upload(args: &[String], non_interactive: bool) -> Result<(
             params.insert("comment".to_string(), serde_json::json!(c));
         }
         let (team_id, user_id) = get_team_and_user_ids_from_profile(&profile_name).await?;
-        match handler.check(Some(key.clone()), team_id, user_id, "files.upload".to_string(), &params).map_err(|e| e.to_string())? {
-            IdempotencyCheckResult::Replay { response, status, .. } => (response, Some(status)),
-            IdempotencyCheckResult::Execute { key: scoped_key, fingerprint } => {
-                let response = commands::file_upload(&client, file_path, channels, title, comment, yes, non_interactive).await.map_err(|e| e.to_string())?;
+        match handler
+            .check(
+                Some(key.clone()),
+                team_id,
+                user_id,
+                "files.upload".to_string(),
+                &params,
+            )
+            .map_err(|e| e.to_string())?
+        {
+            IdempotencyCheckResult::Replay {
+                response, status, ..
+            } => (response, Some(status)),
+            IdempotencyCheckResult::Execute {
+                key: scoped_key,
+                fingerprint,
+            } => {
+                let response = commands::file_upload(
+                    &client,
+                    file_path,
+                    channels,
+                    title,
+                    comment,
+                    yes,
+                    non_interactive,
+                )
+                .await
+                .map_err(|e| e.to_string())?;
                 let response_value = serde_json::to_value(&response).map_err(|e| e.to_string())?;
-                handler.store(scoped_key, fingerprint, response_value.clone()).map_err(|e| e.to_string())?;
-                (response_value, Some(crate::idempotency::IdempotencyStatus::Executed))
+                handler
+                    .store(scoped_key, fingerprint, response_value.clone())
+                    .map_err(|e| e.to_string())?;
+                (
+                    response_value,
+                    Some(crate::idempotency::IdempotencyStatus::Executed),
+                )
             }
             IdempotencyCheckResult::NoKey => unreachable!(),
         }
     } else {
-        let response = commands::file_upload(&client, file_path, channels, title, comment, yes, non_interactive).await.map_err(|e| e.to_string())?;
-        (serde_json::to_value(&response).map_err(|e| e.to_string())?, None)
+        let response = commands::file_upload(
+            &client,
+            file_path,
+            channels,
+            title,
+            comment,
+            yes,
+            non_interactive,
+        )
+        .await
+        .map_err(|e| e.to_string())?;
+        (
+            serde_json::to_value(&response).map_err(|e| e.to_string())?,
+            None,
+        )
     };
 
     crate::api::display_json_error_guidance(&response_value);
@@ -1454,12 +1653,22 @@ pub async fn run_file_upload(args: &[String], non_interactive: bool) -> Result<(
     let output = if raw {
         serde_json::to_string_pretty(&response_value).unwrap()
     } else {
-        let mut wrapped = wrap_with_envelope_and_token_type(response_value, "files.upload", "file upload", Some(profile_name), token_type).await?;
+        let mut wrapped = wrap_with_envelope_and_token_type(
+            response_value,
+            "files.upload",
+            "file upload",
+            Some(profile_name),
+            token_type,
+        )
+        .await?;
         if let (Some(key), Some(status)) = (idempotency_key, idempotency_status) {
-            wrapped = wrapped.with_idempotency(key, match status {
-                crate::idempotency::IdempotencyStatus::Executed => "executed".to_string(),
-                crate::idempotency::IdempotencyStatus::Replayed => "replayed".to_string(),
-            });
+            wrapped = wrapped.with_idempotency(
+                key,
+                match status {
+                    crate::idempotency::IdempotencyStatus::Executed => "executed".to_string(),
+                    crate::idempotency::IdempotencyStatus::Replayed => "replayed".to_string(),
+                },
+            );
         }
         serde_json::to_string_pretty(&wrapped).unwrap()
     };
@@ -1543,45 +1752,48 @@ pub fn print_users_usage(prog: &str) {
 pub fn print_msg_usage(prog: &str) {
     println!("Msg command usage:");
     println!(
-        "  {} msg post <channel> <text> [--thread-ts=TS] [--reply-broadcast] [--profile=NAME] [--token-type=bot|user]",
+        "  {} msg post <channel> <text> [--thread-ts=TS] [--reply-broadcast] [--idempotency-key=KEY] [--profile=NAME] [--token-type=bot|user]",
         prog
     );
     println!("    Requires SLACKCLI_ALLOW_WRITE=true environment variable");
     println!(
-        "  {} msg update <channel> <ts> <text> [--yes] [--profile=NAME] [--token-type=bot|user]",
+        "  {} msg update <channel> <ts> <text> [--yes] [--idempotency-key=KEY] [--profile=NAME] [--token-type=bot|user]",
         prog
     );
     println!("    Requires SLACKCLI_ALLOW_WRITE=true environment variable");
     println!(
-        "  {} msg delete <channel> <ts> [--yes] [--profile=NAME] [--token-type=bot|user]",
+        "  {} msg delete <channel> <ts> [--yes] [--idempotency-key=KEY] [--profile=NAME] [--token-type=bot|user]",
         prog
     );
     println!("    Requires SLACKCLI_ALLOW_WRITE=true environment variable");
     println!("  Options accept both --option=value and --option value formats");
+    println!("  --idempotency-key: Prevent duplicate writes (replays stored result on retry)");
 }
 
 pub fn print_react_usage(prog: &str) {
     println!("React command usage:");
     println!(
-        "  {} react add <channel> <ts> <emoji> [--profile=NAME] [--token-type=bot|user]",
+        "  {} react add <channel> <ts> <emoji> [--idempotency-key=KEY] [--profile=NAME] [--token-type=bot|user]",
         prog
     );
     println!("    Requires SLACKCLI_ALLOW_WRITE=true environment variable");
     println!(
-        "  {} react remove <channel> <ts> <emoji> [--yes] [--profile=NAME] [--token-type=bot|user]",
+        "  {} react remove <channel> <ts> <emoji> [--yes] [--idempotency-key=KEY] [--profile=NAME] [--token-type=bot|user]",
         prog
     );
     println!("    Requires SLACKCLI_ALLOW_WRITE=true environment variable");
     println!("  Options accept both --option=value and --option value formats");
+    println!("  --idempotency-key: Prevent duplicate writes (replays stored result on retry)");
 }
 
 pub fn print_file_usage(prog: &str) {
     println!("File command usage:");
     println!(
-        "  {} file upload <path> [--channel=ID] [--channels=IDs] [--title=TITLE] [--comment=TEXT] [--profile=NAME] [--token-type=bot|user]",
+        "  {} file upload <path> [--channel=ID] [--channels=IDs] [--title=TITLE] [--comment=TEXT] [--idempotency-key=KEY] [--profile=NAME] [--token-type=bot|user]",
         prog
     );
     println!("  Options accept both --option=value and --option value formats");
+    println!("  --idempotency-key: Prevent duplicate writes (replays stored result on retry)");
 }
 
 #[cfg(test)]
