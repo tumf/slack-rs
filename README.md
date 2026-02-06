@@ -12,6 +12,8 @@ A Slack CLI tool written in Rust that provides comprehensive access to the Slack
 
 `slack-rs` is a command-line tool designed for interacting with Slack workspaces using your personal OAuth credentials. It supports multiple workspace profiles, secure token storage, and provides both generic API access and convenient wrapper commands for common operations.
 
+This tool is designed following the [Agentic CLI Design](https://dev.to/tumf/agentic-cli-design-7-principles-for-designing-cli-as-a-protocol-for-ai-agents-2c10) principles, making it optimized for AI agents and automated workflows with structured output, non-interactive operation, idempotent behavior, and safe-by-default design.
+
 ### Key Features
 
 - 🔐 **OAuth Authentication** with PKCE flow
