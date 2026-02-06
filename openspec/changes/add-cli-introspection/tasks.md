@@ -10,3 +10,6 @@
 
 ## Acceptance #2 Failure Follow-up
 - [x] `--help --json` が `api call` や `auth login` など他コマンドでも構造化ヘルプを返すよう CLI ルーティングを統合する（`src/main.rs` では `conv list` と `msg post` 以外に JSON ヘルプの分岐がない）。
+
+## Acceptance #3 Failure Follow-up
+- [x] `--help --json` が `api call`/`auth login`/`conv list`/`msg post` 以外のコマンドで構造化ヘルプにルーティングされていないため、全コマンドで共通ハンドリングを追加する（`src/main.rs` の JSON ヘルプ分岐が4箇所のみ）。

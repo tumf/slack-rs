@@ -185,6 +185,69 @@ pub fn get_command_definitions() -> Vec<CommandDef> {
                 },
             ],
         },
+        // auth status
+        CommandDef {
+            name: "auth status".to_string(),
+            description: "Show authentication status".to_string(),
+            usage: "slack-rs auth status [profile_name]".to_string(),
+            flags: vec![],
+            examples: vec![ExampleDef {
+                description: "Check status".to_string(),
+                command: "slack-rs auth status".to_string(),
+            }],
+            exit_codes: vec![
+                ExitCodeDef {
+                    code: 0,
+                    description: "Success".to_string(),
+                },
+                ExitCodeDef {
+                    code: 1,
+                    description: "Command failed".to_string(),
+                },
+            ],
+        },
+        // auth list
+        CommandDef {
+            name: "auth list".to_string(),
+            description: "List all profiles".to_string(),
+            usage: "slack-rs auth list".to_string(),
+            flags: vec![],
+            examples: vec![ExampleDef {
+                description: "List profiles".to_string(),
+                command: "slack-rs auth list".to_string(),
+            }],
+            exit_codes: vec![
+                ExitCodeDef {
+                    code: 0,
+                    description: "Success".to_string(),
+                },
+                ExitCodeDef {
+                    code: 1,
+                    description: "Command failed".to_string(),
+                },
+            ],
+        },
+        // auth logout
+        CommandDef {
+            name: "auth logout".to_string(),
+            description: "Remove authentication for a profile".to_string(),
+            usage: "slack-rs auth logout [profile_name]".to_string(),
+            flags: vec![],
+            examples: vec![ExampleDef {
+                description: "Logout".to_string(),
+                command: "slack-rs auth logout".to_string(),
+            }],
+            exit_codes: vec![
+                ExitCodeDef {
+                    code: 0,
+                    description: "Success".to_string(),
+                },
+                ExitCodeDef {
+                    code: 1,
+                    description: "Command failed".to_string(),
+                },
+            ],
+        },
         // conv list
         CommandDef {
             name: "conv list".to_string(),
@@ -255,6 +318,69 @@ pub fn get_command_definitions() -> Vec<CommandDef> {
                 },
             ],
         },
+        // conv search
+        CommandDef {
+            name: "conv search".to_string(),
+            description: "Search conversations by name".to_string(),
+            usage: "slack-rs conv search <pattern> [flags]".to_string(),
+            flags: vec![FlagDef {
+                name: "--profile".to_string(),
+                flag_type: "string".to_string(),
+                required: false,
+                description: "Profile name".to_string(),
+                default: Some("default".to_string()),
+            }],
+            examples: vec![ExampleDef {
+                description: "Search conversations".to_string(),
+                command: "slack-rs conv search general".to_string(),
+            }],
+            exit_codes: vec![
+                ExitCodeDef {
+                    code: 0,
+                    description: "Success".to_string(),
+                },
+                ExitCodeDef {
+                    code: 1,
+                    description: "Command failed".to_string(),
+                },
+            ],
+        },
+        // conv history
+        CommandDef {
+            name: "conv history".to_string(),
+            description: "Get conversation history".to_string(),
+            usage: "slack-rs conv history <channel> [flags]".to_string(),
+            flags: vec![
+                FlagDef {
+                    name: "--limit".to_string(),
+                    flag_type: "integer".to_string(),
+                    required: false,
+                    description: "Maximum number of messages".to_string(),
+                    default: None,
+                },
+                FlagDef {
+                    name: "--profile".to_string(),
+                    flag_type: "string".to_string(),
+                    required: false,
+                    description: "Profile name".to_string(),
+                    default: Some("default".to_string()),
+                },
+            ],
+            examples: vec![ExampleDef {
+                description: "Get history".to_string(),
+                command: "slack-rs conv history C123456".to_string(),
+            }],
+            exit_codes: vec![
+                ExitCodeDef {
+                    code: 0,
+                    description: "Success".to_string(),
+                },
+                ExitCodeDef {
+                    code: 1,
+                    description: "Command failed".to_string(),
+                },
+            ],
+        },
         // msg post
         CommandDef {
             name: "msg post".to_string(),
@@ -295,6 +421,211 @@ pub fn get_command_definitions() -> Vec<CommandDef> {
                 ExitCodeDef {
                     code: 1,
                     description: "Post failed".to_string(),
+                },
+            ],
+        },
+        // msg update
+        CommandDef {
+            name: "msg update".to_string(),
+            description: "Update a message".to_string(),
+            usage: "slack-rs msg update <channel> <ts> <text> [flags]".to_string(),
+            flags: vec![FlagDef {
+                name: "--profile".to_string(),
+                flag_type: "string".to_string(),
+                required: false,
+                description: "Profile name".to_string(),
+                default: Some("default".to_string()),
+            }],
+            examples: vec![ExampleDef {
+                description: "Update message".to_string(),
+                command: "slack-rs msg update C123 1234567890.123456 'Updated text'".to_string(),
+            }],
+            exit_codes: vec![
+                ExitCodeDef {
+                    code: 0,
+                    description: "Success".to_string(),
+                },
+                ExitCodeDef {
+                    code: 1,
+                    description: "Update failed".to_string(),
+                },
+            ],
+        },
+        // msg delete
+        CommandDef {
+            name: "msg delete".to_string(),
+            description: "Delete a message".to_string(),
+            usage: "slack-rs msg delete <channel> <ts> [flags]".to_string(),
+            flags: vec![FlagDef {
+                name: "--profile".to_string(),
+                flag_type: "string".to_string(),
+                required: false,
+                description: "Profile name".to_string(),
+                default: Some("default".to_string()),
+            }],
+            examples: vec![ExampleDef {
+                description: "Delete message".to_string(),
+                command: "slack-rs msg delete C123 1234567890.123456".to_string(),
+            }],
+            exit_codes: vec![
+                ExitCodeDef {
+                    code: 0,
+                    description: "Success".to_string(),
+                },
+                ExitCodeDef {
+                    code: 1,
+                    description: "Delete failed".to_string(),
+                },
+            ],
+        },
+        // users info
+        CommandDef {
+            name: "users info".to_string(),
+            description: "Get user information".to_string(),
+            usage: "slack-rs users info <user_id> [flags]".to_string(),
+            flags: vec![FlagDef {
+                name: "--profile".to_string(),
+                flag_type: "string".to_string(),
+                required: false,
+                description: "Profile name".to_string(),
+                default: Some("default".to_string()),
+            }],
+            examples: vec![ExampleDef {
+                description: "Get user info".to_string(),
+                command: "slack-rs users info U123456".to_string(),
+            }],
+            exit_codes: vec![
+                ExitCodeDef {
+                    code: 0,
+                    description: "Success".to_string(),
+                },
+                ExitCodeDef {
+                    code: 1,
+                    description: "Command failed".to_string(),
+                },
+            ],
+        },
+        // react add
+        CommandDef {
+            name: "react add".to_string(),
+            description: "Add a reaction to a message".to_string(),
+            usage: "slack-rs react add <channel> <ts> <emoji> [flags]".to_string(),
+            flags: vec![FlagDef {
+                name: "--profile".to_string(),
+                flag_type: "string".to_string(),
+                required: false,
+                description: "Profile name".to_string(),
+                default: Some("default".to_string()),
+            }],
+            examples: vec![ExampleDef {
+                description: "Add reaction".to_string(),
+                command: "slack-rs react add C123 1234567890.123456 thumbsup".to_string(),
+            }],
+            exit_codes: vec![
+                ExitCodeDef {
+                    code: 0,
+                    description: "Success".to_string(),
+                },
+                ExitCodeDef {
+                    code: 1,
+                    description: "Command failed".to_string(),
+                },
+            ],
+        },
+        // react remove
+        CommandDef {
+            name: "react remove".to_string(),
+            description: "Remove a reaction from a message".to_string(),
+            usage: "slack-rs react remove <channel> <ts> <emoji> [flags]".to_string(),
+            flags: vec![FlagDef {
+                name: "--profile".to_string(),
+                flag_type: "string".to_string(),
+                required: false,
+                description: "Profile name".to_string(),
+                default: Some("default".to_string()),
+            }],
+            examples: vec![ExampleDef {
+                description: "Remove reaction".to_string(),
+                command: "slack-rs react remove C123 1234567890.123456 thumbsup".to_string(),
+            }],
+            exit_codes: vec![
+                ExitCodeDef {
+                    code: 0,
+                    description: "Success".to_string(),
+                },
+                ExitCodeDef {
+                    code: 1,
+                    description: "Command failed".to_string(),
+                },
+            ],
+        },
+        // file upload
+        CommandDef {
+            name: "file upload".to_string(),
+            description: "Upload a file".to_string(),
+            usage: "slack-rs file upload <path> [flags]".to_string(),
+            flags: vec![FlagDef {
+                name: "--profile".to_string(),
+                flag_type: "string".to_string(),
+                required: false,
+                description: "Profile name".to_string(),
+                default: Some("default".to_string()),
+            }],
+            examples: vec![ExampleDef {
+                description: "Upload file".to_string(),
+                command: "slack-rs file upload document.pdf".to_string(),
+            }],
+            exit_codes: vec![
+                ExitCodeDef {
+                    code: 0,
+                    description: "Success".to_string(),
+                },
+                ExitCodeDef {
+                    code: 1,
+                    description: "Upload failed".to_string(),
+                },
+            ],
+        },
+        // search
+        CommandDef {
+            name: "search".to_string(),
+            description: "Search messages".to_string(),
+            usage: "slack-rs search <query> [flags]".to_string(),
+            flags: vec![
+                FlagDef {
+                    name: "--count".to_string(),
+                    flag_type: "integer".to_string(),
+                    required: false,
+                    description: "Number of results".to_string(),
+                    default: None,
+                },
+                FlagDef {
+                    name: "--page".to_string(),
+                    flag_type: "integer".to_string(),
+                    required: false,
+                    description: "Page number".to_string(),
+                    default: None,
+                },
+                FlagDef {
+                    name: "--profile".to_string(),
+                    flag_type: "string".to_string(),
+                    required: false,
+                    description: "Profile name".to_string(),
+                    default: Some("default".to_string()),
+                },
+            ],
+            examples: vec![ExampleDef {
+                description: "Search messages".to_string(),
+                command: "slack-rs search 'important announcement'".to_string(),
+            }],
+            exit_codes: vec![
+                ExitCodeDef {
+                    code: 0,
+                    description: "Success".to_string(),
+                },
+                ExitCodeDef {
+                    code: 1,
+                    description: "Search failed".to_string(),
                 },
             ],
         },

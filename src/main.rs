@@ -19,6 +19,31 @@ async fn main() {
         return;
     }
 
+    // Early check for --help --json (applies to all commands)
+    if cli::has_flag(&args, "--help") && cli::has_flag(&args, "--json") {
+        // Extract command name from args (skip program name and filter out flags)
+        let command_parts: Vec<String> = args[1..]
+            .iter()
+            .filter(|arg| !arg.starts_with("--"))
+            .map(|s| s.to_string())
+            .collect();
+        
+        if !command_parts.is_empty() {
+            let command_name = command_parts.join(" ");
+            match cli::generate_help(&command_name) {
+                Ok(help) => {
+                    let json = serde_json::to_string_pretty(&help).unwrap();
+                    println!("{}", json);
+                    return;
+                }
+                Err(e) => {
+                    eprintln!("Help generation failed: {}", e);
+                    std::process::exit(1);
+                }
+            }
+        }
+    }
+
     match args[1].as_str() {
         "--version" | "-v" => {
             print_version();
@@ -26,20 +51,6 @@ async fn main() {
         }
         "api" => {
             if args.len() > 2 && args[2] == "call" {
-                // Check for --help --json before execution
-                if cli::has_flag(&args, "--help") && cli::has_flag(&args, "--json") {
-                    match cli::generate_help("api call") {
-                        Ok(help) => {
-                            let json = serde_json::to_string_pretty(&help).unwrap();
-                            println!("{}", json);
-                            return;
-                        }
-                        Err(e) => {
-                            eprintln!("Help generation failed: {}", e);
-                            std::process::exit(1);
-                        }
-                    }
-                }
                 // Run api call command
                 let api_args: Vec<String> = args[3..].to_vec();
                 if let Err(e) = cli::run_api_call(api_args).await {
@@ -57,20 +68,6 @@ async fn main() {
             }
             match args[2].as_str() {
                 "login" => {
-                    // Check for --help --json before execution
-                    if cli::has_flag(&args, "--help") && cli::has_flag(&args, "--json") {
-                        match cli::generate_help("auth login") {
-                            Ok(help) => {
-                                let json = serde_json::to_string_pretty(&help).unwrap();
-                                println!("{}", json);
-                                return;
-                            }
-                            Err(e) => {
-                                eprintln!("Help generation failed: {}", e);
-                                std::process::exit(1);
-                            }
-                        }
-                    }
                     if let Err(e) = cli::run_auth_login(&args[3..], ctx.is_non_interactive()).await
                     {
                         eprintln!("Login failed: {}", e);
@@ -184,20 +181,6 @@ async fn main() {
             }
             match args[2].as_str() {
                 "list" => {
-                    // Check for --help --json before execution
-                    if cli::has_flag(&args, "--help") && cli::has_flag(&args, "--json") {
-                        match cli::generate_help("conv list") {
-                            Ok(help) => {
-                                let json = serde_json::to_string_pretty(&help).unwrap();
-                                println!("{}", json);
-                                return;
-                            }
-                            Err(e) => {
-                                eprintln!("Help generation failed: {}", e);
-                                std::process::exit(1);
-                            }
-                        }
-                    }
                     if let Err(e) = run_conv_list(&args).await {
                         eprintln!("Conv list failed: {}", e);
                         std::process::exit(1);
@@ -275,20 +258,6 @@ async fn main() {
             }
             match args[2].as_str() {
                 "post" => {
-                    // Check for --help --json before execution
-                    if cli::has_flag(&args, "--help") && cli::has_flag(&args, "--json") {
-                        match cli::generate_help("msg post") {
-                            Ok(help) => {
-                                let json = serde_json::to_string_pretty(&help).unwrap();
-                                println!("{}", json);
-                                return;
-                            }
-                            Err(e) => {
-                                eprintln!("Help generation failed: {}", e);
-                                std::process::exit(1);
-                            }
-                        }
-                    }
                     if let Err(e) = run_msg_post(&args).await {
                         eprintln!("Msg post failed: {}", e);
                         std::process::exit(1);
