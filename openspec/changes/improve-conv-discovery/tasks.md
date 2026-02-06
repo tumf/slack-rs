@@ -1,4 +1,0 @@
-- [ ] `conv list` に `--include-private` と `--all` を追加し、`--types` との排他チェックを入れる（確認: `src/cli/mod.rs` の引数解釈とエラーメッセージ）
-- [ ] `conv search` のマッチングを「`*` ありは glob、`*` なしは大小無視の部分一致」に変更する（確認: `src/commands/conv/filter.rs` のマッチ関数と単体テスト）
-- [ ] `channel_not_found` を既知エラーとしてガイダンスに追加する（確認: `src/api/guidance.rs` にエントリ追加、stderr 出力のシナリオテスト）
-- [ ] `conv search` と `conv list` の動作を反映したテストを追加する（確認: `src/cli/mod.rs` のテスト、または `src/commands/conv` の unit test）
