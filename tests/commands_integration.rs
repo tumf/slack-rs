@@ -3,7 +3,7 @@
 //! Tests that each command calls the correct Slack API methods with proper parameters
 
 use serial_test::serial;
-use slack_rs::api::{ApiClient, ApiError};
+use slack_rs::api::ApiClient;
 use slack_rs::commands;
 use slack_rs::commands::ConversationSelector;
 use std::collections::HashMap;
