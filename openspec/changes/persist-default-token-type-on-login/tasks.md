@@ -1,4 +1,4 @@
-- [ ] `auth login` の既定トークン判定を純関数に切り出す（User トークン有無 + 既存設定で決定）。検証: 新規ユニットテストで `user`/`bot`/既存設定保持の組み合わせを確認する。
-- [ ] `auth login` のプロファイル保存で `default_token_type` が未設定の場合のみ推測値を保存する。検証: テスト用 OAuth レスポンスのフィクスチャで `profiles.json` を読み直し、`default_token_type` が保存されることを確認する。
-- [ ] 既存の `default_token_type` が設定済みの場合に上書きしない回帰テストを追加する。検証: テストで `default_token_type=bot` を設定したプロファイルを再ログイン相当で更新し、値が維持されることを確認する。
-- [ ] 変更に関連するテストを実行する。検証: `cargo test oauth_login`（または追加したテスト名）で成功する。
+- [x] `auth login` の既定トークン判定を純関数に切り出す（User トークン有無 + 既存設定で決定）。検証: 新規ユニットテストで `user`/`bot`/既存設定保持の組み合わせを確認する。
+- [x] `auth login` のプロファイル保存で `default_token_type` が未設定の場合のみ推測値を保存する。検証: テスト用 OAuth レスポンスのフィクスチャで `profiles.json` を読み直し、`default_token_type` が保存されることを確認する。
+- [x] 既存の `default_token_type` が設定済みの場合に上書きしない回帰テストを追加する。検証: テストで `default_token_type=bot` を設定したプロファイルを再ログイン相当で更新し、値が維持されることを確認する。
+- [x] 変更に関連するテストを実行する。検証: `cargo test oauth_login`（または追加したテスト名）で成功する。

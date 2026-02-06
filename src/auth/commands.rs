@@ -522,6 +522,16 @@ fn save_profile_and_credentials(creds: SaveCredentials) -> Result<(), OAuthError
     let mut profiles_config =
         load_config(creds.config_path).unwrap_or_else(|_| ProfilesConfig::new());
 
+    // Get existing profile's default_token_type (if it exists)
+    let existing_default_token_type = profiles_config
+        .get(creds.profile_name)
+        .and_then(|p| p.default_token_type);
+
+    // Compute default token type based on available tokens
+    let has_user_token = creds.user_token.is_some();
+    let default_token_type =
+        compute_initial_default_token_type(existing_default_token_type, has_user_token);
+
     // Create profile with OAuth config (client_id, redirect_uri, bot_scopes, user_scopes)
     let profile = Profile {
         team_id: creds.team_id.to_string(),
@@ -533,7 +543,7 @@ fn save_profile_and_credentials(creds: SaveCredentials) -> Result<(), OAuthError
         scopes: Some(creds.scopes.to_vec()), // Legacy field
         bot_scopes: Some(creds.bot_scopes.to_vec()),
         user_scopes: Some(creds.user_scopes.to_vec()),
-        default_token_type: None,
+        default_token_type: Some(default_token_type),
     };
 
     profiles_config
@@ -834,6 +844,68 @@ fn compute_default_token_type_display(
         "User"
     } else {
         "Bot"
+    }
+}
+
+/// Compute initial default token type during login
+///
+/// This function determines the default token type to save in the profile during login.
+/// It only computes the value when `existing_default_token_type` is None.
+/// If a default token type is already set, it is preserved.
+///
+/// # Arguments
+/// * `existing_default_token_type` - Default token type already stored in profile (if any)
+/// * `has_user_token` - Whether user token was obtained during OAuth flow
+///
+/// # Returns
+/// The default token type to store in the profile:
+/// - Returns existing value if already set
+/// - Returns User if user token is available
+/// - Returns Bot if user token is not available
+///
+/// # Examples
+/// ```
+/// use slack_rs::profile::TokenType;
+/// use slack_rs::auth::commands::compute_initial_default_token_type;
+///
+/// // New profile with user token -> User
+/// assert_eq!(
+///     compute_initial_default_token_type(None, true),
+///     TokenType::User
+/// );
+///
+/// // New profile without user token -> Bot
+/// assert_eq!(
+///     compute_initial_default_token_type(None, false),
+///     TokenType::Bot
+/// );
+///
+/// // Existing profile with Bot default -> preserve Bot
+/// assert_eq!(
+///     compute_initial_default_token_type(Some(TokenType::Bot), true),
+///     TokenType::Bot
+/// );
+///
+/// // Existing profile with User default -> preserve User
+/// assert_eq!(
+///     compute_initial_default_token_type(Some(TokenType::User), false),
+///     TokenType::User
+/// );
+/// ```
+pub fn compute_initial_default_token_type(
+    existing_default_token_type: Option<crate::profile::TokenType>,
+    has_user_token: bool,
+) -> crate::profile::TokenType {
+    // Preserve existing setting if present
+    if let Some(token_type) = existing_default_token_type {
+        return token_type;
+    }
+
+    // For new profiles, infer from available tokens
+    if has_user_token {
+        crate::profile::TokenType::User
+    } else {
+        crate::profile::TokenType::Bot
     }
 }
 
@@ -1366,6 +1438,170 @@ mod tests {
     }
 
     #[test]
+    #[serial_test::serial]
+    fn test_save_profile_and_credentials_sets_default_token_type_user() {
+        use tempfile::TempDir;
+
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("profiles.json");
+        let tokens_path = temp_dir.path().join("tokens.json");
+        std::env::set_var("SLACK_RS_TOKENS_PATH", tokens_path.to_str().unwrap());
+        std::env::set_var("SLACKRS_TOKEN_STORE", "file");
+
+        let team_id = "T123";
+        let user_id = "U456";
+        let profile_name = "test";
+
+        // Save profile with both bot and user tokens
+        let scopes = vec!["chat:write".to_string()];
+        let bot_scopes = vec!["chat:write".to_string()];
+        let user_scopes = vec!["users:read".to_string()];
+        save_profile_and_credentials(SaveCredentials {
+            config_path: &config_path,
+            profile_name,
+            team_id,
+            team_name: &Some("Test Team".to_string()),
+            user_id,
+            bot_token: Some("xoxb-test-bot-token"),
+            user_token: Some("xoxp-test-user-token"), // User token present
+            client_id: "test-client-id",
+            client_secret: "test-client-secret",
+            redirect_uri: "http://127.0.0.1:8765/callback",
+            scopes: &scopes,
+            bot_scopes: &bot_scopes,
+            user_scopes: &user_scopes,
+        })
+        .unwrap();
+
+        // Verify default_token_type is set to User
+        let config = load_config(&config_path).unwrap();
+        let profile = config.get(profile_name).unwrap();
+        assert_eq!(
+            profile.default_token_type,
+            Some(crate::profile::TokenType::User)
+        );
+
+        std::env::remove_var("SLACKRS_TOKEN_STORE");
+        std::env::remove_var("SLACK_RS_TOKENS_PATH");
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_save_profile_and_credentials_sets_default_token_type_bot() {
+        use tempfile::TempDir;
+
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("profiles.json");
+        let tokens_path = temp_dir.path().join("tokens.json");
+        std::env::set_var("SLACK_RS_TOKENS_PATH", tokens_path.to_str().unwrap());
+        std::env::set_var("SLACKRS_TOKEN_STORE", "file");
+
+        let team_id = "T123";
+        let user_id = "U456";
+        let profile_name = "test";
+
+        // Save profile with only bot token (no user token)
+        let scopes = vec!["chat:write".to_string()];
+        let bot_scopes = vec!["chat:write".to_string()];
+        let user_scopes = vec!["users:read".to_string()];
+        save_profile_and_credentials(SaveCredentials {
+            config_path: &config_path,
+            profile_name,
+            team_id,
+            team_name: &Some("Test Team".to_string()),
+            user_id,
+            bot_token: Some("xoxb-test-bot-token"),
+            user_token: None, // No user token
+            client_id: "test-client-id",
+            client_secret: "test-client-secret",
+            redirect_uri: "http://127.0.0.1:8765/callback",
+            scopes: &scopes,
+            bot_scopes: &bot_scopes,
+            user_scopes: &user_scopes,
+        })
+        .unwrap();
+
+        // Verify default_token_type is set to Bot
+        let config = load_config(&config_path).unwrap();
+        let profile = config.get(profile_name).unwrap();
+        assert_eq!(
+            profile.default_token_type,
+            Some(crate::profile::TokenType::Bot)
+        );
+
+        std::env::remove_var("SLACKRS_TOKEN_STORE");
+        std::env::remove_var("SLACK_RS_TOKENS_PATH");
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_save_profile_and_credentials_preserves_existing_default_token_type() {
+        use tempfile::TempDir;
+
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("profiles.json");
+        let tokens_path = temp_dir.path().join("tokens.json");
+        std::env::set_var("SLACK_RS_TOKENS_PATH", tokens_path.to_str().unwrap());
+        std::env::set_var("SLACKRS_TOKEN_STORE", "file");
+
+        let team_id = "T123";
+        let user_id = "U456";
+        let profile_name = "test";
+
+        // First, create a profile with default_token_type=Bot
+        let mut config = ProfilesConfig::new();
+        config.set(
+            profile_name.to_string(),
+            Profile {
+                team_id: team_id.to_string(),
+                user_id: user_id.to_string(),
+                team_name: Some("Test Team".to_string()),
+                user_name: None,
+                client_id: Some("test-client-id".to_string()),
+                redirect_uri: Some("http://127.0.0.1:8765/callback".to_string()),
+                scopes: Some(vec!["chat:write".to_string()]),
+                bot_scopes: Some(vec!["chat:write".to_string()]),
+                user_scopes: Some(vec!["users:read".to_string()]),
+                default_token_type: Some(crate::profile::TokenType::Bot),
+            },
+        );
+        save_config(&config_path, &config).unwrap();
+
+        // Now "re-login" with user token available
+        let scopes = vec!["chat:write".to_string()];
+        let bot_scopes = vec!["chat:write".to_string()];
+        let user_scopes = vec!["users:read".to_string()];
+        save_profile_and_credentials(SaveCredentials {
+            config_path: &config_path,
+            profile_name,
+            team_id,
+            team_name: &Some("Test Team".to_string()),
+            user_id,
+            bot_token: Some("xoxb-test-bot-token"),
+            user_token: Some("xoxp-test-user-token"), // User token now available
+            client_id: "test-client-id",
+            client_secret: "test-client-secret",
+            redirect_uri: "http://127.0.0.1:8765/callback",
+            scopes: &scopes,
+            bot_scopes: &bot_scopes,
+            user_scopes: &user_scopes,
+        })
+        .unwrap();
+
+        // Verify default_token_type is preserved as Bot (not changed to User)
+        let config = load_config(&config_path).unwrap();
+        let profile = config.get(profile_name).unwrap();
+        assert_eq!(
+            profile.default_token_type,
+            Some(crate::profile::TokenType::Bot),
+            "Existing default_token_type should be preserved"
+        );
+
+        std::env::remove_var("SLACKRS_TOKEN_STORE");
+        std::env::remove_var("SLACK_RS_TOKENS_PATH");
+    }
+
+    #[test]
     fn test_backward_compatibility_load_profile_without_client_id() {
         use tempfile::TempDir;
 
@@ -1612,5 +1848,39 @@ mod tests {
             true, // User token available, but profile says Bot
         );
         assert_eq!(result, "Bot");
+    }
+
+    #[test]
+    fn test_compute_initial_default_token_type_new_profile_with_user_token() {
+        // New profile with user token should default to User
+        let result = compute_initial_default_token_type(None, true);
+        assert_eq!(result, crate::profile::TokenType::User);
+    }
+
+    #[test]
+    fn test_compute_initial_default_token_type_new_profile_without_user_token() {
+        // New profile without user token should default to Bot
+        let result = compute_initial_default_token_type(None, false);
+        assert_eq!(result, crate::profile::TokenType::Bot);
+    }
+
+    #[test]
+    fn test_compute_initial_default_token_type_preserves_existing_bot() {
+        // Existing profile with Bot default should be preserved even with user token
+        let result = compute_initial_default_token_type(
+            Some(crate::profile::TokenType::Bot),
+            true, // User token available
+        );
+        assert_eq!(result, crate::profile::TokenType::Bot);
+    }
+
+    #[test]
+    fn test_compute_initial_default_token_type_preserves_existing_user() {
+        // Existing profile with User default should be preserved even without user token
+        let result = compute_initial_default_token_type(
+            Some(crate::profile::TokenType::User),
+            false, // No user token
+        );
+        assert_eq!(result, crate::profile::TokenType::User);
     }
 }
