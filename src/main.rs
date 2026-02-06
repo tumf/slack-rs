@@ -156,6 +156,20 @@ async fn main() {
             }
             match args[2].as_str() {
                 "list" => {
+                    // Check for --help --json before execution
+                    if cli::has_flag(&args, "--help") && cli::has_flag(&args, "--json") {
+                        match cli::generate_help("conv list") {
+                            Ok(help) => {
+                                let json = serde_json::to_string_pretty(&help).unwrap();
+                                println!("{}", json);
+                                return;
+                            }
+                            Err(e) => {
+                                eprintln!("Help generation failed: {}", e);
+                                std::process::exit(1);
+                            }
+                        }
+                    }
                     if let Err(e) = run_conv_list(&args).await {
                         eprintln!("Conv list failed: {}", e);
                         std::process::exit(1);
@@ -233,6 +247,20 @@ async fn main() {
             }
             match args[2].as_str() {
                 "post" => {
+                    // Check for --help --json before execution
+                    if cli::has_flag(&args, "--help") && cli::has_flag(&args, "--json") {
+                        match cli::generate_help("msg post") {
+                            Ok(help) => {
+                                let json = serde_json::to_string_pretty(&help).unwrap();
+                                println!("{}", json);
+                                return;
+                            }
+                            Err(e) => {
+                                eprintln!("Help generation failed: {}", e);
+                                std::process::exit(1);
+                            }
+                        }
+                    }
                     if let Err(e) = run_msg_post(&args).await {
                         eprintln!("Msg post failed: {}", e);
                         std::process::exit(1);

@@ -301,11 +301,19 @@ pub fn get_command_definitions() -> Vec<CommandDef> {
     ]
 }
 
+/// Normalize command name (converts "conv.list" to "conv list", etc.)
+fn normalize_command_name(name: &str) -> String {
+    // Replace dots with spaces for consistent lookup
+    name.replace('.', " ")
+}
+
 /// Get command definition by name
+/// Supports both space-separated ("conv list") and dot-separated ("conv.list") formats
 pub fn get_command_definition(command_name: &str) -> Option<CommandDef> {
+    let normalized = normalize_command_name(command_name);
     get_command_definitions()
         .into_iter()
-        .find(|cmd| cmd.name == command_name)
+        .find(|cmd| cmd.name == normalized)
 }
 
 /// Generate commands list response
