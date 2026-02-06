@@ -256,7 +256,8 @@ pub async fn run_api_call(args: Vec<String>) -> Result<(), Box<dyn std::error::E
         create_token_store().map_err(|e| format!("Failed to create token store: {}", e))?;
 
     // Infer default token type based on user token existence
-    let inferred_default = infer_default_token_type(&*token_store, &profile.team_id, &profile.user_id);
+    let inferred_default =
+        infer_default_token_type(&*token_store, &profile.team_id, &profile.user_id);
 
     // Resolve token type: CLI flag > profile default > inferred default (user if exists, else bot)
     let resolved_token_type = TokenType::resolve(
@@ -742,7 +743,10 @@ mod tests {
 
         // Set a user token
         token_store
-            .set(&format!("{}:{}:user", team_id, user_id), "xoxp-test-user-token")
+            .set(
+                &format!("{}:{}:user", team_id, user_id),
+                "xoxp-test-user-token",
+            )
             .unwrap();
 
         // Should infer User when user token exists
@@ -777,7 +781,10 @@ mod tests {
             .set(&format!("{}:{}", team_id, user_id), "xoxb-test-bot-token")
             .unwrap();
         token_store
-            .set(&format!("{}:{}:user", team_id, user_id), "xoxp-test-user-token")
+            .set(
+                &format!("{}:{}:user", team_id, user_id),
+                "xoxp-test-user-token",
+            )
             .unwrap();
 
         // Should infer User when user token exists (even if bot token also exists)
