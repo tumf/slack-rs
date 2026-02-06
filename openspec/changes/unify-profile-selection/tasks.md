@@ -1,4 +1,4 @@
-- [ ] 共通の profile 解決ヘルパーを追加し、`--profile` > `SLACK_PROFILE` > `default` の順で解決することを確認する（確認: 新ヘルパーの単体テスト、または該当関数のロジック確認）
-- [ ] `api call` の profile 解決を共通ヘルパーに置き換える（確認: `src/cli/handlers.rs` で `SLACK_PROFILE` 直参照が無くなる）
-- [ ] wrapper コマンド群の profile 解決に `SLACK_PROFILE` フォールバックを追加する（確認: `src/cli/mod.rs` の各 `--profile` 解決が共通ヘルパー経由になる）
-- [ ] `--profile <name>` と `--profile=<name>` が前置/後置どちらでも認識されることを確認する（確認: ルーティング前の引数正規化または解析のテスト追加）
+- [x] 共通の profile 解決ヘルパーを追加し、`--profile` > `SLACK_PROFILE` > `default` の順で解決することを確認する（確認: 新ヘルパーの単体テスト、または該当関数のロジック確認）
+- [x] `api call` の profile 解決を共通ヘルパーに置き換える（確認: `src/cli/handlers.rs` で `SLACK_PROFILE` 直参照が無くなる）
+- [x] wrapper コマンド群の profile 解決に `SLACK_PROFILE` フォールバックを追加する（確認: `src/cli/mod.rs` の各 `--profile` 解決が共通ヘルパー経由になる）
+- [x] `--profile <name>` と `--profile=<name>` が前置/後置どちらでも認識されることを確認する（確認: ルーティング前の引数正規化または解析のテスト追加）

@@ -639,7 +639,8 @@ pub async fn run_conv_history(args: &[String]) -> Result<(), String> {
         let filters = filters.map_err(|e| e.to_string())?;
 
         let token_type_inner = parse_token_type(args)?;
-        let client = get_api_client_with_token_type(Some(profile_name_inner), token_type_inner).await?;
+        let client =
+            get_api_client_with_token_type(Some(profile_name_inner), token_type_inner).await?;
         let mut response = commands::conv_list(&client, types, None)
             .await
             .map_err(|e| e.to_string())?;
@@ -994,7 +995,7 @@ pub async fn run_react_remove(args: &[String], non_interactive: bool) -> Result<
             response_value,
             "reactions.remove",
             "react remove",
-            profile,
+            Some(profile_name),
             token_type,
         )
         .await?;
@@ -1533,5 +1534,131 @@ mod tests {
         ];
         assert_eq!(get_option(&args, "--count="), Some("10".to_string()));
         assert_eq!(get_option(&args, "--sort="), Some("timestamp".to_string()));
+    }
+
+    // Tests for resolve_profile_name function
+    #[test]
+    fn test_resolve_profile_name_with_equals_format() {
+        let args = vec![
+            "slack".to_string(),
+            "api".to_string(),
+            "call".to_string(),
+            "--profile=myprofile".to_string(),
+            "test.method".to_string(),
+        ];
+        assert_eq!(resolve_profile_name(&args), "myprofile");
+    }
+
+    #[test]
+    fn test_resolve_profile_name_with_space_format() {
+        let args = vec![
+            "slack".to_string(),
+            "api".to_string(),
+            "call".to_string(),
+            "--profile".to_string(),
+            "myprofile".to_string(),
+            "test.method".to_string(),
+        ];
+        assert_eq!(resolve_profile_name(&args), "myprofile");
+    }
+
+    #[test]
+    fn test_resolve_profile_name_at_beginning() {
+        let args = vec![
+            "slack".to_string(),
+            "--profile=myprofile".to_string(),
+            "api".to_string(),
+            "call".to_string(),
+            "test.method".to_string(),
+        ];
+        assert_eq!(resolve_profile_name(&args), "myprofile");
+    }
+
+    #[test]
+    fn test_resolve_profile_name_at_end() {
+        let args = vec![
+            "slack".to_string(),
+            "api".to_string(),
+            "call".to_string(),
+            "test.method".to_string(),
+            "--profile=myprofile".to_string(),
+        ];
+        assert_eq!(resolve_profile_name(&args), "myprofile");
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_resolve_profile_name_env_fallback() {
+        // Set environment variable
+        std::env::set_var("SLACK_PROFILE", "envprofile");
+
+        let args = vec!["slack".to_string(), "api".to_string(), "call".to_string()];
+        assert_eq!(resolve_profile_name(&args), "envprofile");
+
+        // Clean up
+        std::env::remove_var("SLACK_PROFILE");
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_resolve_profile_name_default_fallback() {
+        // Ensure SLACK_PROFILE is not set
+        std::env::remove_var("SLACK_PROFILE");
+
+        let args = vec!["slack".to_string(), "api".to_string(), "call".to_string()];
+        assert_eq!(resolve_profile_name(&args), "default");
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_resolve_profile_name_flag_overrides_env() {
+        // Set environment variable
+        std::env::set_var("SLACK_PROFILE", "envprofile");
+
+        let args = vec![
+            "slack".to_string(),
+            "api".to_string(),
+            "--profile=flagprofile".to_string(),
+            "call".to_string(),
+        ];
+        assert_eq!(resolve_profile_name(&args), "flagprofile");
+
+        // Clean up
+        std::env::remove_var("SLACK_PROFILE");
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_resolve_profile_name_priority_all_sources() {
+        // Set environment variable
+        std::env::set_var("SLACK_PROFILE", "envprofile");
+
+        // Test that --profile flag takes highest priority
+        let args = vec![
+            "--profile".to_string(),
+            "flagprofile".to_string(),
+            "slack".to_string(),
+            "api".to_string(),
+            "call".to_string(),
+        ];
+        assert_eq!(resolve_profile_name(&args), "flagprofile");
+
+        // Clean up
+        std::env::remove_var("SLACK_PROFILE");
+    }
+
+    #[test]
+    fn test_resolve_profile_name_mixed_formats() {
+        // Test that equals format is found even with space format present
+        let args = vec![
+            "slack".to_string(),
+            "--profile=profile1".to_string(),
+            "api".to_string(),
+            "--profile".to_string(),
+            "profile2".to_string(),
+            "call".to_string(),
+        ];
+        // Should return profile1 as equals format is checked first
+        assert_eq!(resolve_profile_name(&args), "profile1");
     }
 }
