@@ -214,6 +214,21 @@ fn should_show_private_channel_guidance(
     false
 }
 
+/// Infer the default token type based on token store existence
+/// Returns User if a user token exists, otherwise Bot
+fn infer_default_token_type(
+    token_store: &dyn crate::profile::TokenStore,
+    team_id: &str,
+    user_id: &str,
+) -> TokenType {
+    let user_token_key = format!("{}:{}:user", team_id, user_id);
+    if token_store.exists(&user_token_key) {
+        TokenType::User
+    } else {
+        TokenType::Bot
+    }
+}
+
 /// Run the api call command
 pub async fn run_api_call(args: Vec<String>) -> Result<(), Box<dyn std::error::Error>> {
     // Parse arguments
@@ -236,11 +251,18 @@ pub async fn run_api_call(args: Vec<String>) -> Result<(), Box<dyn std::error::E
         user_id: profile.user_id.clone(),
     };
 
-    // Resolve token type: CLI flag > profile default > fallback to bot
+    // Create token store to check token existence for inference
+    let token_store =
+        create_token_store().map_err(|e| format!("Failed to create token store: {}", e))?;
+
+    // Infer default token type based on user token existence
+    let inferred_default = infer_default_token_type(&*token_store, &profile.team_id, &profile.user_id);
+
+    // Resolve token type: CLI flag > profile default > inferred default (user if exists, else bot)
     let resolved_token_type = TokenType::resolve(
         api_args.token_type,
         profile.default_token_type,
-        TokenType::Bot,
+        inferred_default,
     );
 
     // Create token key from team_id, user_id, and token type
@@ -256,8 +278,6 @@ pub async fn run_api_call(args: Vec<String>) -> Result<(), Box<dyn std::error::E
 
     // Retrieve token from token store
     // Try token store first, fall back to environment variable only for the requested token type
-    let token_store =
-        create_token_store().map_err(|e| format!("Failed to create token store: {}", e))?;
 
     // Determine if the token type was explicitly requested via CLI flag OR default_token_type
     // If either is set, we should NOT fallback to a different token type
@@ -603,6 +623,7 @@ pub async fn handle_import_command(args: &[String]) {
 mod tests {
     use super::*;
     use crate::api::call::ApiCallMeta;
+    use crate::profile::{InMemoryTokenStore, TokenStore};
     use serde_json::json;
     use std::collections::HashMap;
 
@@ -711,5 +732,69 @@ mod tests {
         assert!(!should_show_private_channel_guidance(
             &args, "user", &response
         ));
+    }
+
+    #[test]
+    fn test_infer_default_token_type_with_user_token() {
+        let token_store = InMemoryTokenStore::new();
+        let team_id = "T123";
+        let user_id = "U456";
+
+        // Set a user token
+        token_store
+            .set(&format!("{}:{}:user", team_id, user_id), "xoxp-test-user-token")
+            .unwrap();
+
+        // Should infer User when user token exists
+        let inferred = infer_default_token_type(&token_store, team_id, user_id);
+        assert_eq!(inferred, TokenType::User);
+    }
+
+    #[test]
+    fn test_infer_default_token_type_without_user_token() {
+        let token_store = InMemoryTokenStore::new();
+        let team_id = "T123";
+        let user_id = "U456";
+
+        // Set only a bot token
+        token_store
+            .set(&format!("{}:{}", team_id, user_id), "xoxb-test-bot-token")
+            .unwrap();
+
+        // Should infer Bot when user token does not exist
+        let inferred = infer_default_token_type(&token_store, team_id, user_id);
+        assert_eq!(inferred, TokenType::Bot);
+    }
+
+    #[test]
+    fn test_infer_default_token_type_with_both_tokens() {
+        let token_store = InMemoryTokenStore::new();
+        let team_id = "T123";
+        let user_id = "U456";
+
+        // Set both tokens
+        token_store
+            .set(&format!("{}:{}", team_id, user_id), "xoxb-test-bot-token")
+            .unwrap();
+        token_store
+            .set(&format!("{}:{}:user", team_id, user_id), "xoxp-test-user-token")
+            .unwrap();
+
+        // Should infer User when user token exists (even if bot token also exists)
+        let inferred = infer_default_token_type(&token_store, team_id, user_id);
+        assert_eq!(inferred, TokenType::User);
+    }
+
+    #[test]
+    fn test_infer_default_token_type_with_no_tokens() {
+        let token_store = InMemoryTokenStore::new();
+        let team_id = "T123";
+        let user_id = "U456";
+
+        // No tokens set
+
+        // Should infer Bot when no tokens exist
+        let inferred = infer_default_token_type(&token_store, team_id, user_id);
+        assert_eq!(inferred, TokenType::Bot);
     }
 }
