@@ -13,6 +13,8 @@ use std::collections::HashMap;
 /// * `text` - Message text
 /// * `thread_ts` - Optional thread timestamp to reply to
 /// * `reply_broadcast` - Whether to broadcast thread reply to channel
+/// * `yes` - Skip confirmation prompt
+/// * `non_interactive` - Whether running in non-interactive mode
 ///
 /// # Returns
 /// * `Ok(ApiResponse)` with posted message information
@@ -23,8 +25,14 @@ pub async fn msg_post(
     text: String,
     thread_ts: Option<String>,
     reply_broadcast: bool,
+    yes: bool,
+    non_interactive: bool,
 ) -> Result<ApiResponse, ApiError> {
     check_write_allowed()?;
+
+    // Build hint with example command for non-interactive mode
+    let hint = format!("Example: slack-rs msg post {} \"{}\" --yes", channel, text);
+    confirm_destructive_with_hint(yes, "post this message", non_interactive, Some(&hint))?;
 
     let mut params = HashMap::new();
     params.insert("channel".to_string(), json!(channel));
@@ -125,6 +133,8 @@ mod tests {
             "C123456".to_string(),
             "test message".to_string(),
             None,
+            false,
+            true,
             false,
         )
         .await;

@@ -258,8 +258,11 @@ async fn main() {
             }
             match args[2].as_str() {
                 "post" => {
-                    if let Err(e) = run_msg_post(&args).await {
+                    if let Err(e) = run_msg_post(&args, ctx.is_non_interactive()).await {
                         eprintln!("Msg post failed: {}", e);
+                        if cli::is_non_interactive_error(&e) {
+                            std::process::exit(2);
+                        }
                         std::process::exit(1);
                     }
                 }
@@ -291,8 +294,11 @@ async fn main() {
             }
             match args[2].as_str() {
                 "add" => {
-                    if let Err(e) = run_react_add(&args).await {
+                    if let Err(e) = run_react_add(&args, ctx.is_non_interactive()).await {
                         eprintln!("React add failed: {}", e);
+                        if cli::is_non_interactive_error(&e) {
+                            std::process::exit(2);
+                        }
                         std::process::exit(1);
                     }
                 }
@@ -315,8 +321,11 @@ async fn main() {
             }
             match args[2].as_str() {
                 "upload" => {
-                    if let Err(e) = run_file_upload(&args).await {
+                    if let Err(e) = run_file_upload(&args, ctx.is_non_interactive()).await {
                         eprintln!("File upload failed: {}", e);
+                        if cli::is_non_interactive_error(&e) {
+                            std::process::exit(2);
+                        }
                         std::process::exit(1);
                     }
                 }
@@ -455,9 +464,16 @@ fn print_help() {
     println!("    SLACK_TOKEN=<token>            Override token from store");
     println!();
     println!("EXAMPLES:");
+    println!("    # Profile selection");
+    println!("    SLACK_PROFILE=work slack-rs conv list  # Use 'work' profile");
+    println!("    slack-rs msg post C123 \"Hello\" --profile=work  # Use 'work' profile via flag");
+    println!();
+    println!("    # API calls");
     println!("    slack-rs api call users.info user=U123456 --get");
     println!("    slack-rs api call chat.postMessage channel=C123 text=Hello --debug");
     println!("    slack-rs api call chat.postMessage --json channel=C123 text=Hello");
+    println!();
+    println!("    # Output control");
     println!("    SLACKRS_OUTPUT=raw slack-rs conv list  # Raw output without envelope");
 }
 

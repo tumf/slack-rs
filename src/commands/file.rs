@@ -6,7 +6,7 @@
 //! 3. Call files.completeUploadExternal to finalize and share the file
 
 use crate::api::{ApiClient, ApiError};
-use crate::commands::guards::check_write_allowed;
+use crate::commands::guards::{check_write_allowed, confirm_destructive_with_hint};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -40,6 +40,8 @@ struct CompleteUploadResponse {
 /// * `channels` - Optional channel IDs to share to (comma-separated)
 /// * `title` - Optional file title
 /// * `comment` - Optional initial comment
+/// * `yes` - Skip confirmation prompt
+/// * `non_interactive` - Whether running in non-interactive mode
 ///
 /// # Returns
 /// * `Ok(serde_json::Value)` with upload result
@@ -50,8 +52,14 @@ pub async fn file_upload(
     channels: Option<String>,
     title: Option<String>,
     comment: Option<String>,
+    yes: bool,
+    non_interactive: bool,
 ) -> Result<serde_json::Value, ApiError> {
     check_write_allowed()?;
+
+    // Build hint with example command for non-interactive mode
+    let hint = format!("Example: slack-rs file upload {} --yes", file_path);
+    confirm_destructive_with_hint(yes, "upload this file", non_interactive, Some(&hint))?;
 
     // Step 1: Read file and get metadata
     let path = Path::new(&file_path);
@@ -189,7 +197,16 @@ mod tests {
         // Set env var to deny write
         std::env::set_var("SLACKCLI_ALLOW_WRITE", "false");
         let client = ApiClient::with_token("test_token".to_string());
-        let result = file_upload(&client, "/tmp/test.txt".to_string(), None, None, None).await;
+        let result = file_upload(
+            &client,
+            "/tmp/test.txt".to_string(),
+            None,
+            None,
+            None,
+            true,
+            false,
+        )
+        .await;
         assert!(result.is_err());
         assert!(matches!(result.unwrap_err(), ApiError::WriteNotAllowed));
         std::env::remove_var("SLACKCLI_ALLOW_WRITE");
@@ -207,6 +224,8 @@ mod tests {
             None,
             None,
             None,
+            true,
+            false,
         )
         .await;
         assert!(result.is_err());

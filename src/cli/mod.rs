@@ -786,15 +786,16 @@ pub async fn run_users_resolve_mentions(args: &[String]) -> Result<(), String> {
     Ok(())
 }
 
-pub async fn run_msg_post(args: &[String]) -> Result<(), String> {
+pub async fn run_msg_post(args: &[String], non_interactive: bool) -> Result<(), String> {
     if args.len() < 5 {
-        return Err("Usage: msg post <channel> <text> [--thread-ts=TS] [--reply-broadcast] [--profile=NAME] [--token-type=bot|user]".to_string());
+        return Err("Usage: msg post <channel> <text> [--thread-ts=TS] [--reply-broadcast] [--yes] [--profile=NAME] [--token-type=bot|user]".to_string());
     }
 
     let channel = args[3].clone();
     let text = args[4].clone();
     let thread_ts = get_option(args, "--thread-ts=");
     let reply_broadcast = has_flag(args, "--reply-broadcast");
+    let yes = has_flag(args, "--yes");
     let profile = get_option(args, "--profile=");
     let token_type = parse_token_type(args)?;
 
@@ -805,9 +806,17 @@ pub async fn run_msg_post(args: &[String]) -> Result<(), String> {
 
     let raw = should_output_raw(args);
     let client = get_api_client_with_token_type(profile.clone(), token_type).await?;
-    let response = commands::msg_post(&client, channel, text, thread_ts, reply_broadcast)
-        .await
-        .map_err(|e| e.to_string())?;
+    let response = commands::msg_post(
+        &client,
+        channel,
+        text,
+        thread_ts,
+        reply_broadcast,
+        yes,
+        non_interactive,
+    )
+    .await
+    .map_err(|e| e.to_string())?;
 
     // Display error guidance if response contains a known error
     crate::api::display_wrapper_error_guidance(&response);
@@ -916,10 +925,10 @@ pub async fn run_msg_delete(args: &[String], non_interactive: bool) -> Result<()
     Ok(())
 }
 
-pub async fn run_react_add(args: &[String]) -> Result<(), String> {
+pub async fn run_react_add(args: &[String], non_interactive: bool) -> Result<(), String> {
     if args.len() < 6 {
         return Err(
-            "Usage: react add <channel> <ts> <emoji> [--profile=NAME] [--token-type=bot|user]"
+            "Usage: react add <channel> <ts> <emoji> [--yes] [--profile=NAME] [--token-type=bot|user]"
                 .to_string(),
         );
     }
@@ -927,12 +936,13 @@ pub async fn run_react_add(args: &[String]) -> Result<(), String> {
     let channel = args[3].clone();
     let ts = args[4].clone();
     let emoji = args[5].clone();
+    let yes = has_flag(args, "--yes");
     let profile = get_option(args, "--profile=");
     let token_type = parse_token_type(args)?;
     let raw = should_output_raw(args);
 
     let client = get_api_client_with_token_type(profile.clone(), token_type).await?;
-    let response = commands::react_add(&client, channel, ts, emoji)
+    let response = commands::react_add(&client, channel, ts, emoji, yes, non_interactive)
         .await
         .map_err(|e| e.to_string())?;
 
@@ -1002,10 +1012,10 @@ pub async fn run_react_remove(args: &[String], non_interactive: bool) -> Result<
     Ok(())
 }
 
-pub async fn run_file_upload(args: &[String]) -> Result<(), String> {
+pub async fn run_file_upload(args: &[String], non_interactive: bool) -> Result<(), String> {
     if args.len() < 4 {
         return Err(
-            "Usage: file upload <path> [--channel=ID] [--channels=IDs] [--title=TITLE] [--comment=TEXT] [--profile=NAME] [--token-type=bot|user]"
+            "Usage: file upload <path> [--channel=ID] [--channels=IDs] [--title=TITLE] [--comment=TEXT] [--yes] [--profile=NAME] [--token-type=bot|user]"
                 .to_string(),
         );
     }
@@ -1016,14 +1026,23 @@ pub async fn run_file_upload(args: &[String]) -> Result<(), String> {
     let channels = get_option(args, "--channel=").or_else(|| get_option(args, "--channels="));
     let title = get_option(args, "--title=");
     let comment = get_option(args, "--comment=");
+    let yes = has_flag(args, "--yes");
     let profile = get_option(args, "--profile=");
     let token_type = parse_token_type(args)?;
     let raw = should_output_raw(args);
 
     let client = get_api_client_with_token_type(profile.clone(), token_type).await?;
-    let response = commands::file_upload(&client, file_path, channels, title, comment)
-        .await
-        .map_err(|e| e.to_string())?;
+    let response = commands::file_upload(
+        &client,
+        file_path,
+        channels,
+        title,
+        comment,
+        yes,
+        non_interactive,
+    )
+    .await
+    .map_err(|e| e.to_string())?;
 
     // Display error guidance if response contains a known error
     crate::api::display_json_error_guidance(&response);

@@ -6,8 +6,8 @@
 - [x] `docs/recipes.md` を追加し、profile/出力/会話/エラーの項目を含める（確認: ファイル内容に指定見出しがある）
 
 ## Acceptance #1 Failure Follow-up
-- [ ] Clean git working tree: commit or revert `docs/recipes.md`, `openspec/changes/ux-output-write-docs/tasks.md`, `src/api/args.rs`, `src/cli/handlers.rs`, `src/cli/mod.rs`, `src/debug.rs`, `src/main.rs`
-- [ ] Add confirmation + non-interactive `--yes` enforcement for `msg post` in `src/commands/msg.rs` and CLI flow
-- [ ] Add confirmation + non-interactive `--yes` enforcement for `react add` in `src/commands/react.rs` and CLI flow
-- [ ] Add confirmation + non-interactive `--yes` enforcement for `file upload` in `src/commands/file.rs` and CLI flow
-- [ ] Add profile selection example to top-level help output in `src/main.rs` `print_help`
+- [x] Clean git working tree: commit or revert `docs/recipes.md`, `openspec/changes/ux-output-write-docs/tasks.md`, `src/api/args.rs`, `src/cli/handlers.rs`, `src/cli/mod.rs`, `src/debug.rs`, `src/main.rs`
+- [x] Add confirmation + non-interactive `--yes` enforcement for `msg post` in `src/commands/msg.rs` and CLI flow
+- [x] Add confirmation + non-interactive `--yes` enforcement for `react add` in `src/commands/react.rs` and CLI flow
+- [x] Add confirmation + non-interactive `--yes` enforcement for `file upload` in `src/commands/file.rs` and CLI flow
+- [x] Add profile selection example to top-level help output in `src/main.rs` `print_help`
