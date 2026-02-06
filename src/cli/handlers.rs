@@ -234,8 +234,8 @@ pub async fn run_api_call(args: Vec<String>) -> Result<(), Box<dyn std::error::E
     // Parse arguments
     let api_args = ApiCallArgs::parse(&args)?;
 
-    // Determine profile name (from environment or default to "default")
-    let profile_name = std::env::var("SLACK_PROFILE").unwrap_or_else(|_| "default".to_string());
+    // Resolve profile name using common helper (--profile > SLACK_PROFILE > "default")
+    let profile_name = crate::cli::resolve_profile_name(&args);
 
     // Get config path
     let config_path = default_config_path()?;
