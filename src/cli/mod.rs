@@ -1020,11 +1020,11 @@ pub async fn run_file_upload(args: &[String]) -> Result<(), String> {
     let channels = get_option(args, "--channel=").or_else(|| get_option(args, "--channels="));
     let title = get_option(args, "--title=");
     let comment = get_option(args, "--comment=");
-    let profile = get_option(args, "--profile=");
+    let profile_name = resolve_profile_name(args);
     let token_type = parse_token_type(args)?;
     let raw = has_flag(args, "--raw");
 
-    let client = get_api_client_with_token_type(profile.clone(), token_type).await?;
+    let client = get_api_client_with_token_type(Some(profile_name.clone()), token_type).await?;
     let response = commands::file_upload(&client, file_path, channels, title, comment)
         .await
         .map_err(|e| e.to_string())?;
@@ -1041,7 +1041,7 @@ pub async fn run_file_upload(args: &[String]) -> Result<(), String> {
             response_value,
             "files.upload",
             "file upload",
-            profile,
+            Some(profile_name),
             token_type,
         )
         .await?;

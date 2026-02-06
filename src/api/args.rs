@@ -69,6 +69,12 @@ impl ApiCallArgs {
                 use_get = true;
             } else if arg == "--raw" {
                 raw = true;
+            } else if arg == "--profile" {
+                // Skip --profile flag and its value (space-separated format)
+                i += 1; // Skip the profile value
+            } else if arg.starts_with("--profile=") {
+                // Skip --profile=VALUE format
+                // No additional increment needed
             } else if arg == "--token-type" {
                 // Space-separated format: --token-type VALUE
                 i += 1;
