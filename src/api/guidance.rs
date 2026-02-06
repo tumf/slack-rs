@@ -137,6 +137,16 @@ fn build_guidance_map() -> HashMap<String, ErrorGuidance> {
         ),
     );
 
+    // channel_not_found
+    map.insert(
+        "channel_not_found".to_string(),
+        ErrorGuidance::new(
+            "channel_not_found",
+            "The channel was not found. Possible causes: private channel without membership, incorrect channel ID, wrong workspace profile, or wrong token type",
+            "Check: 1) Use --include-private or --all for private channels, 2) Verify channel ID, 3) Confirm correct --profile, 4) Try --token-type user for private channels",
+        ),
+    );
+
     map
 }
 
@@ -386,5 +396,31 @@ mod tests {
 
         // This should display guidance to stderr
         display_json_error_guidance(&response);
+    }
+
+    #[test]
+    fn test_get_error_guidance_channel_not_found() {
+        let guidance = get_error_guidance("channel_not_found");
+        assert!(guidance.is_some());
+        let guidance = guidance.unwrap();
+        assert_eq!(guidance.error_code, "channel_not_found");
+        assert!(guidance.cause.contains("not found"));
+        assert!(guidance.resolution.contains("--include-private"));
+    }
+
+    #[test]
+    fn test_display_wrapper_error_guidance_with_channel_not_found() {
+        use crate::api::types::ApiResponse;
+        use std::collections::HashMap;
+
+        // Create response with channel_not_found error
+        let response = ApiResponse {
+            ok: false,
+            data: HashMap::new(),
+            error: Some("channel_not_found".to_string()),
+        };
+
+        // This should display guidance to stderr
+        display_wrapper_error_guidance(&response);
     }
 }

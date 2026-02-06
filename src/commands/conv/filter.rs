@@ -90,18 +90,19 @@ impl ConversationFilter {
     }
 }
 
-/// Simple glob pattern matching (supports * wildcard)
+/// Pattern matching: glob if contains *, otherwise case-insensitive substring match
 fn glob_match(pattern: &str, text: &str) -> bool {
     if pattern == "*" {
         return true;
     }
 
-    let pattern_parts: Vec<&str> = pattern.split('*').collect();
-
-    // No wildcard - exact match
-    if pattern_parts.len() == 1 {
-        return pattern == text;
+    // Check if pattern contains wildcard
+    if !pattern.contains('*') {
+        // No wildcard - case-insensitive substring match
+        return text.to_lowercase().contains(&pattern.to_lowercase());
     }
+
+    let pattern_parts: Vec<&str> = pattern.split('*').collect();
 
     // Pattern starts with wildcard
     if pattern.starts_with('*') && pattern_parts.len() == 2 && pattern_parts[1].is_empty() {
@@ -207,8 +208,14 @@ mod tests {
     }
 
     #[test]
-    fn test_glob_match_exact() {
+    fn test_glob_match_case_insensitive_substring() {
+        // Without wildcard, should do case-insensitive substring match
         assert!(glob_match("test", "test"));
+        assert!(glob_match("test", "TEST"));
+        assert!(glob_match("test", "Test"));
+        assert!(glob_match("test", "mytest"));
+        assert!(glob_match("test", "testing"));
+        assert!(glob_match("test", "mytestchannel"));
         assert!(!glob_match("test", "other"));
     }
 
@@ -230,11 +237,18 @@ mod tests {
 
     #[test]
     fn test_filter_matches_name() {
+        // Case-insensitive substring match (no wildcard)
         let filter = ConversationFilter::Name("general".to_string());
         let conv = json!({"name": "general", "id": "C123"});
         assert!(filter.matches(&conv));
 
-        let conv = json!({"name": "random", "id": "C124"});
+        let conv = json!({"name": "GENERAL", "id": "C124"});
+        assert!(filter.matches(&conv));
+
+        let conv = json!({"name": "my-general-channel", "id": "C125"});
+        assert!(filter.matches(&conv));
+
+        let conv = json!({"name": "random", "id": "C126"});
         assert!(!filter.matches(&conv));
     }
 
