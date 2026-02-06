@@ -1,0 +1,3 @@
+- [x] `api call` のトークン解決で、`--token-type` と `default_token_type` が未指定の場合に User token の存在を優先して選択するロジックを追加する（確認: `src/cli/handlers.rs` の解決処理が `exists()` を参照し、User があれば User を返すことが分かる）。
+- [x] 既定トークン推測のユニットテストを追加する（確認: `cargo test token_type` など対象テスト名で通る）。
+- [x] 変更に関係するテストを実行して緑であることを確認する（確認: `cargo test`）。
