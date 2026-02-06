@@ -27,7 +27,7 @@ async fn main() {
             .filter(|arg| !arg.starts_with("--"))
             .map(|s| s.to_string())
             .collect();
-        
+
         if !command_parts.is_empty() {
             let command_name = command_parts.join(" ");
             match cli::generate_help(&command_name) {

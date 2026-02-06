@@ -13,3 +13,6 @@
 
 ## Acceptance #3 Failure Follow-up
 - [x] `--help --json` が `api call`/`auth login`/`conv list`/`msg post` 以外のコマンドで構造化ヘルプにルーティングされていないため、全コマンドで共通ハンドリングを追加する（`src/main.rs` の JSON ヘルプ分岐が4箇所のみ）。
+
+## Acceptance #4 Failure Follow-up
+- [x] `--help --json` が CLI の全コマンドに対して成功するよう、`src/cli/introspection.rs` の `get_command_definitions` に不足しているコマンド（例: `auth rename`/`auth export`/`auth import`/`config oauth set`/`config set`/`conv select`/`users cache-update`/`users resolve-mentions`/`commands`/`schema`/`demo` など）を追加し、`src/main.rs` に存在する各ルーティングに一致する定義を揃える。

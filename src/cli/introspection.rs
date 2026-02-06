@@ -629,6 +629,467 @@ pub fn get_command_definitions() -> Vec<CommandDef> {
                 },
             ],
         },
+        // auth rename
+        CommandDef {
+            name: "auth rename".to_string(),
+            description: "Rename a profile".to_string(),
+            usage: "slack-rs auth rename <old_name> <new_name>".to_string(),
+            flags: vec![],
+            examples: vec![ExampleDef {
+                description: "Rename profile".to_string(),
+                command: "slack-rs auth rename work personal".to_string(),
+            }],
+            exit_codes: vec![
+                ExitCodeDef {
+                    code: 0,
+                    description: "Success".to_string(),
+                },
+                ExitCodeDef {
+                    code: 1,
+                    description: "Rename failed".to_string(),
+                },
+            ],
+        },
+        // auth export
+        CommandDef {
+            name: "auth export".to_string(),
+            description: "Export profiles to encrypted file".to_string(),
+            usage: "slack-rs auth export [flags]".to_string(),
+            flags: vec![
+                FlagDef {
+                    name: "--profile".to_string(),
+                    flag_type: "string".to_string(),
+                    required: false,
+                    description: "Export specific profile".to_string(),
+                    default: Some("default".to_string()),
+                },
+                FlagDef {
+                    name: "--all".to_string(),
+                    flag_type: "boolean".to_string(),
+                    required: false,
+                    description: "Export all profiles".to_string(),
+                    default: None,
+                },
+                FlagDef {
+                    name: "--out".to_string(),
+                    flag_type: "string".to_string(),
+                    required: true,
+                    description: "Output file path".to_string(),
+                    default: None,
+                },
+                FlagDef {
+                    name: "--passphrase-env".to_string(),
+                    flag_type: "string".to_string(),
+                    required: false,
+                    description: "Environment variable containing passphrase".to_string(),
+                    default: None,
+                },
+                FlagDef {
+                    name: "--passphrase-prompt".to_string(),
+                    flag_type: "boolean".to_string(),
+                    required: false,
+                    description: "Prompt for passphrase".to_string(),
+                    default: None,
+                },
+                FlagDef {
+                    name: "--yes".to_string(),
+                    flag_type: "boolean".to_string(),
+                    required: false,
+                    description: "Confirm dangerous operation".to_string(),
+                    default: None,
+                },
+            ],
+            examples: vec![ExampleDef {
+                description: "Export all profiles".to_string(),
+                command: "slack-rs auth export --all --out profiles.enc --yes".to_string(),
+            }],
+            exit_codes: vec![
+                ExitCodeDef {
+                    code: 0,
+                    description: "Success".to_string(),
+                },
+                ExitCodeDef {
+                    code: 1,
+                    description: "Export failed".to_string(),
+                },
+            ],
+        },
+        // auth import
+        CommandDef {
+            name: "auth import".to_string(),
+            description: "Import profiles from encrypted file".to_string(),
+            usage: "slack-rs auth import [flags]".to_string(),
+            flags: vec![
+                FlagDef {
+                    name: "--in".to_string(),
+                    flag_type: "string".to_string(),
+                    required: true,
+                    description: "Input file path".to_string(),
+                    default: None,
+                },
+                FlagDef {
+                    name: "--passphrase-env".to_string(),
+                    flag_type: "string".to_string(),
+                    required: false,
+                    description: "Environment variable containing passphrase".to_string(),
+                    default: None,
+                },
+                FlagDef {
+                    name: "--passphrase-prompt".to_string(),
+                    flag_type: "boolean".to_string(),
+                    required: false,
+                    description: "Prompt for passphrase".to_string(),
+                    default: None,
+                },
+                FlagDef {
+                    name: "--yes".to_string(),
+                    flag_type: "boolean".to_string(),
+                    required: false,
+                    description: "Automatically accept conflicts".to_string(),
+                    default: None,
+                },
+                FlagDef {
+                    name: "--force".to_string(),
+                    flag_type: "boolean".to_string(),
+                    required: false,
+                    description: "Overwrite existing profiles".to_string(),
+                    default: None,
+                },
+            ],
+            examples: vec![ExampleDef {
+                description: "Import profiles".to_string(),
+                command: "slack-rs auth import --in profiles.enc".to_string(),
+            }],
+            exit_codes: vec![
+                ExitCodeDef {
+                    code: 0,
+                    description: "Success".to_string(),
+                },
+                ExitCodeDef {
+                    code: 1,
+                    description: "Import failed".to_string(),
+                },
+            ],
+        },
+        // config oauth set
+        CommandDef {
+            name: "config oauth set".to_string(),
+            description: "Set OAuth configuration for a profile".to_string(),
+            usage: "slack-rs config oauth set <profile> --client-id <id> --redirect-uri <uri> --scopes <scopes> [flags]".to_string(),
+            flags: vec![
+                FlagDef {
+                    name: "--client-id".to_string(),
+                    flag_type: "string".to_string(),
+                    required: true,
+                    description: "OAuth client ID".to_string(),
+                    default: None,
+                },
+                FlagDef {
+                    name: "--redirect-uri".to_string(),
+                    flag_type: "string".to_string(),
+                    required: true,
+                    description: "OAuth redirect URI".to_string(),
+                    default: None,
+                },
+                FlagDef {
+                    name: "--scopes".to_string(),
+                    flag_type: "string".to_string(),
+                    required: true,
+                    description: "Comma-separated list of scopes or 'all'".to_string(),
+                    default: None,
+                },
+                FlagDef {
+                    name: "--client-secret-env".to_string(),
+                    flag_type: "string".to_string(),
+                    required: false,
+                    description: "Read secret from environment variable".to_string(),
+                    default: None,
+                },
+                FlagDef {
+                    name: "--client-secret-file".to_string(),
+                    flag_type: "string".to_string(),
+                    required: false,
+                    description: "Read secret from file".to_string(),
+                    default: None,
+                },
+                FlagDef {
+                    name: "--client-secret".to_string(),
+                    flag_type: "string".to_string(),
+                    required: false,
+                    description: "Direct secret value (requires --yes, unsafe)".to_string(),
+                    default: None,
+                },
+                FlagDef {
+                    name: "--yes".to_string(),
+                    flag_type: "boolean".to_string(),
+                    required: false,
+                    description: "Confirm dangerous operation".to_string(),
+                    default: None,
+                },
+            ],
+            examples: vec![ExampleDef {
+                description: "Set OAuth config".to_string(),
+                command: "slack-rs config oauth set work --client-id 123.456 --redirect-uri http://127.0.0.1:8765/callback --scopes all".to_string(),
+            }],
+            exit_codes: vec![
+                ExitCodeDef {
+                    code: 0,
+                    description: "Success".to_string(),
+                },
+                ExitCodeDef {
+                    code: 1,
+                    description: "Config set failed".to_string(),
+                },
+            ],
+        },
+        // config oauth show
+        CommandDef {
+            name: "config oauth show".to_string(),
+            description: "Show OAuth configuration for a profile".to_string(),
+            usage: "slack-rs config oauth show <profile>".to_string(),
+            flags: vec![],
+            examples: vec![ExampleDef {
+                description: "Show OAuth config".to_string(),
+                command: "slack-rs config oauth show work".to_string(),
+            }],
+            exit_codes: vec![
+                ExitCodeDef {
+                    code: 0,
+                    description: "Success".to_string(),
+                },
+                ExitCodeDef {
+                    code: 1,
+                    description: "Config show failed".to_string(),
+                },
+            ],
+        },
+        // config oauth delete
+        CommandDef {
+            name: "config oauth delete".to_string(),
+            description: "Delete OAuth configuration for a profile".to_string(),
+            usage: "slack-rs config oauth delete <profile>".to_string(),
+            flags: vec![],
+            examples: vec![ExampleDef {
+                description: "Delete OAuth config".to_string(),
+                command: "slack-rs config oauth delete work".to_string(),
+            }],
+            exit_codes: vec![
+                ExitCodeDef {
+                    code: 0,
+                    description: "Success".to_string(),
+                },
+                ExitCodeDef {
+                    code: 1,
+                    description: "Config delete failed".to_string(),
+                },
+            ],
+        },
+        // config set
+        CommandDef {
+            name: "config set".to_string(),
+            description: "Set default token type for a profile".to_string(),
+            usage: "slack-rs config set <profile> --token-type <type>".to_string(),
+            flags: vec![FlagDef {
+                name: "--token-type".to_string(),
+                flag_type: "string".to_string(),
+                required: true,
+                description: "Default token type (bot or user)".to_string(),
+                default: None,
+            }],
+            examples: vec![ExampleDef {
+                description: "Set token type".to_string(),
+                command: "slack-rs config set work --token-type bot".to_string(),
+            }],
+            exit_codes: vec![
+                ExitCodeDef {
+                    code: 0,
+                    description: "Success".to_string(),
+                },
+                ExitCodeDef {
+                    code: 1,
+                    description: "Config set failed".to_string(),
+                },
+            ],
+        },
+        // conv select
+        CommandDef {
+            name: "conv select".to_string(),
+            description: "Interactively select a conversation".to_string(),
+            usage: "slack-rs conv select [flags]".to_string(),
+            flags: vec![FlagDef {
+                name: "--profile".to_string(),
+                flag_type: "string".to_string(),
+                required: false,
+                description: "Profile name".to_string(),
+                default: Some("default".to_string()),
+            }],
+            examples: vec![ExampleDef {
+                description: "Select conversation".to_string(),
+                command: "slack-rs conv select".to_string(),
+            }],
+            exit_codes: vec![
+                ExitCodeDef {
+                    code: 0,
+                    description: "Success".to_string(),
+                },
+                ExitCodeDef {
+                    code: 1,
+                    description: "Selection failed".to_string(),
+                },
+            ],
+        },
+        // users cache-update
+        CommandDef {
+            name: "users cache-update".to_string(),
+            description: "Update user cache for mention resolution".to_string(),
+            usage: "slack-rs users cache-update [flags]".to_string(),
+            flags: vec![
+                FlagDef {
+                    name: "--profile".to_string(),
+                    flag_type: "string".to_string(),
+                    required: false,
+                    description: "Profile name".to_string(),
+                    default: Some("default".to_string()),
+                },
+                FlagDef {
+                    name: "--force".to_string(),
+                    flag_type: "boolean".to_string(),
+                    required: false,
+                    description: "Force cache update".to_string(),
+                    default: None,
+                },
+            ],
+            examples: vec![ExampleDef {
+                description: "Update user cache".to_string(),
+                command: "slack-rs users cache-update".to_string(),
+            }],
+            exit_codes: vec![
+                ExitCodeDef {
+                    code: 0,
+                    description: "Success".to_string(),
+                },
+                ExitCodeDef {
+                    code: 1,
+                    description: "Cache update failed".to_string(),
+                },
+            ],
+        },
+        // users resolve-mentions
+        CommandDef {
+            name: "users resolve-mentions".to_string(),
+            description: "Resolve user mentions in text".to_string(),
+            usage: "slack-rs users resolve-mentions <text> [flags]".to_string(),
+            flags: vec![
+                FlagDef {
+                    name: "--profile".to_string(),
+                    flag_type: "string".to_string(),
+                    required: false,
+                    description: "Profile name".to_string(),
+                    default: Some("default".to_string()),
+                },
+                FlagDef {
+                    name: "--format".to_string(),
+                    flag_type: "string".to_string(),
+                    required: false,
+                    description: "Output format".to_string(),
+                    default: None,
+                },
+            ],
+            examples: vec![ExampleDef {
+                description: "Resolve mentions".to_string(),
+                command: "slack-rs users resolve-mentions '@john said hello'".to_string(),
+            }],
+            exit_codes: vec![
+                ExitCodeDef {
+                    code: 0,
+                    description: "Success".to_string(),
+                },
+                ExitCodeDef {
+                    code: 1,
+                    description: "Resolution failed".to_string(),
+                },
+            ],
+        },
+        // commands
+        CommandDef {
+            name: "commands".to_string(),
+            description: "List all available commands in machine-readable format".to_string(),
+            usage: "slack-rs commands --json".to_string(),
+            flags: vec![FlagDef {
+                name: "--json".to_string(),
+                flag_type: "boolean".to_string(),
+                required: true,
+                description: "Output in JSON format".to_string(),
+                default: None,
+            }],
+            examples: vec![ExampleDef {
+                description: "List commands".to_string(),
+                command: "slack-rs commands --json".to_string(),
+            }],
+            exit_codes: vec![
+                ExitCodeDef {
+                    code: 0,
+                    description: "Success".to_string(),
+                },
+                ExitCodeDef {
+                    code: 1,
+                    description: "Command failed".to_string(),
+                },
+            ],
+        },
+        // schema
+        CommandDef {
+            name: "schema".to_string(),
+            description: "Show output schema for a command".to_string(),
+            usage: "slack-rs schema --command <cmd> --output json-schema".to_string(),
+            flags: vec![
+                FlagDef {
+                    name: "--command".to_string(),
+                    flag_type: "string".to_string(),
+                    required: true,
+                    description: "Command name".to_string(),
+                    default: None,
+                },
+                FlagDef {
+                    name: "--output".to_string(),
+                    flag_type: "string".to_string(),
+                    required: true,
+                    description: "Output format (json-schema)".to_string(),
+                    default: None,
+                },
+            ],
+            examples: vec![ExampleDef {
+                description: "Show schema".to_string(),
+                command: "slack-rs schema --command conv.list --output json-schema".to_string(),
+            }],
+            exit_codes: vec![
+                ExitCodeDef {
+                    code: 0,
+                    description: "Success".to_string(),
+                },
+                ExitCodeDef {
+                    code: 1,
+                    description: "Schema generation failed".to_string(),
+                },
+            ],
+        },
+        // demo
+        CommandDef {
+            name: "demo".to_string(),
+            description: "Run demonstration".to_string(),
+            usage: "slack-rs demo".to_string(),
+            flags: vec![],
+            examples: vec![ExampleDef {
+                description: "Run demo".to_string(),
+                command: "slack-rs demo".to_string(),
+            }],
+            exit_codes: vec![
+                ExitCodeDef {
+                    code: 0,
+                    description: "Success".to_string(),
+                },
+            ],
+        },
     ]
 }
 
