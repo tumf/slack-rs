@@ -8,6 +8,17 @@ use serde_json::Value;
 /// Unified command response with envelope
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CommandResponse {
+    /// Schema version for introspection
+    #[serde(rename = "schemaVersion")]
+    pub schema_version: u32,
+
+    /// Response type identifier for introspection
+    #[serde(rename = "type")]
+    pub response_type: String,
+
+    /// Indicates if the operation was successful
+    pub ok: bool,
+
     /// Original API response
     pub response: Value,
 
@@ -37,7 +48,20 @@ impl CommandResponse {
         method: String,
         command: String,
     ) -> Self {
+        // Extract 'ok' from Slack API response if present
+        let ok = response
+            .as_object()
+            .and_then(|obj| obj.get("ok"))
+            .and_then(|v| v.as_bool())
+            .unwrap_or(true);
+
+        // Generate type from method (e.g., "conversations.list" -> "conversations.list")
+        let response_type = method.clone();
+
         Self {
+            schema_version: 1,
+            response_type,
+            ok,
             response,
             meta: CommandMeta {
                 profile_name,
@@ -60,7 +84,20 @@ impl CommandResponse {
         command: String,
         token_type: Option<String>,
     ) -> Self {
+        // Extract 'ok' from Slack API response if present
+        let ok = response
+            .as_object()
+            .and_then(|obj| obj.get("ok"))
+            .and_then(|v| v.as_bool())
+            .unwrap_or(true);
+
+        // Generate type from method (e.g., "conversations.list" -> "conversations.list")
+        let response_type = method.clone();
+
         Self {
+            schema_version: 1,
+            response_type,
+            ok,
             response,
             meta: CommandMeta {
                 profile_name,

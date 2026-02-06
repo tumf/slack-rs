@@ -298,13 +298,61 @@ async fn main() {
                 _ => print_file_usage(&args[0]),
             }
         }
+        "commands" => {
+            // Check for --json flag
+            if cli::has_flag(&args, "--json") {
+                let response = cli::generate_commands_list();
+                let json = serde_json::to_string_pretty(&response).unwrap();
+                println!("{}", json);
+            } else {
+                eprintln!("Usage: {} commands --json", args[0]);
+                std::process::exit(1);
+            }
+        }
+        "schema" => {
+            // Parse --command and --output flags
+            let command = cli::get_option(&args, "--command=");
+            let output = cli::get_option(&args, "--output=");
+
+            if let (Some(cmd), Some(out)) = (command, output) {
+                if out == "json-schema" {
+                    match cli::generate_schema(&cmd) {
+                        Ok(schema_response) => {
+                            let json = serde_json::to_string_pretty(&schema_response).unwrap();
+                            println!("{}", json);
+                        }
+                        Err(e) => {
+                            eprintln!("Schema error: {}", e);
+                            std::process::exit(1);
+                        }
+                    }
+                } else {
+                    eprintln!("Invalid output format. Use --output json-schema");
+                    std::process::exit(1);
+                }
+            } else {
+                eprintln!(
+                    "Usage: {} schema --command <cmd> --output json-schema",
+                    args[0]
+                );
+                std::process::exit(1);
+            }
+        }
         "demo" => {
             println!("Slack CLI - OAuth authentication flow");
             println!();
         }
 
         "--help" | "-h" => {
-            print_help();
+            // Check for --json flag
+            if cli::has_flag(&args, "--json") {
+                // For top-level help, show all commands
+                let response = cli::generate_commands_list();
+                let json = serde_json::to_string_pretty(&response).unwrap();
+                println!("{}", json);
+            } else {
+                print_help();
+            }
         }
         _ => {
             print_usage();
