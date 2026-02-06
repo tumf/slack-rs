@@ -401,6 +401,8 @@ fn print_help() {
     println!();
     println!("GLOBAL OPTIONS:");
     println!("    --non-interactive              Run without interactive prompts (auto-enabled when stdin is not a TTY)");
+    println!("    --debug                        Show debug information (profile, token type, API method)");
+    println!("    --trace                        Show verbose trace information");
     println!();
     println!("COMMANDS:");
     println!("    api call <method> [params...]    Call a Slack API method");
@@ -444,13 +446,19 @@ fn print_help() {
     println!();
     println!("OUTPUT:");
     println!("    All commands output JSON with unified envelope: {{response, meta}}");
-    println!("    Use --raw flag to get raw Slack API response (for backward compatibility)");
+    println!("    Use --raw flag or SLACKRS_OUTPUT=raw to get raw Slack API response");
+    println!();
+    println!("ENVIRONMENT VARIABLES:");
+    println!("    SLACKRS_OUTPUT=raw|envelope    Set default output format (default: envelope)");
+    println!("    SLACKCLI_ALLOW_WRITE=true|false  Control write operations (default: true)");
+    println!("    SLACK_PROFILE=<name>           Select profile (default: default)");
+    println!("    SLACK_TOKEN=<token>            Override token from store");
     println!();
     println!("EXAMPLES:");
     println!("    slack-rs api call users.info user=U123456 --get");
-    println!("    slack-rs api call chat.postMessage channel=C123 text=Hello");
+    println!("    slack-rs api call chat.postMessage channel=C123 text=Hello --debug");
     println!("    slack-rs api call chat.postMessage --json channel=C123 text=Hello");
-    println!("    slack-rs conv list --raw  # Get raw response without envelope");
+    println!("    SLACKRS_OUTPUT=raw slack-rs conv list  # Raw output without envelope");
 }
 
 fn print_usage() {
@@ -503,15 +511,17 @@ fn print_api_usage() {
     println!("    --json                       Send as JSON body (default: form-urlencoded)");
     println!("    --get                        Use GET method (default: POST)");
     println!("    --raw                        Output raw Slack API response (without envelope)");
+    println!("    --debug                      Show debug information");
+    println!("    --trace                      Show verbose trace information");
     println!();
     println!("OUTPUT FORMAT:");
     println!("    Default: JSON with 'response' and 'meta' fields (unified envelope)");
-    println!("    With --raw: Raw Slack API response only (for backward compatibility)");
+    println!("    With --raw or SLACKRS_OUTPUT=raw: Raw Slack API response only");
     println!();
     println!("EXAMPLES:");
     println!("    slack-rs api call users.info user=U123456 --get");
-    println!("    slack-rs api call chat.postMessage channel=C123 text=Hello");
-    println!("    slack-rs api call conversations.list --raw  # Raw output without envelope");
+    println!("    slack-rs api call chat.postMessage channel=C123 text=Hello --debug");
+    println!("    SLACKRS_OUTPUT=raw slack-rs api call conversations.list");
 }
 
 fn print_auth_usage() {

@@ -321,6 +321,27 @@ pub async fn run_api_call(args: Vec<String>) -> Result<(), Box<dyn std::error::E
         }
     };
 
+    // Get debug level from args
+    let debug_level = debug::get_debug_level(&args);
+
+    // Log debug information if --debug or --trace flag is present
+    let token_store_backend = if std::env::var("SLACK_TOKEN").is_ok() {
+        "environment"
+    } else {
+        "keyring/file"
+    };
+
+    let endpoint = format!("https://slack.com/api/{}", api_args.method);
+
+    debug::log_api_context(
+        debug_level,
+        Some(&profile_name),
+        token_store_backend,
+        resolved_token_type.as_str(),
+        &api_args.method,
+        &endpoint,
+    );
+
     // Create API client
     let client = ApiClient::new();
 
@@ -334,6 +355,9 @@ pub async fn run_api_call(args: Vec<String>) -> Result<(), Box<dyn std::error::E
         "api call",
     )
     .await?;
+
+    // Log error code if present
+    debug::log_error_code(debug_level, &response.response);
 
     // Display error guidance if response contains a known error
     crate::api::display_error_guidance(&response);
@@ -349,7 +373,8 @@ pub async fn run_api_call(args: Vec<String>) -> Result<(), Box<dyn std::error::E
     }
 
     // Print response as JSON
-    // If --raw flag is set, output only the Slack API response without envelope
+    // If --raw flag is set or SLACKRS_OUTPUT=raw, output only the Slack API response without envelope
+    // Note: api_args.raw already accounts for both --raw flag and SLACKRS_OUTPUT env via should_output_raw()
     let json = if api_args.raw {
         serde_json::to_string_pretty(&response.response)?
     } else {

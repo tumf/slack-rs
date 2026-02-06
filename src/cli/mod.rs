@@ -155,6 +155,34 @@ pub fn has_flag(args: &[String], flag: &str) -> bool {
     args.iter().any(|arg| arg == flag)
 }
 
+/// Determine if output should be raw based on SLACKRS_OUTPUT environment variable and --raw flag
+///
+/// # Arguments
+/// * `args` - Command line arguments
+///
+/// # Returns
+/// * `true` if output should be raw (without envelope)
+/// * `false` if output should include envelope
+///
+/// # Priority
+/// 1. --raw flag (highest priority)
+/// 2. SLACKRS_OUTPUT environment variable ("raw" or "envelope")
+/// 3. Default to envelope (false)
+pub fn should_output_raw(args: &[String]) -> bool {
+    // Priority 1: --raw flag always wins
+    if has_flag(args, "--raw") {
+        return true;
+    }
+
+    // Priority 2: Check SLACKRS_OUTPUT environment variable
+    if let Ok(output_mode) = std::env::var("SLACKRS_OUTPUT") {
+        return output_mode.trim().to_lowercase() == "raw";
+    }
+
+    // Priority 3: Default to envelope (false)
+    false
+}
+
 /// Check if error message indicates non-interactive mode failure
 pub fn is_non_interactive_error(error_msg: &str) -> bool {
     error_msg.contains("Non-interactive mode error")
@@ -292,7 +320,7 @@ pub async fn run_search(args: &[String]) -> Result<(), String> {
     let sort_dir = get_option(args, "--sort_dir=");
     let profile = get_option(args, "--profile=");
     let token_type = parse_token_type(args)?;
-    let raw = has_flag(args, "--raw");
+    let raw = should_output_raw(args);
 
     let client = get_api_client_with_token_type(profile.clone(), token_type).await?;
     let response = commands::search(&client, query, count, page, sort, sort_dir)
@@ -368,7 +396,7 @@ pub async fn run_conv_list(args: &[String]) -> Result<(), String> {
     let profile = get_option(args, "--profile=");
     let token_type = parse_token_type(args)?;
     let filter_strings = get_all_options(args, "--filter=");
-    let raw = has_flag(args, "--raw");
+    let raw = should_output_raw(args);
 
     // Parse format option (default: json)
     let format = if let Some(fmt_str) = get_option(args, "--format=") {
@@ -498,7 +526,7 @@ pub async fn run_conv_search(args: &[String]) -> Result<(), String> {
     let limit = get_option(args, "--limit=").and_then(|s| s.parse().ok());
     let profile = get_option(args, "--profile=");
     let token_type = parse_token_type(args)?;
-    let raw = has_flag(args, "--raw");
+    let raw = should_output_raw(args);
     let select = has_flag(args, "--select");
 
     // Parse additional filters from --filter= flags
@@ -632,7 +660,7 @@ pub async fn run_conv_history(args: &[String]) -> Result<(), String> {
     let latest = get_option(args, "--latest=");
     let profile = get_option(args, "--profile=");
     let token_type = parse_token_type(args)?;
-    let raw = has_flag(args, "--raw");
+    let raw = should_output_raw(args);
 
     let client = get_api_client_with_token_type(profile.clone(), token_type).await?;
     let response = commands::conv_history(&client, channel, limit, oldest, latest)
@@ -666,7 +694,7 @@ pub async fn run_users_info(args: &[String]) -> Result<(), String> {
     let user = args[3].clone();
     let profile = get_option(args, "--profile=");
     let token_type = parse_token_type(args)?;
-    let raw = has_flag(args, "--raw");
+    let raw = should_output_raw(args);
 
     let client = get_api_client_with_token_type(profile.clone(), token_type).await?;
     let response = commands::users_info(&client, user)
@@ -775,7 +803,7 @@ pub async fn run_msg_post(args: &[String]) -> Result<(), String> {
         return Err("Error: --reply-broadcast requires --thread-ts".to_string());
     }
 
-    let raw = has_flag(args, "--raw");
+    let raw = should_output_raw(args);
     let client = get_api_client_with_token_type(profile.clone(), token_type).await?;
     let response = commands::msg_post(&client, channel, text, thread_ts, reply_broadcast)
         .await
@@ -815,7 +843,7 @@ pub async fn run_msg_update(args: &[String], non_interactive: bool) -> Result<()
     let yes = has_flag(args, "--yes");
     let profile = get_option(args, "--profile=");
     let token_type = parse_token_type(args)?;
-    let raw = has_flag(args, "--raw");
+    let raw = should_output_raw(args);
 
     let client = get_api_client_with_token_type(profile.clone(), token_type).await?;
     let response = commands::msg_update(&client, channel, ts, text, yes, non_interactive)
@@ -858,7 +886,7 @@ pub async fn run_msg_delete(args: &[String], non_interactive: bool) -> Result<()
     let yes = has_flag(args, "--yes");
     let profile = get_option(args, "--profile=");
     let token_type = parse_token_type(args)?;
-    let raw = has_flag(args, "--raw");
+    let raw = should_output_raw(args);
 
     let client = get_api_client_with_token_type(profile.clone(), token_type).await?;
     let response = commands::msg_delete(&client, channel, ts, yes, non_interactive)
@@ -901,7 +929,7 @@ pub async fn run_react_add(args: &[String]) -> Result<(), String> {
     let emoji = args[5].clone();
     let profile = get_option(args, "--profile=");
     let token_type = parse_token_type(args)?;
-    let raw = has_flag(args, "--raw");
+    let raw = should_output_raw(args);
 
     let client = get_api_client_with_token_type(profile.clone(), token_type).await?;
     let response = commands::react_add(&client, channel, ts, emoji)
@@ -944,7 +972,7 @@ pub async fn run_react_remove(args: &[String], non_interactive: bool) -> Result<
     let yes = has_flag(args, "--yes");
     let profile = get_option(args, "--profile=");
     let token_type = parse_token_type(args)?;
-    let raw = has_flag(args, "--raw");
+    let raw = should_output_raw(args);
 
     let client = get_api_client_with_token_type(profile.clone(), token_type).await?;
     let response = commands::react_remove(&client, channel, ts, emoji, yes, non_interactive)
@@ -990,7 +1018,7 @@ pub async fn run_file_upload(args: &[String]) -> Result<(), String> {
     let comment = get_option(args, "--comment=");
     let profile = get_option(args, "--profile=");
     let token_type = parse_token_type(args)?;
-    let raw = has_flag(args, "--raw");
+    let raw = should_output_raw(args);
 
     let client = get_api_client_with_token_type(profile.clone(), token_type).await?;
     let response = commands::file_upload(&client, file_path, channels, title, comment)

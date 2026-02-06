@@ -58,7 +58,14 @@ impl ApiCallArgs {
         let mut use_json = false;
         let mut use_get = false;
         let mut token_type = None;
-        let mut raw = false;
+
+        // Check SLACKRS_OUTPUT environment variable for default output mode
+        // --raw flag will override this
+        let mut raw = if let Ok(output_mode) = std::env::var("SLACKRS_OUTPUT") {
+            output_mode.trim().to_lowercase() == "raw"
+        } else {
+            false
+        };
 
         let mut i = 1;
         while i < args.len() {
@@ -68,6 +75,7 @@ impl ApiCallArgs {
             } else if arg == "--get" {
                 use_get = true;
             } else if arg == "--raw" {
+                // --raw flag always overrides environment variable
                 raw = true;
             } else if arg == "--token-type" {
                 // Space-separated format: --token-type VALUE
