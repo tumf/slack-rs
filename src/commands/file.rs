@@ -186,6 +186,208 @@ pub async fn file_upload(
         .map_err(|e| ApiError::SlackError(format!("Failed to serialize result: {}", e)))
 }
 
+/// Response from files.info
+#[derive(Debug, Deserialize)]
+struct FilesInfoResponse {
+    ok: bool,
+    file: Option<FileInfo>,
+    error: Option<String>,
+}
+
+/// File information from files.info
+#[derive(Debug, Deserialize)]
+struct FileInfo {
+    #[serde(default)]
+    name: Option<String>,
+    #[serde(default)]
+    url_private_download: Option<String>,
+    #[serde(default)]
+    url_private: Option<String>,
+}
+
+/// Download a file from Slack
+///
+/// # Arguments
+/// * `client` - API client with token
+/// * `file_id` - Optional file ID to download (calls files.info to get URL)
+/// * `url` - Optional direct URL to download
+/// * `out` - Optional output path ("-" for stdout, directory for auto-naming, file path for specific output)
+///
+/// # Returns
+/// * `Ok(serde_json::Value)` with download result metadata
+/// * `Err(ApiError)` if the operation fails
+pub async fn file_download(
+    client: &ApiClient,
+    file_id: Option<String>,
+    url: Option<String>,
+    out: Option<String>,
+) -> Result<serde_json::Value, ApiError> {
+    let http_client = Client::new();
+    let token = client
+        .token
+        .as_ref()
+        .ok_or_else(|| ApiError::SlackError("No token configured".to_string()))?;
+
+    // Resolve download URL and filename
+    let (download_url, filename_hint) = if let Some(fid) = file_id {
+        // Call files.info to get download URL
+        let info_url = format!("{}/files.info", client.base_url());
+        let mut params = HashMap::new();
+        params.insert("file".to_string(), json!(fid));
+
+        let info_response = http_client
+            .post(&info_url)
+            .bearer_auth(token)
+            .json(&params)
+            .send()
+            .await
+            .map_err(|e| ApiError::SlackError(format!("Failed to call files.info: {}", e)))?;
+
+        let info_result: FilesInfoResponse = info_response
+            .json()
+            .await
+            .map_err(|e| ApiError::SlackError(format!("Failed to parse files.info response: {}", e)))?;
+
+        if !info_result.ok {
+            return Err(ApiError::SlackError(format!(
+                "files.info failed: {}",
+                info_result.error.unwrap_or_else(|| "Unknown error".to_string())
+            )));
+        }
+
+        let file = info_result.file.ok_or_else(|| {
+            ApiError::SlackError("No file information in files.info response".to_string())
+        })?;
+
+        // Prefer url_private_download, fallback to url_private
+        let url = file
+            .url_private_download
+            .or(file.url_private)
+            .ok_or_else(|| ApiError::SlackError("No download URL found in file info".to_string()))?;
+
+        let name = file.name.unwrap_or_else(|| format!("file-{}", fid));
+        (url, name)
+    } else if let Some(direct_url) = url {
+        // Use provided URL directly
+        let name = direct_url
+            .rsplit('/')
+            .next()
+            .unwrap_or("downloaded-file")
+            .to_string();
+        (direct_url, name)
+    } else {
+        return Err(ApiError::SlackError(
+            "Either file_id or url must be provided".to_string(),
+        ));
+    };
+
+    // Download the file
+    let download_response = http_client
+        .get(&download_url)
+        .bearer_auth(token)
+        .send()
+        .await
+        .map_err(|e| ApiError::SlackError(format!("Failed to download file: {}", e)))?;
+
+    // Check response status
+    if !download_response.status().is_success() {
+        return Err(ApiError::SlackError(format!(
+            "Download failed with status: {}",
+            download_response.status()
+        )));
+    }
+
+    // Check Content-Type for HTML response (indicates wrong URL or auth issue)
+    if let Some(content_type) = download_response.headers().get("content-type") {
+        if let Ok(ct_str) = content_type.to_str() {
+            if ct_str.contains("text/html") {
+                return Err(ApiError::SlackError(
+                    "Download returned HTML instead of file. Possible causes:\n\
+                     - Wrong URL: Make sure to use url_private_download, not permalink\n\
+                     - Missing authentication: Token may lack required scopes\n\
+                     - Invalid or expired file"
+                        .to_string(),
+                ));
+            }
+        }
+    }
+
+    // Get response bytes
+    let bytes = download_response
+        .bytes()
+        .await
+        .map_err(|e| ApiError::SlackError(format!("Failed to read response body: {}", e)))?;
+
+    // Handle output
+    let output_path = match out.as_deref() {
+        Some("-") => {
+            // Write to stdout
+            use std::io::Write;
+            std::io::stdout()
+                .write_all(&bytes)
+                .map_err(|e| ApiError::SlackError(format!("Failed to write to stdout: {}", e)))?;
+            "-".to_string()
+        }
+        Some(path) => {
+            // Write to file
+            let target_path = if Path::new(path).is_dir() {
+                // Directory: auto-generate filename
+                Path::new(path).join(sanitize_filename(&filename_hint))
+            } else {
+                // File path
+                Path::new(path).to_path_buf()
+            };
+
+            std::fs::write(&target_path, &bytes).map_err(|e| {
+                ApiError::SlackError(format!(
+                    "Failed to write file to {}: {}",
+                    target_path.display(),
+                    e
+                ))
+            })?;
+
+            target_path.display().to_string()
+        }
+        None => {
+            // Default: current directory with sanitized filename
+            let target_path = Path::new(".").join(sanitize_filename(&filename_hint));
+            std::fs::write(&target_path, &bytes).map_err(|e| {
+                ApiError::SlackError(format!(
+                    "Failed to write file to {}: {}",
+                    target_path.display(),
+                    e
+                ))
+            })?;
+
+            target_path.display().to_string()
+        }
+    };
+
+    // Return metadata
+    Ok(json!({
+        "ok": true,
+        "output": output_path,
+        "size": bytes.len(),
+        "url": download_url
+    }))
+}
+
+/// Sanitize filename by replacing invalid characters
+fn sanitize_filename(name: &str) -> String {
+    let invalid_chars = ['/', '\\', ':', '*', '?', '"', '<', '>', '|', '\0'];
+    let sanitized: String = name
+        .chars()
+        .map(|c| if invalid_chars.contains(&c) { '_' } else { c })
+        .collect();
+
+    // Ensure non-empty
+    if sanitized.is_empty() {
+        "file".to_string()
+    } else {
+        sanitized
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -233,6 +435,44 @@ mod tests {
             assert!(msg.contains("File not found"));
         } else {
             panic!("Expected SlackError with 'File not found'");
+        }
+    }
+
+    #[test]
+    fn test_sanitize_filename() {
+        assert_eq!(sanitize_filename("test.txt"), "test.txt");
+        assert_eq!(sanitize_filename("test/file.txt"), "test_file.txt");
+        assert_eq!(sanitize_filename("test:file.txt"), "test_file.txt");
+        assert_eq!(sanitize_filename("test*file?.txt"), "test_file_.txt");
+        assert_eq!(sanitize_filename(""), "file");
+    }
+
+    #[tokio::test]
+    #[serial(write_guard)]
+    async fn test_file_download_write_allowed() {
+        // Ensure write is NOT allowed
+        std::env::set_var("SLACKCLI_ALLOW_WRITE", "false");
+
+        // file_download should NOT check SLACKCLI_ALLOW_WRITE (read operation)
+        let client = ApiClient::with_token("test_token".to_string());
+        
+        // This would fail with network error (no mock server), but NOT with WriteNotAllowed
+        let result = file_download(
+            &client,
+            Some("F123456".to_string()),
+            None,
+            Some("/tmp/test_download.txt".to_string()),
+        )
+        .await;
+
+        // Clean up env
+        std::env::remove_var("SLACKCLI_ALLOW_WRITE");
+
+        // Should fail with network/API error, not WriteNotAllowed
+        assert!(result.is_err());
+        if let Err(e) = result {
+            // Should NOT be WriteNotAllowed
+            assert!(!matches!(e, ApiError::WriteNotAllowed));
         }
     }
 }
