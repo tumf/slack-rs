@@ -382,6 +382,16 @@ async fn main() {
                 std::process::exit(1);
             }
         }
+        "doctor" => {
+            // Parse --profile and --json flags
+            let profile_name = cli::get_option(&args, "--profile=");
+            let json_output = cli::has_flag(&args, "--json");
+
+            if let Err(e) = commands::doctor(profile_name, json_output) {
+                eprintln!("Doctor command failed: {}", e);
+                std::process::exit(1);
+            }
+        }
         "demo" => {
             println!("Slack CLI - OAuth authentication flow");
             println!();
@@ -505,6 +515,7 @@ fn print_help() {
     println!(
         "    file download [<file_id>]        Download a file from Slack (supports --url, --out)"
     );
+    println!("    doctor [--profile=NAME] [--json] Show diagnostic information");
     println!("    demo                             Run demonstration");
     println!();
     println!("API CALL OPTIONS:");
@@ -578,6 +589,7 @@ fn print_usage() {
     println!(
         "  file download [<file_id>]      - Download a file from Slack (supports --url, --out)"
     );
+    println!("  doctor [options]               - Show diagnostic information (supports --profile, --json)");
     println!("  demo                           - Run demonstration");
     println!("  --help, -h                     - Show help");
     println!("  --version, -v                  - Show version");

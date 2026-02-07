@@ -9,9 +9,11 @@
 //! - react: Reaction operations (add, remove)
 //! - file: File operations (upload using external upload method)
 //! - config: Configuration management (OAuth settings)
+//! - doctor: Diagnostics and environment troubleshooting
 
 pub mod config;
 pub mod conv;
+pub mod doctor;
 pub mod file;
 pub mod guards;
 pub mod msg;
@@ -26,6 +28,7 @@ pub use conv::{
     sort_conversations, ConversationFilter, ConversationItem, ConversationSelector, OutputFormat,
     SortDirection, SortKey, StdinSelector,
 };
+pub use doctor::doctor;
 pub use file::{file_download, file_upload};
 pub use msg::{msg_delete, msg_post, msg_update};
 pub use react::{react_add, react_remove};
