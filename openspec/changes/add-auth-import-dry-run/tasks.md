@@ -1,0 +1,4 @@
+- [ ] `auth import --dry-run` オプションを追加し、永続化処理を実行しない分岐を実装する（確認: 実行前後で `profiles.json` と token store ファイルが不変であるテストが成功）
+- [ ] dry-run 時の出力に予定 action（updated/skipped/overwritten）を含める（確認: テキスト出力の統合テストで予定件数が検証できる）
+- [ ] `--dry-run --json` で機械可読の予定結果を返す（確認: JSON パース可能で profile ごとの予定 action が検証できる）
+- [ ] `auth-export-import` 仕様に dry-run 要件を追加する（確認: `npx @fission-ai/openspec@latest validate add-auth-import-dry-run --strict` が成功）
