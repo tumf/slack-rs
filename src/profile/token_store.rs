@@ -241,7 +241,12 @@ impl FileTokenStore {
     /// Save tokens to file with restricted permissions
     fn save_tokens(&self) -> Result<()> {
         let tokens = self.tokens.lock().unwrap();
-        let content = serde_json::to_string_pretty(&*tokens).map_err(|e| {
+
+        // Convert HashMap to BTreeMap for deterministic key ordering
+        use std::collections::BTreeMap;
+        let sorted_tokens: BTreeMap<_, _> = tokens.iter().collect();
+
+        let content = serde_json::to_string_pretty(&sorted_tokens).map_err(|e| {
             TokenStoreError::StoreFailed(format!("Failed to serialize tokens: {}", e))
         })?;
 
@@ -884,6 +889,92 @@ mod tests {
         assert!(custom_path.exists());
 
         std::env::remove_var("SLACK_RS_TOKENS_PATH");
+    }
+
+    /// Test deterministic serialization with different insertion orders
+    /// Regression test for Issue #24
+    #[test]
+    fn test_deterministic_serialization_different_insertion_orders() {
+        use tempfile::TempDir;
+
+        // Create separate temp directories for each store to avoid state sharing
+        let temp_dir1 = TempDir::new().unwrap();
+        let temp_dir2 = TempDir::new().unwrap();
+
+        // Create first store and insert keys in order: A, B, C
+        let file_path_1 = temp_dir1.path().join("tokens.json");
+        let store1 = FileTokenStore::with_path(file_path_1.clone()).unwrap();
+        store1.set("key_a", "value_a").unwrap();
+        store1.set("key_b", "value_b").unwrap();
+        store1.set("key_c", "value_c").unwrap();
+
+        // Create second store and insert keys in order: C, A, B
+        let file_path_2 = temp_dir2.path().join("tokens.json");
+        let store2 = FileTokenStore::with_path(file_path_2.clone()).unwrap();
+        store2.set("key_c", "value_c").unwrap();
+        store2.set("key_a", "value_a").unwrap();
+        store2.set("key_b", "value_b").unwrap();
+
+        // Read both files and compare content
+        let content1 = fs::read_to_string(&file_path_1).unwrap();
+        let content2 = fs::read_to_string(&file_path_2).unwrap();
+
+        // Content should be identical despite different insertion orders
+        assert_eq!(content1, content2,
+            "Files should have identical content regardless of insertion order.\nFile1:\n{}\nFile2:\n{}",
+            content1, content2);
+
+        // Verify keys are sorted alphabetically in the output
+        let content_lines: Vec<&str> = content1.lines().collect();
+        let key_a_idx = content_lines
+            .iter()
+            .position(|l| l.contains("key_a"))
+            .unwrap();
+        let key_b_idx = content_lines
+            .iter()
+            .position(|l| l.contains("key_b"))
+            .unwrap();
+        let key_c_idx = content_lines
+            .iter()
+            .position(|l| l.contains("key_c"))
+            .unwrap();
+
+        assert!(key_a_idx < key_b_idx, "key_a should appear before key_b");
+        assert!(key_b_idx < key_c_idx, "key_b should appear before key_c");
+    }
+
+    /// Test no diff on consecutive saves with unchanged content
+    /// Regression test for Issue #24
+    #[test]
+    fn test_no_diff_on_consecutive_saves() {
+        use tempfile::TempDir;
+
+        let temp_dir = TempDir::new().unwrap();
+        let file_path = temp_dir.path().join("tokens.json");
+        let store = FileTokenStore::with_path(file_path.clone()).unwrap();
+
+        // First save
+        store.set("key1", "value1").unwrap();
+        store.set("key2", "value2").unwrap();
+        let content_after_first_save = fs::read_to_string(&file_path).unwrap();
+
+        // Second save with no changes (re-save existing data)
+        store.set("key1", "value1").unwrap();
+        let content_after_second_save = fs::read_to_string(&file_path).unwrap();
+
+        // Third save with no changes
+        store.set("key2", "value2").unwrap();
+        let content_after_third_save = fs::read_to_string(&file_path).unwrap();
+
+        // All saves should produce identical content
+        assert_eq!(
+            content_after_first_save, content_after_second_save,
+            "Second save should not change file content"
+        );
+        assert_eq!(
+            content_after_second_save, content_after_third_save,
+            "Third save should not change file content"
+        );
     }
 
     /// Test existing key format compatibility (regression test)
