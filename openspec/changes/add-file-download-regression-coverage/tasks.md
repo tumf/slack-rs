@@ -1,4 +1,0 @@
-- [ ] `file download <file_id>` 経路の回帰テストを追加し、`files.info` に `file=<id>` が正しく送られることを検証する（確認: 失敗時に `invalid_arguments` にならないことをテストで確認）
-- [ ] `file download --url` 経路の回帰テストを追加し、認証ヘッダ付きで直接ダウンロードされることを検証する（確認: モックサーバで `Authorization` ヘッダ受信を検証）
-- [ ] 画像・動画のフィクスチャで両経路を網羅する統合テストを追加する（確認: `cargo test file_download` で対象ケースが成功）
-- [ ] `wrapper-commands` の仕様差分を更新し、入力モード別シナリオを明文化する（確認: `npx @fission-ai/openspec@latest validate add-file-download-regression-coverage --strict` が成功）
