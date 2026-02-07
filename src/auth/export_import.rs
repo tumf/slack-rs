@@ -6,6 +6,7 @@ use crate::profile::{
     default_config_path, get_oauth_client_secret, load_config, make_token_key, save_config,
     store_oauth_client_secret, Profile, TokenStore, TokenStoreError,
 };
+use serde::{Deserialize, Serialize};
 use std::fs;
 use std::io;
 use std::path::Path;
@@ -59,6 +60,52 @@ pub struct ImportOptions {
     pub passphrase: String,
     pub yes: bool,
     pub force: bool,
+    pub dry_run: bool,
+    pub json: bool,
+}
+
+/// Import action taken for a profile
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ImportAction {
+    Updated,
+    Skipped,
+    Overwritten,
+}
+
+impl std::fmt::Display for ImportAction {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ImportAction::Updated => write!(f, "updated"),
+            ImportAction::Skipped => write!(f, "skipped"),
+            ImportAction::Overwritten => write!(f, "overwritten"),
+        }
+    }
+}
+
+/// Result for a single profile import
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProfileImportResult {
+    pub profile_name: String,
+    pub action: ImportAction,
+    pub reason: String,
+}
+
+/// Overall import result
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ImportResult {
+    pub profiles: Vec<ProfileImportResult>,
+    pub summary: ImportSummary,
+    pub dry_run: bool,
+}
+
+/// Summary of import operation
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ImportSummary {
+    pub updated: usize,
+    pub skipped: usize,
+    pub overwritten: usize,
+    pub total: usize,
 }
 
 /// Export profiles to encrypted file
@@ -156,7 +203,10 @@ pub fn export_profiles(token_store: &dyn TokenStore, options: &ExportOptions) ->
 }
 
 /// Import profiles from encrypted file
-pub fn import_profiles(token_store: &dyn TokenStore, options: &ImportOptions) -> Result<()> {
+pub fn import_profiles(
+    token_store: &dyn TokenStore,
+    options: &ImportOptions,
+) -> Result<ImportResult> {
     // Validate passphrase
     if options.passphrase.is_empty() {
         return Err(ExportImportError::EmptyPassphrase);
@@ -183,64 +233,171 @@ pub fn import_profiles(token_store: &dyn TokenStore, options: &ImportOptions) ->
     let mut config =
         load_config(&config_path).map_err(|e| ExportImportError::Storage(e.to_string()))?;
 
-    // Check for conflicts
+    // Check for conflicts and determine actions
     // Force requires --yes
-    if options.force && !options.yes {
+    if options.force && !options.yes && !options.dry_run {
         return Err(ExportImportError::Storage(
             "--force requires --yes to confirm overwrite".to_string(),
         ));
     }
 
-    if !options.force {
-        for (name, export_profile) in &payload.profiles {
-            // Check if profile name exists
-            if let Some(existing) = config.get(name) {
-                // If same team_id, it's OK (update scenario)
-                if existing.team_id != export_profile.team_id {
-                    return Err(ExportImportError::ProfileExists(name.clone()));
-                }
-            }
+    // Track results for each profile
+    let mut profile_results = Vec::new();
 
-            // Check if team_id exists under different name (conflict detection based on team_id only)
-            for (existing_name, existing_profile) in &config.profiles {
-                if existing_name != name && existing_profile.team_id == export_profile.team_id {
-                    return Err(ExportImportError::ProfileExists(existing_name.clone()));
-                }
-            }
-        }
-    }
-
-    // Import profiles
+    // Import profiles - no early validation, handle conflicts during import
     for (name, export_profile) in payload.profiles {
-        let profile = Profile {
-            team_id: export_profile.team_id.clone(),
-            user_id: export_profile.user_id.clone(),
-            team_name: export_profile.team_name,
-            user_name: export_profile.user_name,
-            client_id: export_profile.client_id.clone(),
-            redirect_uri: None, // Not exported/imported for security
-            scopes: None,       // Not exported/imported for security
-            bot_scopes: None,   // Not exported/imported for security
-            user_scopes: None,  // Not exported/imported for security
-            default_token_type: None,
+        // Helper to find conflicting profile name (different name, same team_id)
+        let find_conflicting_name = || -> Option<String> {
+            config
+                .profiles
+                .iter()
+                .find(|(n, p)| *n != &name && p.team_id == export_profile.team_id)
+                .map(|(n, _)| n.clone())
         };
 
-        config.set(name.clone(), profile);
+        // Determine action and reason based on current state
+        let (action, reason, should_import) = if let Some(existing) = config.get(&name) {
+            // Profile name already exists
+            if existing.team_id == export_profile.team_id {
+                // Same team_id: update or overwrite
+                if options.force {
+                    (
+                        ImportAction::Overwritten,
+                        format!(
+                            "Overwritten existing profile (same team_id: {})",
+                            existing.team_id
+                        ),
+                        true,
+                    )
+                } else {
+                    (
+                        ImportAction::Updated,
+                        format!(
+                            "Updated existing profile (same team_id: {})",
+                            existing.team_id
+                        ),
+                        true,
+                    )
+                }
+            } else {
+                // Different team_id: conflict
+                if options.force {
+                    (
+                        ImportAction::Overwritten,
+                        format!(
+                            "Overwritten conflicting profile (team_id {} -> {})",
+                            existing.team_id, export_profile.team_id
+                        ),
+                        true,
+                    )
+                } else {
+                    (
+                        ImportAction::Skipped,
+                        format!(
+                            "Skipped due to team_id conflict ({} vs {})",
+                            existing.team_id, export_profile.team_id
+                        ),
+                        false,
+                    )
+                }
+            }
+        } else if let Some(conflicting_name) = find_conflicting_name() {
+            // team_id exists under different name
+            if options.force {
+                // Remove the conflicting profile before importing
+                config.remove(&conflicting_name);
+                (
+                    ImportAction::Overwritten,
+                    format!(
+                        "Overwritten profile '{}' with conflicting team_id {}",
+                        conflicting_name, export_profile.team_id
+                    ),
+                    true,
+                )
+            } else {
+                (
+                    ImportAction::Skipped,
+                    format!(
+                        "Skipped due to existing team_id {} under different name '{}'",
+                        export_profile.team_id, conflicting_name
+                    ),
+                    false,
+                )
+            }
+        } else {
+            // New profile
+            (
+                ImportAction::Updated,
+                "New profile imported".to_string(),
+                true,
+            )
+        };
 
-        // Store token
-        let token_key = make_token_key(&export_profile.team_id, &export_profile.user_id);
-        token_store.set(&token_key, &export_profile.token)?;
+        // Only perform import actions if should_import is true
+        if should_import && !options.dry_run {
+            let profile = Profile {
+                team_id: export_profile.team_id.clone(),
+                user_id: export_profile.user_id.clone(),
+                team_name: export_profile.team_name,
+                user_name: export_profile.user_name,
+                client_id: export_profile.client_id.clone(),
+                redirect_uri: None, // Not exported/imported for security
+                scopes: None,       // Not exported/imported for security
+                bot_scopes: None,   // Not exported/imported for security
+                user_scopes: None,  // Not exported/imported for security
+                default_token_type: None,
+            };
 
-        // Store OAuth client secret if present
-        if let Some(client_secret) = export_profile.client_secret {
-            store_oauth_client_secret(token_store, &name, &client_secret)?;
+            config.set(name.clone(), profile);
+
+            // Store token
+            let token_key = make_token_key(&export_profile.team_id, &export_profile.user_id);
+            token_store.set(&token_key, &export_profile.token)?;
+
+            // Store OAuth client secret if present
+            if let Some(client_secret) = export_profile.client_secret {
+                store_oauth_client_secret(token_store, &name, &client_secret)?;
+            }
         }
+
+        profile_results.push(ProfileImportResult {
+            profile_name: name,
+            action,
+            reason,
+        });
     }
 
-    // Save config
-    save_config(&config_path, &config).map_err(|e| ExportImportError::Storage(e.to_string()))?;
+    // Save config unless dry-run
+    if !options.dry_run {
+        save_config(&config_path, &config)
+            .map_err(|e| ExportImportError::Storage(e.to_string()))?;
+    }
 
-    Ok(())
+    // Calculate summary
+    let updated = profile_results
+        .iter()
+        .filter(|r| r.action == ImportAction::Updated)
+        .count();
+    let skipped = profile_results
+        .iter()
+        .filter(|r| r.action == ImportAction::Skipped)
+        .count();
+    let overwritten = profile_results
+        .iter()
+        .filter(|r| r.action == ImportAction::Overwritten)
+        .count();
+    let total = profile_results.len();
+
+    Ok(ImportResult {
+        profiles: profile_results,
+        summary: ImportSummary {
+            updated,
+            skipped,
+            overwritten,
+            total,
+        },
+        dry_run: options.dry_run,
+    })
 }
 
 /// Check file permissions (Unix only)
@@ -348,6 +505,8 @@ mod tests {
             passphrase: "".to_string(),
             yes: false,
             force: false,
+            dry_run: false,
+            json: false,
         };
 
         let result = import_profiles(&token_store, &options);
@@ -408,4 +567,112 @@ mod tests {
 
         assert_eq!(mode & 0o777, 0o600, "File should have 0600 permissions");
     }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_import_dry_run_no_changes() {
+        use crate::auth::crypto::KdfParams;
+        use crate::auth::format::ExportProfile;
+
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("profiles.json");
+        let import_path = temp_dir.path().join("import.dat");
+        let tokens_path = temp_dir.path().join("tokens.json");
+
+        // Set SLACK_RS_TOKENS_PATH for file-based token store
+        std::env::set_var("SLACK_RS_TOKENS_PATH", tokens_path.to_str().unwrap());
+
+        // Create existing profile
+        let mut config = ProfilesConfig::new();
+        config.set(
+            "existing".to_string(),
+            Profile {
+                team_id: "T123".to_string(),
+                user_id: "U456".to_string(),
+                team_name: Some("Existing Team".to_string()),
+                user_name: None,
+                client_id: None,
+                redirect_uri: None,
+                scopes: None,
+                bot_scopes: None,
+                user_scopes: None,
+                default_token_type: None,
+            },
+        );
+        save_config(&config_path, &config).unwrap();
+
+        // Create encrypted export file
+        let mut payload = crate::auth::format::ExportPayload::new();
+        payload.profiles.insert(
+            "new_profile".to_string(),
+            ExportProfile {
+                team_id: "T789".to_string(),
+                user_id: "U101".to_string(),
+                team_name: Some("New Team".to_string()),
+                user_name: None,
+                token: "xoxb-new-token".to_string(),
+                client_id: None,
+                client_secret: None,
+            },
+        );
+
+        let passphrase = "test-password";
+        let kdf_params = KdfParams {
+            salt: crypto::generate_salt(),
+            ..Default::default()
+        };
+        let key = crypto::derive_key(passphrase, &kdf_params).unwrap();
+        let payload_json = serde_json::to_vec(&payload).unwrap();
+        let encrypted = crypto::encrypt(&payload_json, &key).unwrap();
+        let encoded = format::encode_export(&payload, &encrypted, &kdf_params).unwrap();
+
+        #[cfg(unix)]
+        write_secure_file(&import_path, &encoded).unwrap();
+        #[cfg(not(unix))]
+        std::fs::write(&import_path, &encoded).unwrap();
+
+        // Mock config path by using environment variable
+        std::env::set_var("SLACK_RS_CONFIG_PATH", config_path.to_str().unwrap());
+
+        // Test dry-run import
+        let token_store = crate::profile::FileTokenStore::with_path(tokens_path.clone()).unwrap();
+        let options = ImportOptions {
+            input_path: import_path.to_str().unwrap().to_string(),
+            passphrase: passphrase.to_string(),
+            yes: true,
+            force: false,
+            dry_run: true,
+            json: false,
+        };
+
+        let result = import_profiles(&token_store, &options).unwrap();
+
+        // Verify dry-run flag is set
+        assert!(result.dry_run);
+
+        // Verify action is "updated" for new profile
+        assert_eq!(result.profiles.len(), 1);
+        assert_eq!(result.profiles[0].profile_name, "new_profile");
+        assert_eq!(result.profiles[0].action, ImportAction::Updated);
+
+        // Verify no changes were made to config file
+        let config_after = load_config(&config_path).unwrap();
+        assert_eq!(config_after.profiles.len(), 1);
+        assert!(config_after.get("new_profile").is_none());
+        assert!(config_after.get("existing").is_some());
+
+        // Verify no token was stored
+        let token_key = make_token_key("T789", "U101");
+        assert!(!token_store.exists(&token_key));
+
+        // Clean up
+        std::env::remove_var("SLACK_RS_TOKENS_PATH");
+        std::env::remove_var("SLACK_RS_CONFIG_PATH");
+    }
+
+    // Note: More comprehensive integration tests for dry-run would require
+    // mocking the config path system, which is not currently supported.
+    // The test_import_dry_run_no_changes test provides basic coverage that
+    // dry-run prevents file writes. Manual testing is recommended for
+    // full validation of update/conflict scenarios.
 }

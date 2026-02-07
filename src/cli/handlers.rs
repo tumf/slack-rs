@@ -590,6 +590,8 @@ pub async fn handle_import_command(args: &[String]) {
     // Parse import-specific arguments
     let mut input_path: Option<String> = None;
     let mut force = false;
+    let mut dry_run = false;
+    let mut json = false;
 
     for (idx, arg) in remaining {
         match arg.as_str() {
@@ -601,6 +603,12 @@ pub async fn handle_import_command(args: &[String]) {
             }
             "--force" => {
                 force = true;
+            }
+            "--dry-run" => {
+                dry_run = true;
+            }
+            "--json" => {
+                json = true;
             }
             _ => {
                 // Check if this is a value for a previous flag
@@ -643,12 +651,52 @@ pub async fn handle_import_command(args: &[String]) {
         passphrase,
         yes: common_args.yes,
         force,
+        dry_run,
+        json,
     };
 
     let token_store = create_token_store().expect("Failed to create token store");
     match auth::import_profiles(&*token_store, &options) {
-        Ok(_) => {
-            println!("{}", messages.get("success.import"));
+        Ok(result) => {
+            if json {
+                // Output JSON format
+                match serde_json::to_string_pretty(&result) {
+                    Ok(json_output) => {
+                        println!("{}", json_output);
+                    }
+                    Err(e) => {
+                        eprintln!("Failed to serialize result to JSON: {}", e);
+                        std::process::exit(1);
+                    }
+                }
+            } else {
+                // Output text format
+                if result.dry_run {
+                    println!("Dry-run mode: no changes were written.");
+                    println!();
+                }
+
+                println!("Import Summary:");
+                println!("  Total: {}", result.summary.total);
+                println!("  Updated: {}", result.summary.updated);
+                println!("  Skipped: {}", result.summary.skipped);
+                println!("  Overwritten: {}", result.summary.overwritten);
+                println!();
+                println!("Profile Details:");
+                for profile_result in &result.profiles {
+                    println!(
+                        "  {} - {} ({})",
+                        profile_result.profile_name, profile_result.action, profile_result.reason
+                    );
+                }
+                println!();
+
+                if result.dry_run {
+                    println!("Dry-run complete. Re-run without --dry-run to apply changes.");
+                } else {
+                    println!("{}", messages.get("success.import"));
+                }
+            }
         }
         Err(e) => {
             eprintln!("Import failed: {}", e);
