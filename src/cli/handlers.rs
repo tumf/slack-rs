@@ -590,6 +590,7 @@ pub async fn handle_import_command(args: &[String]) {
     // Parse import-specific arguments
     let mut input_path: Option<String> = None;
     let mut force = false;
+    let mut dry_run = false;
     let mut json = false;
 
     for (idx, arg) in remaining {
@@ -602,6 +603,9 @@ pub async fn handle_import_command(args: &[String]) {
             }
             "--force" => {
                 force = true;
+            }
+            "--dry-run" => {
+                dry_run = true;
             }
             "--json" => {
                 json = true;
@@ -647,6 +651,7 @@ pub async fn handle_import_command(args: &[String]) {
         passphrase,
         yes: common_args.yes,
         force,
+        dry_run,
         json,
     };
 
@@ -666,6 +671,11 @@ pub async fn handle_import_command(args: &[String]) {
                 }
             } else {
                 // Output text format
+                if result.dry_run {
+                    println!("Dry-run mode: no changes were written.");
+                    println!();
+                }
+
                 println!("Import Summary:");
                 println!("  Total: {}", result.summary.total);
                 println!("  Updated: {}", result.summary.updated);
@@ -680,7 +690,12 @@ pub async fn handle_import_command(args: &[String]) {
                     );
                 }
                 println!();
-                println!("{}", messages.get("success.import"));
+
+                if result.dry_run {
+                    println!("Dry-run complete. Re-run without --dry-run to apply changes.");
+                } else {
+                    println!("{}", messages.get("success.import"));
+                }
             }
         }
         Err(e) => {

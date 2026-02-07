@@ -60,6 +60,7 @@ pub struct ImportOptions {
     pub passphrase: String,
     pub yes: bool,
     pub force: bool,
+    pub dry_run: bool,
     pub json: bool,
 }
 
@@ -95,6 +96,7 @@ pub struct ProfileImportResult {
 pub struct ImportResult {
     pub profiles: Vec<ProfileImportResult>,
     pub summary: ImportSummary,
+    pub dry_run: bool,
 }
 
 /// Summary of import operation
@@ -231,9 +233,9 @@ pub fn import_profiles(
     let mut config =
         load_config(&config_path).map_err(|e| ExportImportError::Storage(e.to_string()))?;
 
-    // Check for conflicts
+    // Check for conflicts and determine actions
     // Force requires --yes
-    if options.force && !options.yes {
+    if options.force && !options.yes && !options.dry_run {
         return Err(ExportImportError::Storage(
             "--force requires --yes to confirm overwrite".to_string(),
         ));
@@ -332,7 +334,7 @@ pub fn import_profiles(
         };
 
         // Only perform import actions if should_import is true
-        if should_import {
+        if should_import && !options.dry_run {
             let profile = Profile {
                 team_id: export_profile.team_id.clone(),
                 user_id: export_profile.user_id.clone(),
@@ -365,8 +367,11 @@ pub fn import_profiles(
         });
     }
 
-    // Save config
-    save_config(&config_path, &config).map_err(|e| ExportImportError::Storage(e.to_string()))?;
+    // Save config unless dry-run
+    if !options.dry_run {
+        save_config(&config_path, &config)
+            .map_err(|e| ExportImportError::Storage(e.to_string()))?;
+    }
 
     // Calculate summary
     let updated = profile_results
@@ -391,6 +396,7 @@ pub fn import_profiles(
             overwritten,
             total,
         },
+        dry_run: options.dry_run,
     })
 }
 
@@ -499,6 +505,7 @@ mod tests {
             passphrase: "".to_string(),
             yes: false,
             force: false,
+            dry_run: false,
             json: false,
         };
 
@@ -560,4 +567,112 @@ mod tests {
 
         assert_eq!(mode & 0o777, 0o600, "File should have 0600 permissions");
     }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_import_dry_run_no_changes() {
+        use crate::auth::crypto::KdfParams;
+        use crate::auth::format::ExportProfile;
+
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("profiles.json");
+        let import_path = temp_dir.path().join("import.dat");
+        let tokens_path = temp_dir.path().join("tokens.json");
+
+        // Set SLACK_RS_TOKENS_PATH for file-based token store
+        std::env::set_var("SLACK_RS_TOKENS_PATH", tokens_path.to_str().unwrap());
+
+        // Create existing profile
+        let mut config = ProfilesConfig::new();
+        config.set(
+            "existing".to_string(),
+            Profile {
+                team_id: "T123".to_string(),
+                user_id: "U456".to_string(),
+                team_name: Some("Existing Team".to_string()),
+                user_name: None,
+                client_id: None,
+                redirect_uri: None,
+                scopes: None,
+                bot_scopes: None,
+                user_scopes: None,
+                default_token_type: None,
+            },
+        );
+        save_config(&config_path, &config).unwrap();
+
+        // Create encrypted export file
+        let mut payload = crate::auth::format::ExportPayload::new();
+        payload.profiles.insert(
+            "new_profile".to_string(),
+            ExportProfile {
+                team_id: "T789".to_string(),
+                user_id: "U101".to_string(),
+                team_name: Some("New Team".to_string()),
+                user_name: None,
+                token: "xoxb-new-token".to_string(),
+                client_id: None,
+                client_secret: None,
+            },
+        );
+
+        let passphrase = "test-password";
+        let kdf_params = KdfParams {
+            salt: crypto::generate_salt(),
+            ..Default::default()
+        };
+        let key = crypto::derive_key(passphrase, &kdf_params).unwrap();
+        let payload_json = serde_json::to_vec(&payload).unwrap();
+        let encrypted = crypto::encrypt(&payload_json, &key).unwrap();
+        let encoded = format::encode_export(&payload, &encrypted, &kdf_params).unwrap();
+
+        #[cfg(unix)]
+        write_secure_file(&import_path, &encoded).unwrap();
+        #[cfg(not(unix))]
+        std::fs::write(&import_path, &encoded).unwrap();
+
+        // Mock config path by using environment variable
+        std::env::set_var("SLACK_RS_CONFIG_PATH", config_path.to_str().unwrap());
+
+        // Test dry-run import
+        let token_store = crate::profile::FileTokenStore::with_path(tokens_path.clone()).unwrap();
+        let options = ImportOptions {
+            input_path: import_path.to_str().unwrap().to_string(),
+            passphrase: passphrase.to_string(),
+            yes: true,
+            force: false,
+            dry_run: true,
+            json: false,
+        };
+
+        let result = import_profiles(&token_store, &options).unwrap();
+
+        // Verify dry-run flag is set
+        assert!(result.dry_run);
+
+        // Verify action is "updated" for new profile
+        assert_eq!(result.profiles.len(), 1);
+        assert_eq!(result.profiles[0].profile_name, "new_profile");
+        assert_eq!(result.profiles[0].action, ImportAction::Updated);
+
+        // Verify no changes were made to config file
+        let config_after = load_config(&config_path).unwrap();
+        assert_eq!(config_after.profiles.len(), 1);
+        assert!(config_after.get("new_profile").is_none());
+        assert!(config_after.get("existing").is_some());
+
+        // Verify no token was stored
+        let token_key = make_token_key("T789", "U101");
+        assert!(!token_store.exists(&token_key));
+
+        // Clean up
+        std::env::remove_var("SLACK_RS_TOKENS_PATH");
+        std::env::remove_var("SLACK_RS_CONFIG_PATH");
+    }
+
+    // Note: More comprehensive integration tests for dry-run would require
+    // mocking the config path system, which is not currently supported.
+    // The test_import_dry_run_no_changes test provides basic coverage that
+    // dry-run prevents file writes. Manual testing is recommended for
+    // full validation of update/conflict scenarios.
 }

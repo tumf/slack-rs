@@ -108,6 +108,7 @@ fn test_import_rejects_empty_passphrase() {
         passphrase: "".to_string(),
         yes: false,
         force: false,
+        dry_run: false,
         json: false,
     };
 
@@ -271,6 +272,7 @@ fn test_import_result_tracking_new_profile() {
         passphrase: passphrase.to_string(),
         yes: true,
         force: false,
+        dry_run: false,
         json: false,
     };
 
@@ -308,6 +310,7 @@ fn test_import_result_json_serialization() {
             overwritten: 1,
             total: 3,
         },
+        dry_run: false,
     };
 
     // Test JSON serialization
@@ -433,6 +436,7 @@ fn test_import_team_id_conflict_without_force_disabled() {
         passphrase: passphrase.to_string(),
         yes: true,
         force: false,
+        dry_run: false,
         json: false,
     };
 
@@ -540,6 +544,7 @@ fn test_import_team_id_conflict_with_force() {
         passphrase: passphrase.to_string(),
         yes: true,
         force: true,
+        dry_run: false,
         json: false,
     };
 
@@ -647,6 +652,7 @@ fn test_import_same_name_different_team_id_without_force() {
         passphrase: passphrase.to_string(),
         yes: true,
         force: false,
+        dry_run: false,
         json: false,
     };
 
@@ -753,6 +759,7 @@ fn test_import_same_name_different_team_id_with_force() {
         passphrase: passphrase.to_string(),
         yes: true,
         force: true,
+        dry_run: false,
         json: false,
     };
 
