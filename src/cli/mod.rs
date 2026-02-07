@@ -494,7 +494,7 @@ pub async fn run_conv_list(args: &[String]) -> Result<(), String> {
     let token_store_backend = if std::env::var("SLACK_TOKEN").is_ok() {
         "environment"
     } else {
-        "keyring/file"
+        "file"
     };
 
     // Resolve actual token type for debug output
@@ -774,7 +774,7 @@ pub async fn run_conv_history(args: &[String]) -> Result<(), String> {
     let token_store_backend = if std::env::var("SLACK_TOKEN").is_ok() {
         "environment"
     } else {
-        "keyring/file"
+        "file"
     };
 
     // Resolve actual token type for debug output
@@ -856,7 +856,7 @@ pub async fn run_users_info(args: &[String]) -> Result<(), String> {
     let token_store_backend = if std::env::var("SLACK_TOKEN").is_ok() {
         "environment"
     } else {
-        "keyring/file"
+        "file"
     };
 
     // Resolve actual token type for debug output

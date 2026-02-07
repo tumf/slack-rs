@@ -93,7 +93,7 @@ This document defines the exact schema and storage mechanisms for profiles and t
 - `tokens.json` included in `.gitignore` to prevent accidental commits
 - No encryption applied - security relies on filesystem permissions
 - Tokens stored in plaintext within the file
-- Consider using system keyring for enhanced security in future versions
+- Consider using system file storage for enhanced security in future versions
 
 ## Profile Resolution Flow
 

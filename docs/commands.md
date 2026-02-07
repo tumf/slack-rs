@@ -39,7 +39,7 @@ slack-rs auth login --profile <name>
 2. Start OAuth flow (PKCE + localhost callback)
 3. Open browser for user authorization
 4. Exchange code for token
-5. Store token in keyring
+5. Store token in file storage
 6. Save profile metadata to `profiles.json`
 
 **Output (JSON):**
@@ -127,7 +127,7 @@ slack-rs auth rename --profile <old> --to <new>
 
 **Behavior:**
 - Updates `profile_name` in `profiles.json`
-- Does not affect keyring entry (keyed by `team_id:user_id`)
+- Does not affect file storage entry (keyed by `team_id:user_id`)
 
 ---
 
@@ -140,7 +140,7 @@ slack-rs auth logout --profile <name>
 ```
 
 **Behavior:**
-1. Delete token from keyring
+1. Delete token from file storage
 2. Remove profile from `profiles.json`
 
 ---

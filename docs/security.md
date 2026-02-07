@@ -7,7 +7,7 @@ This document defines security measures to prevent accidental data exposure and 
 
 ### Storage
 - **NEVER** store tokens in plaintext files
-- **ALWAYS** use OS keyring (macOS Keychain, Windows Credential Manager, Linux Secret Service)
+- **ALWAYS** use OS file storage (macOS file storage, Windows Credential Manager, Linux Secret Service)
 - Config file (`profiles.json`) must contain only non-secret metadata
 
 ### Logging

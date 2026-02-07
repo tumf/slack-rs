@@ -18,7 +18,7 @@ This tool is designed following the [Agentic CLI Design](https://dev.to/tumf/age
 
 - 🔐 **OAuth Authentication** with PKCE flow
 - 🏢 **Multiple Workspace Support** via profiles
-- 🔒 **Secure Token Storage** using OS keyring (Keychain/Secret Service)
+- 🔒 **Secure Token Storage** using file-based storage
 - 🔄 **Profile Import/Export** with encryption
 - 📡 **Generic API Access** - call any Slack Web API method
 - 🛠️ **Wrapper Commands** for common operations
@@ -207,7 +207,7 @@ slack-rs auth login my-workspace
 
 **What happens during login:**
 
-1. **Credentials collected**: Client ID and secret are obtained (from saved profile/keyring, CLI args, or prompts)
+1. **Credentials collected**: Client ID and secret are obtained (from saved profile/file storage, CLI args, or prompts)
 
 When using `--cloudflared`:
 2. **Tunnel started**: `cloudflared` tunnel is started and a public redirect URL is determined
@@ -222,7 +222,7 @@ OAuth flow:
 9. **Token exchange**: Code is exchanged for access token
 10. **Secure storage**: Profile and token are saved securely
    - Profile metadata → `~/.config/slack-rs/profiles.json`
-   - Access token → OS Keyring (Keychain/Secret Service/Credential Manager)
+   - Access token → file storage (file storage/Credential Manager)
 
 **After successful authentication:**
 
@@ -234,7 +234,7 @@ Profile 'my-workspace' saved.
 **Per-Profile OAuth Settings:**
 - ✅ Each profile can store its own OAuth client ID, redirect URI, and scopes
 - 💾 OAuth config saved in `~/.config/slack-rs/profiles.json`
-- 🔒 Client secret saved securely in OS keyring (prompted only if missing)
+- 🔒 Client secret saved securely in file storage (prompted only if missing)
 - 🔄 Subsequent logins reuse saved configuration automatically
 
 #### Using Tunneling Services for Remote Authentication
@@ -422,7 +422,7 @@ slack-rs auth logout <profile-name>
 # Example:
 slack-rs auth logout old-workspace
 # ✓ Profile 'old-workspace' removed
-# ✓ Credentials deleted from keyring
+# ✓ Credentials deleted from file storage
 ```
 
 #### Export
@@ -443,7 +443,6 @@ slack-rs auth export --profile prod --out prod-backup.enc --passphrase-prompt
 slack-rs auth export --all --out all-profiles-$(date +%Y%m%d).enc --passphrase-prompt
 
 # With environment variable (for automation)
-export SLACKRS_KEYRING_PASSWORD="strong-passphrase"
 slack-rs auth export --profile prod --out backup.enc --yes
 ```
 
@@ -452,7 +451,6 @@ slack-rs auth export --profile prod --out backup.enc --yes
 - `--all`: Export all profiles
 - `--out <file>`: Output file path
 - `--passphrase-prompt`: Prompt for passphrase securely (recommended)
-- `--yes`: Skip confirmation (use with `SLACKRS_KEYRING_PASSWORD` env var)
 
 #### Import
 
@@ -470,7 +468,6 @@ slack-rs auth import --profile prod --in backup.enc --passphrase-prompt
 slack-rs auth import --all --in all-profiles.enc --passphrase-prompt
 
 # With environment variable
-export SLACKRS_KEYRING_PASSWORD="strong-passphrase"
 slack-rs auth import --all --in backup.enc
 ```
 
@@ -517,7 +514,7 @@ slack-rs config oauth show <profile>
 #   Client ID: 123456789012.1234567890123
 #   Redirect URI: http://127.0.0.1:8765/callback
 #   Scopes: chat:write, users:read, channels:read
-#   Client secret: (saved in keyring)
+#   Client secret: (saved in file storage)
 ```
 
 **Delete OAuth configuration:**
@@ -546,9 +543,9 @@ Each profile can store its own OAuth configuration, enabling flexible multi-work
 
 | Step | Action | Storage Location |
 |------|--------|------------------|
-| 1️⃣ | Set OAuth config via `config oauth set` | `~/.config/slack-rs/profiles.json` + OS Keyring |
+| 1️⃣ | Set OAuth config via `config oauth set` | `~/.config/slack-rs/profiles.json` + file storage |
 | 2️⃣ | Authenticate via `auth login` | Browser OAuth flow |
-| 3️⃣ | Access token saved securely | OS Keyring |
+| 3️⃣ | Access token saved securely | file storage |
 | 4️⃣ | On re-login, saved config is reused | Auto-loaded from profile |
 
 **Examples:**
@@ -579,8 +576,8 @@ slack-rs config oauth show dev-workspace
 
 **Security Notes:**
 - **Client IDs**: Saved in profile JSON (not sensitive per OAuth 2.0 spec)
-- **Client Secrets**: Saved securely in OS keyring (Keychain/Secret Service/Credential Manager)
-- **Access Tokens**: Always saved securely in OS keyring
+- **Client Secrets**: Saved securely in file storage (file storage/Credential Manager)
+- **Access Tokens**: Always saved securely in file storage
 - **Configuration Files**: Profile metadata stored in `~/.config/slack-rs/profiles.json` with 0600 permissions
 
 ### API Calls
@@ -696,7 +693,6 @@ Only the following environment variables are supported by the current implementa
 | Variable | Description | Default | Use Case |
 |----------|-------------|---------|----------|
 | `SLACKCLI_ALLOW_WRITE` | Control write operations (post/update/delete messages). Values: `true`, `1`, `yes` (allow) or `false`, `0`, `no` (deny) | `true` | Safety in production environments |
-| `SLACKRS_KEYRING_PASSWORD` | Passphrase for encrypting/decrypting export files. Use strong passphrase (16+ chars). Alternative to `--passphrase-prompt` flag. | - | Automated backup/restore scripts |
 | `SLACK_OAUTH_BASE_URL` | Custom OAuth base URL for testing or private Slack installations. Example: `https://custom-slack.example.com` | `https://slack.com` | Testing, enterprise Slack instances |
 
 **Setting environment variables:**
@@ -706,7 +702,6 @@ Only the following environment variables are supported by the current implementa
 export SLACKCLI_ALLOW_WRITE=false
 
 # Example: Non-interactive export/import passphrase
-export SLACKRS_KEYRING_PASSWORD="your-secure-passphrase"
 
 # Example: Use custom OAuth base URL (testing)
 export SLACK_OAUTH_BASE_URL="https://slack.com"
@@ -715,11 +710,11 @@ export SLACK_OAUTH_BASE_URL="https://slack.com"
 ### Profile Storage
 
 - **Profile metadata**: `~/.config/slack-rs/profiles.json` (Linux/macOS) or `%APPDATA%\slack-rs\profiles.json` (Windows)
-- **Sensitive credentials**: OS keyring (Keychain on macOS, Secret Service on Linux, Credential Manager on Windows)
+- **Sensitive credentials**: file storage (~/.config/slack-rs/tokens.json with 0600 permissions)
 
 Each profile stores:
 - **In JSON file**: `team_id`, `user_id`, `team_name`, `user_name`, `client_id`, `redirect_uri`, `scopes`
-- **In OS keyring**: Access token and client secret (when saved via `config oauth set` or export/import)
+- **In file storage**: Access token and client secret (when saved via `config oauth set` or export/import)
 
 ### Write Operation Protection
 
@@ -750,15 +745,14 @@ slack-rs msg post C123456 "Hello"  # Now succeeds
 
 **Access Tokens:**
 All access tokens are stored securely in your operating system's credential manager:
-- **macOS**: Keychain
-- **Linux**: Secret Service (GNOME Keyring, KWallet)
+- **Token storage**: ~/.config/slack-rs/tokens.json
 - **Windows**: Credential Manager
 
 Tokens are never stored in plain text files or logged to the console.
 
 **Client Keys:**
 - **Client IDs**: Stored in profile metadata file (`~/.config/slack-rs/profiles.json`). These are not considered sensitive as they're part of OAuth public flow.
-- **Client Secrets**: Stored securely in OS keyring when provided (via `config oauth set` or during `auth login`). If not present in keyring, the CLI prompts for it.
+- **Client Secrets**: Stored securely in file storage when provided (via `config oauth set` or during `auth login`). If not present in file storage, the CLI prompts for it.
 
 ### Profile Export/Import
 
@@ -780,7 +774,6 @@ When you export a profile, the following data is included in the encrypted file:
 slack-rs auth export --profile my-workspace --out backup.enc --passphrase-prompt
 
 # With environment variable
-export SLACKRS_KEYRING_PASSWORD="your-secure-passphrase"
 slack-rs auth export --profile my-workspace --out backup.enc --yes
 ```
 
@@ -791,7 +784,6 @@ slack-rs auth export --profile my-workspace --out backup.enc --yes
 slack-rs auth export --all --out all-profiles.enc --passphrase-prompt
 
 # Without confirmation prompt
-export SLACKRS_KEYRING_PASSWORD="your-secure-passphrase"
 slack-rs auth export --all --out all-profiles.enc --yes
 ```
 
@@ -810,7 +802,6 @@ slack-rs auth import --all --in all-profiles.enc --passphrase-prompt
 **Using environment variable for automation:**
 
 ```bash
-export SLACKRS_KEYRING_PASSWORD="your-secure-passphrase"
 slack-rs auth import --profile my-workspace --in backup.enc
 slack-rs auth import --all --in all-profiles.enc
 ```
@@ -820,7 +811,6 @@ slack-rs auth import --all --in all-profiles.enc
 - **Encryption**: AES-256-GCM (industry-standard authenticated encryption)
 - **Key Derivation**: Argon2id with random salt (memory-hard, resistant to GPU attacks)
 - **File Permissions**: Automatically set to `0600` (owner read/write only)
-- **Passphrase**: Must be provided via `SLACKRS_KEYRING_PASSWORD` environment variable or `--passphrase-prompt`
 
 #### Use Cases
 
@@ -910,7 +900,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 - Built with [Rust](https://www.rust-lang.org/)
 - Uses [reqwest](https://github.com/seanmonstar/reqwest) for HTTP
-- Secure storage with [keyring](https://github.com/hwchen/keyring-rs)
+- Secure storage with file-based token storage
 - OAuth implementation inspired by [oauth2-rs](https://github.com/ramosbugs/oauth2-rs)
 
 ## Support
