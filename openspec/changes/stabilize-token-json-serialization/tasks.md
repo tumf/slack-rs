@@ -1,4 +1,4 @@
-- [ ] `tokens.json` 保存時にキー順序が決定的になるようシリアライズ経路を更新する（確認: 異なる挿入順でも保存結果のキー順が一致するテストが成功）
-- [ ] 内容不変時に再保存しても不要な差分が発生しないことを回帰テストで固定する（確認: 連続保存前後のファイル内容比較テストが成功）
-- [ ] 既存の set/get/delete 挙動が変わらないことを回帰テストで確認する（確認: `cargo test token_store` 系テストが成功）
-- [ ] `file-token-storage` 仕様へ決定的シリアライズ要件を追加する（確認: `npx @fission-ai/openspec@latest validate stabilize-token-json-serialization --strict` が成功）
+- [x] `tokens.json` 保存時にキー順序が決定的になるようシリアライズ経路を更新する（確認: 異なる挿入順でも保存結果のキー順が一致するテストが成功）
+- [x] 内容不変時に再保存しても不要な差分が発生しないことを回帰テストで固定する（確認: 連続保存前後のファイル内容比較テストが成功）
+- [x] 既存の set/get/delete 挙動が変わらないことを回帰テストで確認する（確認: `cargo test token_store` 系テストが成功）
+- [x] `file-token-storage` 仕様へ決定的シリアライズ要件を追加する（確認: `npx @fission-ai/openspec@latest validate stabilize-token-json-serialization --strict` が成功）

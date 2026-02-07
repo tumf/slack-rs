@@ -130,6 +130,26 @@ After migration, read and write operations MUST be performed on the new path. (M
 - **THEN** the same content is created in the new path during `FileTokenStore` initialization
 - **AND** subsequent `get/set/delete` operations work on the new path
 
+### Requirement: Deterministic JSON serialization
+
+JSON output MUST be deterministic such that identical token content always produces identical file bytes. (MUST)
+
+Keys in the JSON object MUST be sorted alphabetically to ensure deterministic ordering. (MUST)
+
+When the same tokens are saved in different insertion orders, the resulting file content MUST be identical. (MUST)
+
+When a token is re-saved with unchanged content, the file content MUST remain unchanged. (MUST)
+
+#### Scenario: Different insertion orders produce identical output
+- **WHEN** tokens with keys "key_a", "key_b", "key_c" are saved in order A-B-C
+- **AND** tokens with the same keys and values are saved in order C-A-B in a different store
+- **THEN** both token files have identical content with keys sorted alphabetically
+
+#### Scenario: Re-saving unchanged content produces no diff
+- **WHEN** tokens are saved to a file
+- **AND** the same tokens are saved again with identical values
+- **THEN** the file content remains byte-for-byte identical
+
 ## Requirements
 ### Requirement: FileTokenStore is always enabled
 
