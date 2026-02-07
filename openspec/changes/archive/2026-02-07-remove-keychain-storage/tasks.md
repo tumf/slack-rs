@@ -1,0 +1,5 @@
+- [x] Keychain/Keyring 依存を削除する（確認: `Cargo.toml` に `keyring` が存在しない）
+- [x] トークンストレージを FileTokenStore 固定に変更する（確認: `src/profile/token_store.rs` に `TokenStoreBackend` と `resolve_token_store_backend()` が存在しない）
+- [x] `SLACKRS_TOKEN_STORE` の参照とガイダンスを削除する（確認: `rg -n "SLACKRS_TOKEN_STORE" src README.md docs` が無結果）
+- [x] Keychain/Keyring に関する文言をドキュメントから削除する（確認: `rg -n "Keychain|keyring" README.md docs` が無結果）
+- [x] 既存テストを FileTokenStore 前提に更新する（確認: `cargo test` が成功）

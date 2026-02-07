@@ -76,7 +76,7 @@ Expected response:
 - Check if `(team_id, user_id)` already exists in `profiles.json`
   - If exists: update token and metadata
   - If new: create new profile entry
-- Store token in keyring with key `{team_id}:{user_id}`
+- Store token in file storage with key `{team_id}:{user_id}`
 - Save updated `profiles.json`
 
 ## Required Environment Variables
@@ -135,7 +135,7 @@ admin.users:read
 - **State**: Protects against CSRF attacks
 - **Localhost binding**: Reduces attack surface (only local connections accepted)
 - **Ephemeral server**: Callback server shuts down immediately after receiving code
-- **Token storage**: Never log or print tokens; store only in keyring
+- **Token storage**: Never log or print tokens; store only in file storage
 
 ## Implementation Notes
 - Custom PKCE implementation using `sha2` and `base64` crates

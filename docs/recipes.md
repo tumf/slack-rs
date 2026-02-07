@@ -158,7 +158,7 @@ Use `--debug` or `--trace` to troubleshoot issues:
 slack-rs api call users.info user=U123456 --debug
 # Output to stderr:
 # DEBUG: Profile: default
-# DEBUG: Token store: keyring/file
+# DEBUG: Token store: file storage/file
 # DEBUG: Token type: bot
 # DEBUG: API method: users.info
 # DEBUG: Endpoint: https://slack.com/api/users.info

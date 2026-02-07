@@ -66,7 +66,7 @@ gog のように「プロファイル切替 + サブコマンド + JSON出力 + 
   - `team.id` / `team.name` を profile に保存
 
 ### 3.1 Token保存
-- OS Keychain/SecretService を優先（平文禁止）
+- OS file storage/SecretService を優先（平文禁止）
 - debugログは token を必ずマスク
 
 ### 3.2 複数ワークスペース
@@ -170,7 +170,7 @@ Write（今回入れる）
 #### HTTP / OAuth / 秘密情報保管
 - HTTP: `reqwest`
 - OAuth/PKCE: `oauth2`
-- Token/Secret保管: `keyring`（macOS Keychain / Windows / Linux Secret Service など）
+- Token/Secret保管: `file storage`（macOS file storage / Windows / Linux Secret Service など）
 
 #### CLI/出力
 - CLI: `clap`
@@ -213,7 +213,7 @@ Write（今回入れる）
 
 ### 8.3 内部構造
 - `slack_api`：HTTP client、認証、レート制限（`slack-morphism`採用時は薄くラップ）
-- `token_store`：Keychain/SecretService抽象
+- `token_store`：file storage/SecretService抽象
 - `i18n`：LanguageLoader + メッセージ取得
 - `commands`：auth/search/conv/api/msg...
 

@@ -23,7 +23,7 @@
 - **Config layer**:
   - Stores profile metadata (non-secret).
   - Resolves `--profile <name>` -> `(team_id, user_id)` key.
-- **Token store layer (keyring)**:
+- **Token store layer (file storage)**:
   - Stores secrets only (access token, optionally refresh token) keyed by stable account id.
 - **Slack API layer (reqwest)**:
   - Sends requests to `https://slack.com/api/{method}`.
@@ -40,7 +40,7 @@
 - **Rationale**:
   - Uniquely identifies an authenticated user within a workspace.
   - Allows multiple users in the same workspace.
-  - Profile renames do not affect keyring entries.
+  - Profile renames do not affect file storage entries.
 
 ### Profile Rules
 - `--profile` is **required** for all commands that hit Slack APIs.
@@ -62,7 +62,7 @@
   - `created_at`, `last_used_at`
 
 ### Token Store (secret)
-- **Keyring**:
+- **file storage**:
   - service: `slack-rs`
   - username: `{team_id}:{user_id}`
   - secret: token payload (either raw access token or JSON blob)
@@ -118,13 +118,13 @@
 ## Security
 - Never print tokens.
 - Mask Authorization headers in debug logs.
-- Keep secrets only in keyring; config file must not contain tokens.
+- Keep secrets only in file storage; config file must not contain tokens.
 
 ## Implementation Phases
 
 ### Phase 1: Core Infrastructure
 1. Profile/config management (`(team_id, user_id)` key design)
-2. Keyring integration
+2. file storage integration
 3. OAuth login flow (PKCE + localhost callback)
 4. `auth` commands (login/status/list/logout/rename)
 

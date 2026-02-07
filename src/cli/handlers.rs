@@ -328,7 +328,7 @@ pub async fn run_api_call(args: Vec<String>) -> Result<(), Box<dyn std::error::E
     let token_store_backend = if std::env::var("SLACK_TOKEN").is_ok() {
         "environment"
     } else {
-        "keyring/file"
+        "file"
     };
 
     let endpoint = format!("https://slack.com/api/{}", api_args.method);

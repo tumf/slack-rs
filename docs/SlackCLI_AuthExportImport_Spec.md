@@ -1,5 +1,5 @@
 ---
-title: Slack Web API CLI（Rust）- 認証情報 Export/Import（Keyring互換）仕様
+title: Slack Web API CLI（Rust）- 認証情報 Export/Import（file storage互換）仕様
 date: 2026-02-03
 status: draft
 tags:
@@ -8,15 +8,15 @@ tags:
   - rust
   - oauth
   - security
-  - keyring
+  - file storage
 ---
 
-# Slack Web API CLI（Rust）- 認証情報 Export/Import（Keyring互換）仕様
+# Slack Web API CLI（Rust）- 認証情報 Export/Import（file storage互換）仕様
 
 ## 目的
 - `slack-rs` の **profile（=ワークスペースごとのOAuth認証情報）** を、端末間で移行/バックアップできるようにする。
-- 通常運用は OS の secure store（Keychain/SecretService等）に保存しつつ、
-  **gog の keyring export/import に相当する“暗号化エクスポート”**を提供する。
+- 通常運用は OS の secure store（file storage/SecretService等）に保存しつつ、
+  **gog の file storage export/import に相当する“暗号化エクスポート”**を提供する。
 
 ## 前提・脅威モデル
 - exportファイルは **漏洩すると即アウト**（Slackアカウント/WSへのアクセス権）
@@ -51,7 +51,7 @@ tags:
 - `slack-rs auth export --profile <name> --out <path>`
 
 オプション:
-- `--passphrase-env SLACKRS_KEYRING_PASSWORD`（既定）
+- `--passphrase-env SLACKRS_file storage_PASSWORD`（既定）
 - `--passphrase-prompt`（環境変数が無い時の対話入力）
 - `--force`（既存ファイル上書き）
 - `--yes`（危険操作の同意）
@@ -70,12 +70,12 @@ tags:
 - `slack-rs auth import --profile <name> --in <path>`
 
 オプション:
-- `--passphrase-env SLACKRS_KEYRING_PASSWORD`（既定）
+- `--passphrase-env SLACKRS_file storage_PASSWORD`（既定）
 - `--passphrase-prompt`
 - `--yes`（上書き等の同意）
 
 挙動:
-- importは OS keyring（`keyring` crate）へ書き戻す
+- importは OS file storage（`file storage` crate）へ書き戻す
 - `--profile` は「ローカルの表示名」。中身の `team_id` と紐づく
 - 既に同 `team_id` のprofileが存在する場合:
   - 既定: 失敗して、選択肢を表示（上書き/別名で追加）

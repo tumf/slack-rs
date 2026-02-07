@@ -732,19 +732,9 @@ pub fn status(profile_name: Option<String>) -> Result<(), String> {
     }
 
     // Display token store backend and storage location
-    use crate::profile::{
-        resolve_token_store_backend, FileTokenStore, TokenStore, TokenStoreBackend,
-    };
-    let backend = resolve_token_store_backend().map_err(|e| e.to_string())?;
-    match backend {
-        TokenStoreBackend::Keyring => {
-            println!("Token Store: keyring (OS keyring/keychain)");
-        }
-        TokenStoreBackend::File => {
-            let file_path = FileTokenStore::default_path().map_err(|e| e.to_string())?;
-            println!("Token Store: file ({})", file_path.display());
-        }
-    }
+    use crate::profile::FileTokenStore;
+    let file_path = FileTokenStore::default_path().map_err(|e| e.to_string())?;
+    println!("Token Store: file ({})", file_path.display());
 
     // Check if tokens exist
     let token_store = create_token_store().map_err(|e| e.to_string())?;
@@ -767,27 +757,6 @@ pub fn status(profile_name: Option<String>) -> Result<(), String> {
         println!("Tokens Available: None");
     } else {
         println!("Tokens Available: {}", available_tokens.join(", "));
-    }
-
-    // If using keyring backend and no tokens found, check if tokens exist in file backend
-    if backend == TokenStoreBackend::Keyring && available_tokens.is_empty() {
-        if let Ok(file_path) = FileTokenStore::default_path() {
-            if file_path.exists() {
-                // Try to load file backend tokens
-                if let Ok(file_store) = FileTokenStore::with_path(file_path.clone()) {
-                    let has_bot_in_file = file_store.exists(&bot_token_key);
-                    let has_user_in_file = file_store.exists(&user_token_key);
-
-                    if has_bot_in_file || has_user_in_file {
-                        println!(
-                            "\nNote: Tokens found in file backend ({}).",
-                            file_path.display()
-                        );
-                        println!("      To use them, set: export SLACKRS_TOKEN_STORE=file");
-                    }
-                }
-            }
-        }
     }
 
     // Display Bot ID if bot token exists
@@ -1391,7 +1360,6 @@ mod tests {
         // Use a temporary token store file with file backend
         let tokens_path = temp_dir.path().join("tokens.json");
         std::env::set_var("SLACK_RS_TOKENS_PATH", tokens_path.to_str().unwrap());
-        std::env::set_var("SLACKRS_TOKEN_STORE", "file");
 
         // Save profile with client_id and client_secret to file store
         let scopes = vec!["chat:write".to_string(), "users:read".to_string()];
@@ -1433,7 +1401,6 @@ mod tests {
         assert!(token_store.exists(&client_secret_key));
 
         // Clean up environment variables
-        std::env::remove_var("SLACKRS_TOKEN_STORE");
         std::env::remove_var("SLACK_RS_TOKENS_PATH");
     }
 
@@ -1446,7 +1413,6 @@ mod tests {
         let config_path = temp_dir.path().join("profiles.json");
         let tokens_path = temp_dir.path().join("tokens.json");
         std::env::set_var("SLACK_RS_TOKENS_PATH", tokens_path.to_str().unwrap());
-        std::env::set_var("SLACKRS_TOKEN_STORE", "file");
 
         let team_id = "T123";
         let user_id = "U456";
@@ -1481,7 +1447,6 @@ mod tests {
             Some(crate::profile::TokenType::User)
         );
 
-        std::env::remove_var("SLACKRS_TOKEN_STORE");
         std::env::remove_var("SLACK_RS_TOKENS_PATH");
     }
 
@@ -1494,7 +1459,6 @@ mod tests {
         let config_path = temp_dir.path().join("profiles.json");
         let tokens_path = temp_dir.path().join("tokens.json");
         std::env::set_var("SLACK_RS_TOKENS_PATH", tokens_path.to_str().unwrap());
-        std::env::set_var("SLACKRS_TOKEN_STORE", "file");
 
         let team_id = "T123";
         let user_id = "U456";
@@ -1529,7 +1493,6 @@ mod tests {
             Some(crate::profile::TokenType::Bot)
         );
 
-        std::env::remove_var("SLACKRS_TOKEN_STORE");
         std::env::remove_var("SLACK_RS_TOKENS_PATH");
     }
 
@@ -1542,7 +1505,6 @@ mod tests {
         let config_path = temp_dir.path().join("profiles.json");
         let tokens_path = temp_dir.path().join("tokens.json");
         std::env::set_var("SLACK_RS_TOKENS_PATH", tokens_path.to_str().unwrap());
-        std::env::set_var("SLACKRS_TOKEN_STORE", "file");
 
         let team_id = "T123";
         let user_id = "U456";
@@ -1597,7 +1559,6 @@ mod tests {
             "Existing default_token_type should be preserved"
         );
 
-        std::env::remove_var("SLACKRS_TOKEN_STORE");
         std::env::remove_var("SLACK_RS_TOKENS_PATH");
     }
 
@@ -1677,7 +1638,6 @@ mod tests {
 
         // Set up file backend
         std::env::set_var("SLACK_RS_TOKENS_PATH", tokens_path.to_str().unwrap());
-        std::env::set_var("SLACKRS_TOKEN_STORE", "file");
 
         // Create a test profile
         let mut config = ProfilesConfig::new();
@@ -1705,56 +1665,8 @@ mod tests {
         // This test verifies that status() doesn't panic with file backend
         // The actual output contains "Token Store: file" but we can't easily verify stdout here
 
-        std::env::remove_var("SLACKRS_TOKEN_STORE");
         std::env::remove_var("SLACK_RS_TOKENS_PATH");
         std::env::remove_var("SLACK_RS_CONFIG_PATH");
-    }
-
-    #[test]
-    #[serial_test::serial]
-    fn test_status_detects_file_backend_tokens_when_using_keyring() {
-        use tempfile::TempDir;
-
-        let temp_dir = TempDir::new().unwrap();
-        let config_path = temp_dir.path().join("profiles.json");
-        let tokens_path = temp_dir.path().join("tokens.json");
-
-        // Create a test profile
-        let mut config = ProfilesConfig::new();
-        let team_id = "T123";
-        let user_id = "U456";
-        config.set(
-            "test".to_string(),
-            Profile {
-                team_id: team_id.to_string(),
-                user_id: user_id.to_string(),
-                team_name: Some("Test Team".to_string()),
-                user_name: None,
-                client_id: None,
-                redirect_uri: None,
-                scopes: None,
-                bot_scopes: None,
-                user_scopes: None,
-                default_token_type: None,
-            },
-        );
-        save_config(&config_path, &config).unwrap();
-
-        // Create tokens in file backend
-        std::env::set_var("SLACK_RS_TOKENS_PATH", tokens_path.to_str().unwrap());
-        std::env::set_var("SLACKRS_TOKEN_STORE", "file");
-        let file_store = crate::profile::FileTokenStore::with_path(tokens_path.clone()).unwrap();
-        let bot_token_key = make_token_key(team_id, user_id);
-        file_store.set(&bot_token_key, "xoxb-test-token").unwrap();
-        std::env::remove_var("SLACKRS_TOKEN_STORE");
-
-        // Now switch to keyring backend (which will not have the tokens)
-        // status() should detect tokens in file backend and show a hint
-
-        // Note: The actual keyring check and hint output happens in status()
-        // but we can't easily test stdout capture here
-
-        std::env::remove_var("SLACK_RS_TOKENS_PATH");
     }
 
     #[test]

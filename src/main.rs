@@ -2,7 +2,7 @@
 use slack_rs::cli::*;
 use slack_rs::profile::{
     default_config_path, load_config, make_token_key, resolve_profile, save_config,
-    InMemoryTokenStore, KeyringTokenStore, Profile, ProfilesConfig, TokenStore,
+    InMemoryTokenStore, Profile, ProfilesConfig, TokenStore,
 };
 use slack_rs::{auth, cli, commands, profile};
 
@@ -947,13 +947,10 @@ fn demonstrate_token_storage() {
     // Check if token exists
     println!("Token exists: {}", store.exists(&key));
 
-    // Note about FileTokenStore and KeyringTokenStore
+    // Note about FileTokenStore
     println!("\nNote: FileTokenStore is the default for production use:");
     println!("  let store = FileTokenStore::new().unwrap();");
     println!("  // Stores tokens in ~/.config/slack-rs/tokens.json with 0600 permissions");
-    println!("\nKeyringTokenStore is also available:");
-    println!("  let store = KeyringTokenStore::default_service();");
-    println!("  // Uses OS keyring with service='slack-rs'");
 
     println!();
 }
@@ -1099,63 +1096,6 @@ fn demonstrate_profile_persistence() {
         }
     } else {
         println!("Failed to get default config path");
-    }
-
-    println!();
-}
-
-/// Demonstrates keyring token storage using KeyringTokenStore
-#[allow(dead_code)]
-fn demonstrate_keyring_token_storage() {
-    println!("=== Keyring Token Storage Demo ===");
-
-    // Create KeyringTokenStore with default service name
-    let keyring_store = KeyringTokenStore::default_service();
-    println!("Created KeyringTokenStore with service='slack-rs'");
-
-    // Create a test token key
-    let key = make_token_key("T123ABC", "U456DEF");
-    println!("Token key: {}", key);
-
-    // Attempt to store a token in keyring
-    let test_token = "xoxb-demo-token-12345";
-    match keyring_store.set(&key, test_token) {
-        Ok(_) => {
-            println!("✓ Token stored in OS keyring successfully");
-
-            // Retrieve the token
-            match keyring_store.get(&key) {
-                Ok(retrieved_token) => {
-                    println!("✓ Retrieved token from keyring");
-                    // Verify it matches (show partial for security)
-                    if retrieved_token == test_token {
-                        println!("✓ Token verification successful");
-                    }
-                }
-                Err(e) => println!("✗ Failed to retrieve token: {}", e),
-            }
-
-            // Check existence
-            if keyring_store.exists(&key) {
-                println!("✓ Token existence check successful");
-            }
-
-            // Delete the test token
-            match keyring_store.delete(&key) {
-                Ok(_) => println!("✓ Token deleted from keyring successfully"),
-                Err(e) => println!("✗ Failed to delete token: {}", e),
-            }
-
-            // Verify deletion
-            if !keyring_store.exists(&key) {
-                println!("✓ Token deletion verified");
-            }
-        }
-        Err(e) => {
-            println!("✗ Failed to store token in keyring: {}", e);
-            println!("  This may happen if the keyring is not available on this system");
-            println!("  For production use, the keyring integration is fully implemented");
-        }
     }
 
     println!();
