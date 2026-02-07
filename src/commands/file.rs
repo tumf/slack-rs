@@ -231,14 +231,14 @@ pub async fn file_download(
     // Resolve download URL and filename
     let (download_url, filename_hint) = if let Some(fid) = file_id {
         // Call files.info to get download URL
+        // Note: files.info expects form-encoded parameters, not JSON body
         let info_url = format!("{}/files.info", client.base_url());
-        let mut params = HashMap::new();
-        params.insert("file".to_string(), json!(fid));
+        let form_params = vec![("file".to_string(), fid.clone())];
 
         let info_response = http_client
             .post(&info_url)
             .bearer_auth(token)
-            .json(&params)
+            .form(&form_params)
             .send()
             .await
             .map_err(|e| ApiError::SlackError(format!("Failed to call files.info: {}", e)))?;

@@ -364,3 +364,18 @@ When `--out -` is specified, it MUST stream binary content to stdout and MUST NO
 - When executing `file download F123`
 - Then no write-guard rejection occurs
 
+### Requirement: File download retrieves file metadata before download
+`file download` MUST send `file_id` during `files.info` calls in a parameter format that the Slack API can interpret (form or query). (MUST)
+`file_id` MUST NOT be sent as a JSON body. (MUST NOT)
+
+#### Scenario: `file_id` is sent in the correct format
+- Given executing `file download --file-id F123`
+- When `file download` calls `files.info`
+- Then `file_id=F123` is sent as a form or query parameter
+- And does not receive `invalid_arguments` (parameter format error) from the Slack API
+
+#### Scenario: Prevent JSON body transmission
+- Given there is a test double (mock/stub) that validates the transmission format to `files.info`
+- When applying an implementation that sends `file_id` as a JSON body
+- Then the test fails with an invalid transmission format error
+
