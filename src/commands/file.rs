@@ -284,47 +284,116 @@ pub async fn file_download(
         ));
     };
 
-    // Download the file with redirect following enabled (default)
-    // reqwest::Client follows redirects by default (up to 10 redirects)
-    let download_response = http_client
-        .get(&download_url)
-        .bearer_auth(token)
-        .send()
-        .await
-        .map_err(|e| ApiError::SlackError(format!("Failed to download file: {}", e)))?;
+    // Download the file with manual redirect handling to preserve Authorization header
+    // Note: reqwest by default does NOT forward Authorization headers to different hosts for security
+    // We need to manually handle redirects to ensure the token is preserved across all hops
+    let mut current_url = download_url.clone();
+    let mut redirect_count = 0;
+    const MAX_REDIRECTS: u8 = 10;
 
-    // Check response status
+    let download_response = loop {
+        // Build client with no automatic redirects
+        let no_redirect_client = reqwest::ClientBuilder::new()
+            .redirect(reqwest::redirect::Policy::none())
+            .build()
+            .map_err(|e| ApiError::SlackError(format!("Failed to build HTTP client: {}", e)))?;
+
+        let response = no_redirect_client
+            .get(&current_url)
+            .bearer_auth(token)
+            .send()
+            .await
+            .map_err(|e| ApiError::SlackError(format!("Failed to download file: {}", e)))?;
+
+        let status = response.status();
+
+        // Check if this is a redirect
+        if status.is_redirection() {
+            if redirect_count >= MAX_REDIRECTS {
+                return Err(ApiError::SlackError(format!(
+                    "Too many redirects (max {})",
+                    MAX_REDIRECTS
+                )));
+            }
+
+            // Extract Location header
+            let location = response
+                .headers()
+                .get("location")
+                .and_then(|h| h.to_str().ok())
+                .ok_or_else(|| {
+                    ApiError::SlackError(format!(
+                        "Redirect response {} missing Location header",
+                        status
+                    ))
+                })?;
+
+            // Resolve relative URLs
+            current_url = if location.starts_with("http://") || location.starts_with("https://") {
+                location.to_string()
+            } else {
+                // Parse current URL and resolve relative location
+                let base = reqwest::Url::parse(&current_url).map_err(|e| {
+                    ApiError::SlackError(format!("Failed to parse URL {}: {}", current_url, e))
+                })?;
+                base.join(location)
+                    .map_err(|e| {
+                        ApiError::SlackError(format!(
+                            "Failed to join URLs {} + {}: {}",
+                            current_url, location, e
+                        ))
+                    })?
+                    .to_string()
+            };
+
+            redirect_count += 1;
+            continue;
+        }
+
+        // Not a redirect, break and process response
+        break response;
+    };
+
+    // Check Content-Type BEFORE status check to provide diagnostic info even for non-2xx HTML responses
+    let is_html = download_response
+        .headers()
+        .get("content-type")
+        .and_then(|ct| ct.to_str().ok())
+        .map(|ct_str| ct_str.contains("text/html"))
+        .unwrap_or(false);
+
+    if is_html {
+        // Get status before consuming the response
+        let status = download_response.status();
+
+        // Read response body for diagnostic snippet
+        let body_bytes = download_response
+            .bytes()
+            .await
+            .map_err(|e| ApiError::SlackError(format!("Failed to read HTML response: {}", e)))?;
+
+        // Convert to string and truncate safely
+        let body_str = String::from_utf8_lossy(&body_bytes);
+        let snippet = truncate_safely(&body_str, 200);
+
+        // Include status in error message
+        return Err(ApiError::SlackError(format!(
+            "Download returned HTML instead of file (status: {}). Possible causes:\n\
+             - Wrong URL: Make sure to use url_private_download, not permalink\n\
+             - Missing authentication: Token may lack required scopes\n\
+             - Invalid or expired file\n\
+             \n\
+             Response snippet:\n{}",
+            status, snippet
+        )));
+    }
+
+    // Check response status (only reached if not HTML)
     if !download_response.status().is_success() {
         return Err(ApiError::SlackError(format!(
             "Download failed with status: {}",
             download_response.status()
         )));
-    }
-
-    // Check Content-Type for HTML response (indicates wrong URL or auth issue)
-    if let Some(content_type) = download_response.headers().get("content-type") {
-        if let Ok(ct_str) = content_type.to_str() {
-            if ct_str.contains("text/html") {
-                // Read response body for diagnostic snippet
-                let body_bytes = download_response.bytes().await.map_err(|e| {
-                    ApiError::SlackError(format!("Failed to read HTML response: {}", e))
-                })?;
-
-                // Convert to string and truncate safely
-                let body_str = String::from_utf8_lossy(&body_bytes);
-                let snippet = truncate_safely(&body_str, 200);
-
-                return Err(ApiError::SlackError(format!(
-                    "Download returned HTML instead of file. Possible causes:\n\
-                     - Wrong URL: Make sure to use url_private_download, not permalink\n\
-                     - Missing authentication: Token may lack required scopes\n\
-                     - Invalid or expired file\n\
-                     \n\
-                     Response snippet:\n{}",
-                    snippet
-                )));
-            }
-        }
     }
 
     // Get response bytes
