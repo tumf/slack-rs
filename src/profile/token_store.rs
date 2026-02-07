@@ -136,13 +136,28 @@ impl FileTokenStore {
 
     /// Get the default path for the tokens file
     /// Can be overridden with SLACK_RS_TOKENS_PATH environment variable (useful for testing)
+    /// Respects XDG_DATA_HOME when set
     pub fn default_path() -> Result<PathBuf> {
-        // Check for environment variable override (useful for testing)
+        // Priority 1: Check for environment variable override (useful for testing)
         if let Ok(path) = std::env::var("SLACK_RS_TOKENS_PATH") {
             return Ok(PathBuf::from(path));
         }
 
-        // Use cross-platform home directory detection
+        // Priority 2: Check for XDG_DATA_HOME
+        if let Ok(xdg_data_home) = std::env::var("XDG_DATA_HOME") {
+            // Guard against empty or whitespace-only values
+            let trimmed = xdg_data_home.trim();
+            if !trimmed.is_empty() {
+                let xdg_path = PathBuf::from(trimmed);
+                // Ensure the path is absolute to avoid confusion
+                if xdg_path.is_absolute() {
+                    let data_dir = xdg_path.join("slack-rs");
+                    return Ok(data_dir.join("tokens.json"));
+                }
+            }
+        }
+
+        // Priority 3: Fallback to ~/.local/share/slack-rs/tokens.json
         let home = directories::BaseDirs::new()
             .ok_or_else(|| {
                 TokenStoreError::IoError("Failed to determine home directory".to_string())
@@ -150,7 +165,6 @@ impl FileTokenStore {
             .home_dir()
             .to_path_buf();
 
-        // New default: ~/.local/share/slack-rs/tokens.json
         let data_dir = home.join(".local").join("share").join("slack-rs");
         Ok(data_dir.join("tokens.json"))
     }
@@ -702,8 +716,13 @@ mod tests {
 
     /// Test migration from old path to new path
     #[test]
+    #[serial_test::serial]
     fn test_migration_from_old_to_new_path() {
         use tempfile::TempDir;
+
+        // Clear environment variables to ensure migration logic runs
+        std::env::remove_var("SLACK_RS_TOKENS_PATH");
+        std::env::remove_var("XDG_DATA_HOME");
 
         let temp_dir = TempDir::new().unwrap();
 
@@ -993,5 +1012,147 @@ mod tests {
         let content = fs::read_to_string(&file_path).unwrap();
         assert!(content.contains("T123:U456"));
         assert!(content.contains("oauth-client-secret:default"));
+    }
+
+    /// Test XDG_DATA_HOME resolution (when set to valid absolute path)
+    #[test]
+    #[serial_test::serial]
+    fn test_xdg_data_home_resolution() {
+        use tempfile::TempDir;
+
+        // Clear SLACK_RS_TOKENS_PATH to ensure XDG_DATA_HOME is tested
+        std::env::remove_var("SLACK_RS_TOKENS_PATH");
+
+        let temp_dir = TempDir::new().unwrap();
+        let xdg_data_home = temp_dir.path().to_str().unwrap();
+        std::env::set_var("XDG_DATA_HOME", xdg_data_home);
+
+        let path = FileTokenStore::default_path().unwrap();
+        let expected = temp_dir.path().join("slack-rs").join("tokens.json");
+
+        assert_eq!(
+            path, expected,
+            "XDG_DATA_HOME should resolve to $XDG_DATA_HOME/slack-rs/tokens.json"
+        );
+
+        std::env::remove_var("XDG_DATA_HOME");
+    }
+
+    /// Test that SLACK_RS_TOKENS_PATH takes priority over XDG_DATA_HOME
+    #[test]
+    #[serial_test::serial]
+    fn test_slack_rs_tokens_path_priority_over_xdg() {
+        use tempfile::TempDir;
+
+        let temp_dir = TempDir::new().unwrap();
+        let custom_path = temp_dir.path().join("custom-tokens.json");
+        let xdg_data_home = temp_dir.path().join("xdg-data");
+
+        // Set both environment variables
+        std::env::set_var("SLACK_RS_TOKENS_PATH", custom_path.to_str().unwrap());
+        std::env::set_var("XDG_DATA_HOME", xdg_data_home.to_str().unwrap());
+
+        let path = FileTokenStore::default_path().unwrap();
+
+        // SLACK_RS_TOKENS_PATH should win
+        assert_eq!(
+            path, custom_path,
+            "SLACK_RS_TOKENS_PATH should take priority over XDG_DATA_HOME"
+        );
+
+        std::env::remove_var("SLACK_RS_TOKENS_PATH");
+        std::env::remove_var("XDG_DATA_HOME");
+    }
+
+    /// Test fallback to ~/.local/share when XDG_DATA_HOME is not set
+    #[test]
+    #[serial_test::serial]
+    fn test_fallback_when_xdg_data_home_not_set() {
+        // Clear both environment variables
+        std::env::remove_var("SLACK_RS_TOKENS_PATH");
+        std::env::remove_var("XDG_DATA_HOME");
+
+        let path = FileTokenStore::default_path().unwrap();
+        let path_str = path.to_string_lossy();
+
+        // Should fallback to ~/.local/share/slack-rs/tokens.json
+        assert!(
+            path_str.contains(".local/share/slack-rs/tokens.json")
+                || path_str.contains(".local\\share\\slack-rs\\tokens.json"),
+            "Should fallback to ~/.local/share/slack-rs/tokens.json when XDG_DATA_HOME is not set, got: {}",
+            path_str
+        );
+    }
+
+    /// Test that empty XDG_DATA_HOME falls back to default
+    #[test]
+    #[serial_test::serial]
+    fn test_empty_xdg_data_home_fallback() {
+        // Clear SLACK_RS_TOKENS_PATH
+        std::env::remove_var("SLACK_RS_TOKENS_PATH");
+
+        // Set XDG_DATA_HOME to empty string
+        std::env::set_var("XDG_DATA_HOME", "");
+
+        let path = FileTokenStore::default_path().unwrap();
+        let path_str = path.to_string_lossy();
+
+        // Should fallback to ~/.local/share/slack-rs/tokens.json
+        assert!(
+            path_str.contains(".local/share/slack-rs/tokens.json")
+                || path_str.contains(".local\\share\\slack-rs\\tokens.json"),
+            "Empty XDG_DATA_HOME should fallback to ~/.local/share/slack-rs/tokens.json, got: {}",
+            path_str
+        );
+
+        std::env::remove_var("XDG_DATA_HOME");
+    }
+
+    /// Test that whitespace-only XDG_DATA_HOME falls back to default
+    #[test]
+    #[serial_test::serial]
+    fn test_whitespace_xdg_data_home_fallback() {
+        // Clear SLACK_RS_TOKENS_PATH
+        std::env::remove_var("SLACK_RS_TOKENS_PATH");
+
+        // Set XDG_DATA_HOME to whitespace
+        std::env::set_var("XDG_DATA_HOME", "   ");
+
+        let path = FileTokenStore::default_path().unwrap();
+        let path_str = path.to_string_lossy();
+
+        // Should fallback to ~/.local/share/slack-rs/tokens.json
+        assert!(
+            path_str.contains(".local/share/slack-rs/tokens.json")
+                || path_str.contains(".local\\share\\slack-rs\\tokens.json"),
+            "Whitespace XDG_DATA_HOME should fallback to ~/.local/share/slack-rs/tokens.json, got: {}",
+            path_str
+        );
+
+        std::env::remove_var("XDG_DATA_HOME");
+    }
+
+    /// Test that relative XDG_DATA_HOME path falls back to default
+    #[test]
+    #[serial_test::serial]
+    fn test_relative_xdg_data_home_fallback() {
+        // Clear SLACK_RS_TOKENS_PATH
+        std::env::remove_var("SLACK_RS_TOKENS_PATH");
+
+        // Set XDG_DATA_HOME to relative path
+        std::env::set_var("XDG_DATA_HOME", "relative/path");
+
+        let path = FileTokenStore::default_path().unwrap();
+        let path_str = path.to_string_lossy();
+
+        // Should fallback to ~/.local/share/slack-rs/tokens.json
+        assert!(
+            path_str.contains(".local/share/slack-rs/tokens.json")
+                || path_str.contains(".local\\share\\slack-rs\\tokens.json"),
+            "Relative XDG_DATA_HOME should fallback to ~/.local/share/slack-rs/tokens.json, got: {}",
+            path_str
+        );
+
+        std::env::remove_var("XDG_DATA_HOME");
     }
 }

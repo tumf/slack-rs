@@ -1795,4 +1795,56 @@ mod tests {
         );
         assert_eq!(result, crate::profile::TokenType::User);
     }
+
+    /// Test that FileTokenStore::default_path() respects XDG_DATA_HOME
+    /// This verifies the path resolution that auth status displays
+    #[test]
+    #[serial_test::serial]
+    fn test_file_token_store_respects_xdg_data_home() {
+        use crate::profile::FileTokenStore;
+        use tempfile::TempDir;
+
+        // Clear SLACK_RS_TOKENS_PATH to test XDG_DATA_HOME
+        std::env::remove_var("SLACK_RS_TOKENS_PATH");
+
+        let temp_dir = TempDir::new().unwrap();
+        let xdg_data_home = temp_dir.path().to_str().unwrap();
+        std::env::set_var("XDG_DATA_HOME", xdg_data_home);
+
+        let path = FileTokenStore::default_path().unwrap();
+        let expected = temp_dir.path().join("slack-rs").join("tokens.json");
+
+        assert_eq!(
+            path, expected,
+            "auth status should display XDG_DATA_HOME-based path when XDG_DATA_HOME is set"
+        );
+
+        std::env::remove_var("XDG_DATA_HOME");
+    }
+
+    /// Test that SLACK_RS_TOKENS_PATH takes priority over XDG_DATA_HOME in auth status
+    #[test]
+    #[serial_test::serial]
+    fn test_file_token_store_slack_rs_tokens_path_priority() {
+        use crate::profile::FileTokenStore;
+        use tempfile::TempDir;
+
+        let temp_dir = TempDir::new().unwrap();
+        let custom_path = temp_dir.path().join("custom-tokens.json");
+        let xdg_data_home = temp_dir.path().join("xdg-data");
+
+        // Set both environment variables
+        std::env::set_var("SLACK_RS_TOKENS_PATH", custom_path.to_str().unwrap());
+        std::env::set_var("XDG_DATA_HOME", xdg_data_home.to_str().unwrap());
+
+        let path = FileTokenStore::default_path().unwrap();
+
+        assert_eq!(
+            path, custom_path,
+            "auth status should display SLACK_RS_TOKENS_PATH when both env vars are set"
+        );
+
+        std::env::remove_var("SLACK_RS_TOKENS_PATH");
+        std::env::remove_var("XDG_DATA_HOME");
+    }
 }
