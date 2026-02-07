@@ -242,30 +242,22 @@ pub fn import_profiles(
     // Track results for each profile
     let mut profile_results = Vec::new();
 
-    if !options.force {
-        for (name, export_profile) in &payload.profiles {
-            // Check if profile name exists
-            if let Some(existing) = config.get(name) {
-                // If same team_id, it's OK (update scenario)
-                if existing.team_id != export_profile.team_id {
-                    return Err(ExportImportError::ProfileExists(name.clone()));
-                }
-            }
-
-            // Check if team_id exists under different name (conflict detection based on team_id only)
-            for (existing_name, existing_profile) in &config.profiles {
-                if existing_name != name && existing_profile.team_id == export_profile.team_id {
-                    return Err(ExportImportError::ProfileExists(existing_name.clone()));
-                }
-            }
-        }
-    }
-
-    // Import profiles
+    // Import profiles - no early validation, handle conflicts during import
     for (name, export_profile) in payload.profiles {
-        // Determine action and reason
-        let (action, reason) = if let Some(existing) = config.get(&name) {
+        // Helper to find conflicting profile name (different name, same team_id)
+        let find_conflicting_name = || -> Option<String> {
+            config
+                .profiles
+                .iter()
+                .find(|(n, p)| *n != &name && p.team_id == export_profile.team_id)
+                .map(|(n, _)| n.clone())
+        };
+
+        // Determine action and reason based on current state
+        let (action, reason, should_import) = if let Some(existing) = config.get(&name) {
+            // Profile name already exists
             if existing.team_id == export_profile.team_id {
+                // Same team_id: update or overwrite
                 if options.force {
                     (
                         ImportAction::Overwritten,
@@ -273,6 +265,7 @@ pub fn import_profiles(
                             "Overwritten existing profile (same team_id: {})",
                             existing.team_id
                         ),
+                        true,
                     )
                 } else {
                     (
@@ -281,67 +274,86 @@ pub fn import_profiles(
                             "Updated existing profile (same team_id: {})",
                             existing.team_id
                         ),
+                        true,
                     )
                 }
-            } else if options.force {
+            } else {
+                // Different team_id: conflict
+                if options.force {
+                    (
+                        ImportAction::Overwritten,
+                        format!(
+                            "Overwritten conflicting profile (team_id {} -> {})",
+                            existing.team_id, export_profile.team_id
+                        ),
+                        true,
+                    )
+                } else {
+                    (
+                        ImportAction::Skipped,
+                        format!(
+                            "Skipped due to team_id conflict ({} vs {})",
+                            existing.team_id, export_profile.team_id
+                        ),
+                        false,
+                    )
+                }
+            }
+        } else if let Some(conflicting_name) = find_conflicting_name() {
+            // team_id exists under different name
+            if options.force {
                 (
                     ImportAction::Overwritten,
                     format!(
-                        "Overwritten conflicting profile (team_id {} -> {})",
-                        existing.team_id, export_profile.team_id
+                        "Overwritten profile '{}' with conflicting team_id {}",
+                        conflicting_name, export_profile.team_id
                     ),
+                    true,
                 )
             } else {
-                // This shouldn't happen due to conflict check above, but handle it
                 (
                     ImportAction::Skipped,
                     format!(
-                        "Skipped due to team_id conflict ({} vs {})",
-                        existing.team_id, export_profile.team_id
+                        "Skipped due to existing team_id {} under different name '{}'",
+                        export_profile.team_id, conflicting_name
                     ),
+                    false,
                 )
             }
         } else {
-            // Check if team_id exists under different name
-            let team_id_exists = config
-                .profiles
-                .values()
-                .any(|p| p.team_id == export_profile.team_id);
-            if team_id_exists && !options.force {
-                (
-                    ImportAction::Skipped,
-                    format!(
-                        "Skipped due to existing team_id {} under different name",
-                        export_profile.team_id
-                    ),
-                )
-            } else {
-                (ImportAction::Updated, "New profile imported".to_string())
+            // New profile
+            (
+                ImportAction::Updated,
+                "New profile imported".to_string(),
+                true,
+            )
+        };
+
+        // Only perform import actions if should_import is true
+        if should_import {
+            let profile = Profile {
+                team_id: export_profile.team_id.clone(),
+                user_id: export_profile.user_id.clone(),
+                team_name: export_profile.team_name,
+                user_name: export_profile.user_name,
+                client_id: export_profile.client_id.clone(),
+                redirect_uri: None, // Not exported/imported for security
+                scopes: None,       // Not exported/imported for security
+                bot_scopes: None,   // Not exported/imported for security
+                user_scopes: None,  // Not exported/imported for security
+                default_token_type: None,
+            };
+
+            config.set(name.clone(), profile);
+
+            // Store token
+            let token_key = make_token_key(&export_profile.team_id, &export_profile.user_id);
+            token_store.set(&token_key, &export_profile.token)?;
+
+            // Store OAuth client secret if present
+            if let Some(client_secret) = export_profile.client_secret {
+                store_oauth_client_secret(token_store, &name, &client_secret)?;
             }
-        };
-
-        let profile = Profile {
-            team_id: export_profile.team_id.clone(),
-            user_id: export_profile.user_id.clone(),
-            team_name: export_profile.team_name,
-            user_name: export_profile.user_name,
-            client_id: export_profile.client_id.clone(),
-            redirect_uri: None, // Not exported/imported for security
-            scopes: None,       // Not exported/imported for security
-            bot_scopes: None,   // Not exported/imported for security
-            user_scopes: None,  // Not exported/imported for security
-            default_token_type: None,
-        };
-
-        config.set(name.clone(), profile);
-
-        // Store token
-        let token_key = make_token_key(&export_profile.team_id, &export_profile.user_id);
-        token_store.set(&token_key, &export_profile.token)?;
-
-        // Store OAuth client secret if present
-        if let Some(client_secret) = export_profile.client_secret {
-            store_oauth_client_secret(token_store, &name, &client_secret)?;
         }
 
         profile_results.push(ProfileImportResult {
