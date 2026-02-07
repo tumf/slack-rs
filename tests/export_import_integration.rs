@@ -872,6 +872,14 @@ fn test_auth_import_help_flag() {
         "Help should mention --in option"
     );
     assert!(
+        stdout.contains("--dry-run"),
+        "Help should mention --dry-run option"
+    );
+    assert!(
+        stdout.contains("--json"),
+        "Help should mention --json option"
+    );
+    assert!(
         stdout.contains("-h, --help"),
         "Help should mention help flags"
     );
@@ -903,6 +911,14 @@ fn test_auth_import_help_long_flag() {
     assert!(
         stdout.contains("--in <file>"),
         "Help should mention --in option"
+    );
+    assert!(
+        stdout.contains("--dry-run"),
+        "Help should mention --dry-run option"
+    );
+    assert!(
+        stdout.contains("--json"),
+        "Help should mention --json option"
     );
 }
 

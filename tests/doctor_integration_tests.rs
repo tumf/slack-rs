@@ -192,8 +192,8 @@ fn test_diagnostic_info_deserialization() {
     assert_eq!(info.config_path, "/test/profiles.json");
     assert_eq!(info.token_store.backend, "file");
     assert_eq!(info.token_store.path, "/test/tokens.json");
-    assert_eq!(info.tokens.bot_token_exists, true);
-    assert_eq!(info.tokens.user_token_exists, false);
+    assert!(info.tokens.bot_token_exists);
+    assert!(!info.tokens.user_token_exists);
     assert_eq!(info.scope_hints.len(), 2);
 }
 
@@ -202,7 +202,7 @@ fn test_doctor_help_output() {
     use std::process::Command;
 
     let output = Command::new("cargo")
-        .args(&["run", "--", "doctor", "--help"])
+        .args(["run", "--", "doctor", "--help"])
         .output()
         .expect("Failed to execute command");
 
@@ -250,7 +250,7 @@ fn test_doctor_help_short_flag() {
     use std::process::Command;
 
     let output = Command::new("cargo")
-        .args(&["run", "--", "doctor", "-h"])
+        .args(["run", "--", "doctor", "-h"])
         .output()
         .expect("Failed to execute command");
 

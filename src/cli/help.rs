@@ -39,6 +39,8 @@ pub fn print_import_help() {
     println!("    --passphrase-prompt        Prompt for passphrase");
     println!("    --yes                      Automatically accept conflicts");
     println!("    --force                    Overwrite existing profiles");
+    println!("    --dry-run                  Preview changes without writing");
+    println!("    --json                     Output import result as JSON");
     println!("    --lang <code>              Language code (en/ja)");
     println!("    -h, --help                 Show this help message");
     println!();
@@ -49,4 +51,9 @@ pub fn print_import_help() {
     println!();
     println!("    # Import with force overwrite");
     println!("    slack-rs auth import --in backup.enc --passphrase-prompt --force --yes");
+    println!();
+    println!("    # Preview import plan as JSON without writing changes");
+    println!(
+        "    slack-rs auth import --in backup.enc --passphrase-env PASSPHRASE --dry-run --json"
+    );
 }
