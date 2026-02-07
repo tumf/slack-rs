@@ -781,3 +781,205 @@ async fn test_conv_search_with_additional_filters() {
     assert_eq!(items[0].id, "C1");
     assert_eq!(items[1].id, "C2");
 }
+
+#[tokio::test]
+async fn test_file_download_uses_form_params_for_files_info() {
+    use tempfile::TempDir;
+    use wiremock::matchers::{header, method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    // Create mock server
+    let mock_server = MockServer::start().await;
+
+    // Mock files.info response - verify it receives form-encoded parameters
+    let files_info_response = serde_json::json!({
+        "ok": true,
+        "file": {
+            "id": "F12345",
+            "name": "test_file.txt",
+            "url_private_download": format!("{}/download/test_file.txt", mock_server.uri())
+        }
+    });
+
+    // This mock expects form-encoded body (Content-Type: application/x-www-form-urlencoded)
+    // and verifies that the parameter is sent as form data, not JSON
+    Mock::given(method("POST"))
+        .and(path("/files.info"))
+        .and(header("authorization", "Bearer test_token"))
+        .and(header("content-type", "application/x-www-form-urlencoded"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(&files_info_response))
+        .expect(1)
+        .mount(&mock_server)
+        .await;
+
+    // Mock file download response
+    let file_content = b"test file content";
+    Mock::given(method("GET"))
+        .and(path("/download/test_file.txt"))
+        .and(header("authorization", "Bearer test_token"))
+        .respond_with(ResponseTemplate::new(200).set_body_bytes(file_content))
+        .expect(1)
+        .mount(&mock_server)
+        .await;
+
+    // Create API client
+    let client = ApiClient::new_with_base_url("test_token".to_string(), mock_server.uri());
+
+    // Create temp directory for output
+    let temp_dir = TempDir::new().unwrap();
+    let output_path = temp_dir.path().join("downloaded_file.txt");
+
+    // Call file_download
+    let result = commands::file_download(
+        &client,
+        Some("F12345".to_string()),
+        None,
+        Some(output_path.to_str().unwrap().to_string()),
+    )
+    .await;
+
+    assert!(result.is_ok(), "file_download should succeed");
+    let response = result.unwrap();
+    assert_eq!(response["ok"], true);
+
+    // Verify file was written
+    let downloaded_content = std::fs::read(&output_path).unwrap();
+    assert_eq!(downloaded_content, file_content);
+}
+
+#[tokio::test]
+async fn test_file_download_rejects_json_body_for_files_info() {
+    use wiremock::matchers::{header, method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    // Create mock server
+    let mock_server = MockServer::start().await;
+
+    // Mock that ONLY accepts JSON content-type and returns error
+    // This simulates the Slack API behavior when receiving JSON instead of form data
+    let error_response = serde_json::json!({
+        "ok": false,
+        "error": "invalid_arguments"
+    });
+
+    Mock::given(method("POST"))
+        .and(path("/files.info"))
+        .and(header("authorization", "Bearer test_token"))
+        .and(header("content-type", "application/json"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(&error_response))
+        .expect(0) // Expect 0 calls - we should NOT send JSON
+        .mount(&mock_server)
+        .await;
+
+    // Mock that accepts form-encoded (the correct way)
+    let files_info_response = serde_json::json!({
+        "ok": true,
+        "file": {
+            "id": "F12345",
+            "name": "test_file.txt",
+            "url_private_download": format!("{}/download/test_file.txt", mock_server.uri())
+        }
+    });
+
+    Mock::given(method("POST"))
+        .and(path("/files.info"))
+        .and(header("authorization", "Bearer test_token"))
+        .and(header("content-type", "application/x-www-form-urlencoded"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(&files_info_response))
+        .expect(1) // Expect 1 call with form encoding
+        .mount(&mock_server)
+        .await;
+
+    // Mock file download response
+    Mock::given(method("GET"))
+        .and(path("/download/test_file.txt"))
+        .respond_with(ResponseTemplate::new(200).set_body_bytes(b"content"))
+        .expect(1)
+        .mount(&mock_server)
+        .await;
+
+    // Create API client
+    let client = ApiClient::new_with_base_url("test_token".to_string(), mock_server.uri());
+
+    // Call file_download - should succeed because we use form encoding
+    let result = commands::file_download(
+        &client,
+        Some("F12345".to_string()),
+        None,
+        Some("-".to_string()), // Write to stdout
+    )
+    .await;
+
+    assert!(
+        result.is_ok(),
+        "file_download should succeed with form encoding"
+    );
+}
+
+#[tokio::test]
+async fn test_file_download_complete_flow_with_files_info() {
+    use tempfile::TempDir;
+    use wiremock::matchers::{header, method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    // Create mock server
+    let mock_server = MockServer::start().await;
+
+    // Mock files.info response
+    let files_info_response = serde_json::json!({
+        "ok": true,
+        "file": {
+            "id": "F12345",
+            "name": "important_doc.pdf",
+            "url_private_download": format!("{}/files/download/important_doc.pdf", mock_server.uri())
+        }
+    });
+
+    Mock::given(method("POST"))
+        .and(path("/files.info"))
+        .and(header("authorization", "Bearer test_token"))
+        .and(header("content-type", "application/x-www-form-urlencoded"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(&files_info_response))
+        .expect(1)
+        .mount(&mock_server)
+        .await;
+
+    // Mock file download response
+    let file_content = b"PDF content here";
+    Mock::given(method("GET"))
+        .and(path("/files/download/important_doc.pdf"))
+        .and(header("authorization", "Bearer test_token"))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_bytes(file_content)
+                .insert_header("content-type", "application/pdf"),
+        )
+        .expect(1)
+        .mount(&mock_server)
+        .await;
+
+    // Create API client
+    let client = ApiClient::new_with_base_url("test_token".to_string(), mock_server.uri());
+
+    // Create temp directory for output
+    let temp_dir = TempDir::new().unwrap();
+
+    // Test: Download to specific file path
+    let output_file = temp_dir.path().join("output.pdf");
+    let result = commands::file_download(
+        &client,
+        Some("F12345".to_string()),
+        None,
+        Some(output_file.to_str().unwrap().to_string()),
+    )
+    .await;
+
+    assert!(result.is_ok(), "file_download should succeed");
+    let response = result.unwrap();
+    assert_eq!(response["ok"], true);
+    assert_eq!(response["size"], file_content.len());
+
+    // Verify file was written correctly
+    let downloaded_content = std::fs::read(&output_file).unwrap();
+    assert_eq!(downloaded_content, file_content);
+}
