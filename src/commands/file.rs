@@ -284,7 +284,8 @@ pub async fn file_download(
         ));
     };
 
-    // Download the file
+    // Download the file with redirect following enabled (default)
+    // reqwest::Client follows redirects by default (up to 10 redirects)
     let download_response = http_client
         .get(&download_url)
         .bearer_auth(token)
@@ -304,13 +305,24 @@ pub async fn file_download(
     if let Some(content_type) = download_response.headers().get("content-type") {
         if let Ok(ct_str) = content_type.to_str() {
             if ct_str.contains("text/html") {
-                return Err(ApiError::SlackError(
+                // Read response body for diagnostic snippet
+                let body_bytes = download_response.bytes().await.map_err(|e| {
+                    ApiError::SlackError(format!("Failed to read HTML response: {}", e))
+                })?;
+
+                // Convert to string and truncate safely
+                let body_str = String::from_utf8_lossy(&body_bytes);
+                let snippet = truncate_safely(&body_str, 200);
+
+                return Err(ApiError::SlackError(format!(
                     "Download returned HTML instead of file. Possible causes:\n\
                      - Wrong URL: Make sure to use url_private_download, not permalink\n\
                      - Missing authentication: Token may lack required scopes\n\
-                     - Invalid or expired file"
-                        .to_string(),
-                ));
+                     - Invalid or expired file\n\
+                     \n\
+                     Response snippet:\n{}",
+                    snippet
+                )));
             }
         }
     }
@@ -391,6 +403,17 @@ fn sanitize_filename(name: &str) -> String {
     }
 }
 
+/// Truncate string safely to avoid exposing excessive information
+/// Returns first `max_len` characters with ellipsis if truncated
+fn truncate_safely(s: &str, max_len: usize) -> String {
+    if s.len() <= max_len {
+        s.to_string()
+    } else {
+        let truncated = s.chars().take(max_len).collect::<String>();
+        format!("{}...", truncated)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -448,6 +471,29 @@ mod tests {
         assert_eq!(sanitize_filename("test:file.txt"), "test_file.txt");
         assert_eq!(sanitize_filename("test*file?.txt"), "test_file_.txt");
         assert_eq!(sanitize_filename(""), "file");
+    }
+
+    #[test]
+    fn test_truncate_safely() {
+        // Short string - no truncation
+        assert_eq!(truncate_safely("short", 100), "short");
+
+        // Exact length - no truncation
+        assert_eq!(truncate_safely("exact", 5), "exact");
+
+        // Long string - truncated with ellipsis
+        let long_str = "This is a very long string that needs to be truncated";
+        let truncated = truncate_safely(long_str, 20);
+        assert_eq!(truncated, "This is a very long ...");
+        assert!(truncated.len() <= 23); // 20 chars + "..."
+
+        // Empty string
+        assert_eq!(truncate_safely("", 10), "");
+
+        // Unicode handling
+        let unicode = "日本語テキスト";
+        let result = truncate_safely(unicode, 3);
+        assert!(result.starts_with("日本語"));
     }
 
     #[tokio::test]
