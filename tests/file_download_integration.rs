@@ -462,3 +462,84 @@ async fn test_file_download_rejects_excessive_redirects() {
         "Error should mention redirect limit"
     );
 }
+
+/// Test that file_download preserves Authorization header when redirecting to a different host
+#[tokio::test]
+async fn test_file_download_follows_redirect_to_different_host() {
+    // Start two separate mock servers to simulate cross-host redirect
+    let mock_server_1 = MockServer::start().await;
+    let mock_server_2 = MockServer::start().await;
+
+    let temp_dir = TempDir::new().unwrap();
+    let output_path = temp_dir.path().join("cross_host_file.txt");
+
+    let file_content = b"Content from different host after redirect";
+
+    // Mock files.info endpoint on first server
+    let mut files_info_response = HashMap::new();
+    files_info_response.insert("ok".to_string(), serde_json::json!(true));
+    files_info_response.insert(
+        "file".to_string(),
+        serde_json::json!({
+            "id": "F333333",
+            "name": "cross_host.txt",
+            "url_private_download": format!("{}/files-pri/initial", mock_server_1.uri())
+        }),
+    );
+
+    Mock::given(method("POST"))
+        .and(path("/files.info"))
+        .and(header("authorization", "Bearer test_token"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(&files_info_response))
+        .expect(1)
+        .mount(&mock_server_1)
+        .await;
+
+    // Mock initial download on server 1 - redirects to server 2
+    Mock::given(method("GET"))
+        .and(path("/files-pri/initial"))
+        .and(header("authorization", "Bearer test_token"))
+        .respond_with(ResponseTemplate::new(302).insert_header(
+            "Location",
+            format!("{}/files-pri/final-on-different-host", mock_server_2.uri()),
+        ))
+        .expect(1)
+        .mount(&mock_server_1)
+        .await;
+
+    // Mock final download on server 2 - MUST receive Authorization header
+    Mock::given(method("GET"))
+        .and(path("/files-pri/final-on-different-host"))
+        .and(header("authorization", "Bearer test_token"))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_bytes(file_content)
+                .insert_header("Content-Type", "application/octet-stream"),
+        )
+        .expect(1)
+        .mount(&mock_server_2)
+        .await;
+
+    // Create client pointing to the first server
+    let client = ApiClient::new_with_base_url("test_token".to_string(), mock_server_1.uri());
+    let result = commands::file_download(
+        &client,
+        Some("F333333".to_string()),
+        None,
+        Some(output_path.to_str().unwrap().to_string()),
+    )
+    .await;
+
+    assert!(
+        result.is_ok(),
+        "Download should succeed after cross-host redirect: {:?}",
+        result
+    );
+
+    // Verify file was written correctly with content from server 2
+    let downloaded_content = std::fs::read(&output_path).unwrap();
+    assert_eq!(
+        downloaded_content, file_content,
+        "Downloaded content should match file from second server"
+    );
+}
