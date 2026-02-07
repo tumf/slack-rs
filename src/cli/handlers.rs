@@ -478,6 +478,12 @@ impl ExportImportArgs {
 
 /// Handle auth export command
 pub async fn handle_export_command(args: &[String]) {
+    // Check for help flags first
+    if args.iter().any(|arg| arg == "-h" || arg == "--help") {
+        super::help::print_export_help();
+        return;
+    }
+
     // Parse common arguments
     let (common_args, remaining) = ExportImportArgs::parse(args);
 
@@ -572,6 +578,12 @@ pub async fn handle_export_command(args: &[String]) {
 
 /// Handle auth import command
 pub async fn handle_import_command(args: &[String]) {
+    // Check for help flags first
+    if args.iter().any(|arg| arg == "-h" || arg == "--help") {
+        super::help::print_import_help();
+        return;
+    }
+
     // Parse common arguments
     let (common_args, remaining) = ExportImportArgs::parse(args);
 
@@ -647,39 +659,40 @@ pub async fn handle_import_command(args: &[String]) {
     match auth::import_profiles(&*token_store, &options) {
         Ok(result) => {
             if json {
-                // JSON output
+                // Output JSON format
                 match serde_json::to_string_pretty(&result) {
-                    Ok(json_str) => println!("{}", json_str),
+                    Ok(json_output) => {
+                        println!("{}", json_output);
+                    }
                     Err(e) => {
                         eprintln!("Failed to serialize result to JSON: {}", e);
                         std::process::exit(1);
                     }
                 }
             } else {
-                // Text output
-                if dry_run {
-                    println!("Dry-run mode: No changes will be made\n");
-                }
-
-                for profile_result in &result.profiles {
-                    let action_str = match profile_result.action {
-                        auth::ImportAction::Created => "will be created",
-                        auth::ImportAction::Updated => "will be updated",
-                        auth::ImportAction::Skipped => "will be skipped",
-                        auth::ImportAction::Overwritten => "will be overwritten",
-                    };
-
-                    println!("Profile '{}': {}", profile_result.profile_name, action_str);
-                    println!("  Team ID: {}", profile_result.team_id);
-                    println!("  User ID: {}", profile_result.user_id);
-                    if let Some(ref reason) = profile_result.reason {
-                        println!("  Reason: {}", reason);
-                    }
+                // Output text format
+                if result.dry_run {
+                    println!("Dry-run mode: no changes were written.");
                     println!();
                 }
 
-                if dry_run {
-                    println!("Dry-run complete. Use without --dry-run to apply changes.");
+                println!("Import Summary:");
+                println!("  Total: {}", result.summary.total);
+                println!("  Updated: {}", result.summary.updated);
+                println!("  Skipped: {}", result.summary.skipped);
+                println!("  Overwritten: {}", result.summary.overwritten);
+                println!();
+                println!("Profile Details:");
+                for profile_result in &result.profiles {
+                    println!(
+                        "  {} - {} ({})",
+                        profile_result.profile_name, profile_result.action, profile_result.reason
+                    );
+                }
+                println!();
+
+                if result.dry_run {
+                    println!("Dry-run complete. Re-run without --dry-run to apply changes.");
                 } else {
                     println!("{}", messages.get("success.import"));
                 }

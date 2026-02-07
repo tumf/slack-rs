@@ -26,7 +26,7 @@ pub use commands::{
 };
 pub use export_import::{
     export_profiles, import_profiles, ExportOptions, ImportAction, ImportOptions, ImportResult,
-    ProfileImportResult,
+    ImportSummary, ProfileImportResult,
 };
 pub use i18n::{Language, Messages};
 pub use manifest::generate_manifest;

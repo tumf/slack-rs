@@ -47,12 +47,55 @@ Saving MUST only be possible with secure file permissions. (MUST)
 - `slack-rs auth import --in <path>` 実行時、OAuthクライアントシークレットが含まれていればKeyringへ保存される
 
 ### Requirement: Import applies safeguard on team_id conflict
-A safeguard MUST be applied when the same team_id exists. (MUST)
-#### Scenario: Conflict handling for duplicate team_id
-- **WHEN** a profile with the same team_id already exists
-- **THEN** the import fails by default
-- **WHEN** both `--yes` and `--force` flags are provided
-- **THEN** the existing profile is overwritten
+`auth import` は衝突時の処理結果を実行後に報告しなければならない。(MUST)
+
+`--yes` や `--force` の有無にかかわらず、更新・スキップ・上書きの件数と対象を取得できなければならない。(MUST)
+
+`--json` 指定時は profile 単位の結果を機械可読形式で返さなければならない。(MUST)
+
+#### Scenario: `--force --json` で profile 単位の結果を取得できる
+- Given 衝突する profile を含む import ファイルがある
+- When `auth import --force --json` を実行する
+- Then 出力 JSON には profile ごとの `action` が含まれる
+- And `updated` / `skipped` / `overwritten` の集計が取得できる
+
+#### Scenario: テキスト出力でサマリと詳細が表示される
+- Given import 可能な profile が含まれるファイルがある
+- When `auth import --in <file> --yes` を実行する
+- Then `Import Summary:` セクションに `Total`, `Updated`, `Skipped`, `Overwritten` 件数が表示される
+- And `Profile Details:` セクションに各 profile の名前、action、理由が表示される
+
+#### Scenario: JSON 出力で機械可読な結果が返される
+- Given import 可能な profile が含まれるファイルがある
+- When `auth import --in <file> --yes --json` を実行する
+- Then 出力は有効な JSON フォーマットである
+- And `profiles` 配列に各 profile の `profile_name`, `action`, `reason` が含まれる
+- And `summary` オブジェクトに `total`, `updated`, `skipped`, `overwritten` が含まれる
+- And `action` は `"updated"`, `"skipped"`, `"overwritten"` のいずれかである
+
+#### Scenario: profile が新規追加される場合 action は updated
+- Given 存在しない profile 名の import データがある
+- When `auth import --in <file> --yes` を実行する
+- Then その profile の action は `updated` である
+- And reason には "New profile imported" が含まれる
+
+#### Scenario: 同じ team_id の profile を更新する場合 action は updated
+- Given 既存 profile と同じ team_id の import データがある
+- When `auth import --in <file> --yes` を実行する (--force なし)
+- Then その profile の action は `updated` である
+- And reason には "Updated existing profile" と team_id が含まれる
+
+#### Scenario: team_id が衝突する profile は --force なしで skipped
+- Given 異なる profile 名だが同じ team_id の import データがある
+- When `auth import --in <file> --yes` を実行する (--force なし)
+- Then その profile の action は `skipped` である
+- And reason には team_id conflict の情報が含まれる
+
+#### Scenario: --force 指定時は衝突する profile が overwritten
+- Given 既存 profile と衝突する import データがある
+- When `auth import --in <file> --yes --force` を実行する
+- Then その profile の action は `overwritten` である
+- And reason には "Overwritten" の情報が含まれる
 
 ### Requirement: Export/import format is resilient to future extensions
 Compatible reading and writing MUST be possible. (MUST)
@@ -90,12 +133,17 @@ OAuthクライアントシークレットは設定ファイルに保存されな
 - import時に `client_secret` はKeyringへ保存され、設定ファイルには書き込まれない
 
 ### Requirement: Unified argument parsing preserves existing behavior
-`auth export` and `auth import` MUST maintain existing flag, confirmation, and error behavior even when using a shared argument parser. (MUST)
+`auth export` と `auth import` は共有引数パーサを使う場合でも既存フラグ互換を維持しなければならない。(MUST)
 
-#### Scenario: Shared parser maintains compatibility
-- **GIVEN** existing `auth export`/`auth import` argument sets are used
-- **WHEN** each command is executed
-- **THEN** the same confirmation flows and error conditions apply as before
+`-h` および `--help` は unknown option として失敗してはならず、サブコマンド固有ヘルプを表示して終了コード 0 で終了しなければならない。(MUST)
+
+#### Scenario: `auth export` / `auth import` のヘルプフラグが成功する
+- **WHEN** `slack-rs auth export -h` または `slack-rs auth export --help` を実行する
+- **THEN** export サブコマンドの usage/options が表示される
+- **AND** 終了コードは 0 になる
+- **WHEN** `slack-rs auth import -h` または `slack-rs auth import --help` を実行する
+- **THEN** import サブコマンドの usage/options が表示される
+- **AND** 終了コードは 0 になる
 
 ### Requirement: `auth import --dry-run` は書き込みなしで適用計画を表示する
 `auth import --dry-run` は import 判定を実行するが、設定ファイルおよび token store への書き込みを行ってはならない。(MUST NOT)
