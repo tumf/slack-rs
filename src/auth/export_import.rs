@@ -6,6 +6,7 @@ use crate::profile::{
     default_config_path, get_oauth_client_secret, load_config, make_token_key, save_config,
     store_oauth_client_secret, Profile, TokenStore, TokenStoreError,
 };
+use serde::{Deserialize, Serialize};
 use std::fs;
 use std::io;
 use std::path::Path;
@@ -59,6 +60,50 @@ pub struct ImportOptions {
     pub passphrase: String,
     pub yes: bool,
     pub force: bool,
+    pub json: bool,
+}
+
+/// Import action taken for a profile
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ImportAction {
+    Updated,
+    Skipped,
+    Overwritten,
+}
+
+impl std::fmt::Display for ImportAction {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ImportAction::Updated => write!(f, "updated"),
+            ImportAction::Skipped => write!(f, "skipped"),
+            ImportAction::Overwritten => write!(f, "overwritten"),
+        }
+    }
+}
+
+/// Result for a single profile import
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProfileImportResult {
+    pub profile_name: String,
+    pub action: ImportAction,
+    pub reason: String,
+}
+
+/// Overall import result
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ImportResult {
+    pub profiles: Vec<ProfileImportResult>,
+    pub summary: ImportSummary,
+}
+
+/// Summary of import operation
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ImportSummary {
+    pub updated: usize,
+    pub skipped: usize,
+    pub overwritten: usize,
+    pub total: usize,
 }
 
 /// Export profiles to encrypted file
@@ -156,7 +201,10 @@ pub fn export_profiles(token_store: &dyn TokenStore, options: &ExportOptions) ->
 }
 
 /// Import profiles from encrypted file
-pub fn import_profiles(token_store: &dyn TokenStore, options: &ImportOptions) -> Result<()> {
+pub fn import_profiles(
+    token_store: &dyn TokenStore,
+    options: &ImportOptions,
+) -> Result<ImportResult> {
     // Validate passphrase
     if options.passphrase.is_empty() {
         return Err(ExportImportError::EmptyPassphrase);
@@ -191,6 +239,9 @@ pub fn import_profiles(token_store: &dyn TokenStore, options: &ImportOptions) ->
         ));
     }
 
+    // Track results for each profile
+    let mut profile_results = Vec::new();
+
     if !options.force {
         for (name, export_profile) in &payload.profiles {
             // Check if profile name exists
@@ -212,6 +263,63 @@ pub fn import_profiles(token_store: &dyn TokenStore, options: &ImportOptions) ->
 
     // Import profiles
     for (name, export_profile) in payload.profiles {
+        // Determine action and reason
+        let (action, reason) = if let Some(existing) = config.get(&name) {
+            if existing.team_id == export_profile.team_id {
+                if options.force {
+                    (
+                        ImportAction::Overwritten,
+                        format!(
+                            "Overwritten existing profile (same team_id: {})",
+                            existing.team_id
+                        ),
+                    )
+                } else {
+                    (
+                        ImportAction::Updated,
+                        format!(
+                            "Updated existing profile (same team_id: {})",
+                            existing.team_id
+                        ),
+                    )
+                }
+            } else if options.force {
+                (
+                    ImportAction::Overwritten,
+                    format!(
+                        "Overwritten conflicting profile (team_id {} -> {})",
+                        existing.team_id, export_profile.team_id
+                    ),
+                )
+            } else {
+                // This shouldn't happen due to conflict check above, but handle it
+                (
+                    ImportAction::Skipped,
+                    format!(
+                        "Skipped due to team_id conflict ({} vs {})",
+                        existing.team_id, export_profile.team_id
+                    ),
+                )
+            }
+        } else {
+            // Check if team_id exists under different name
+            let team_id_exists = config
+                .profiles
+                .values()
+                .any(|p| p.team_id == export_profile.team_id);
+            if team_id_exists && !options.force {
+                (
+                    ImportAction::Skipped,
+                    format!(
+                        "Skipped due to existing team_id {} under different name",
+                        export_profile.team_id
+                    ),
+                )
+            } else {
+                (ImportAction::Updated, "New profile imported".to_string())
+            }
+        };
+
         let profile = Profile {
             team_id: export_profile.team_id.clone(),
             user_id: export_profile.user_id.clone(),
@@ -235,12 +343,41 @@ pub fn import_profiles(token_store: &dyn TokenStore, options: &ImportOptions) ->
         if let Some(client_secret) = export_profile.client_secret {
             store_oauth_client_secret(token_store, &name, &client_secret)?;
         }
+
+        profile_results.push(ProfileImportResult {
+            profile_name: name,
+            action,
+            reason,
+        });
     }
 
     // Save config
     save_config(&config_path, &config).map_err(|e| ExportImportError::Storage(e.to_string()))?;
 
-    Ok(())
+    // Calculate summary
+    let updated = profile_results
+        .iter()
+        .filter(|r| r.action == ImportAction::Updated)
+        .count();
+    let skipped = profile_results
+        .iter()
+        .filter(|r| r.action == ImportAction::Skipped)
+        .count();
+    let overwritten = profile_results
+        .iter()
+        .filter(|r| r.action == ImportAction::Overwritten)
+        .count();
+    let total = profile_results.len();
+
+    Ok(ImportResult {
+        profiles: profile_results,
+        summary: ImportSummary {
+            updated,
+            skipped,
+            overwritten,
+            total,
+        },
+    })
 }
 
 /// Check file permissions (Unix only)
@@ -348,6 +485,7 @@ mod tests {
             passphrase: "".to_string(),
             yes: false,
             force: false,
+            json: false,
         };
 
         let result = import_profiles(&token_store, &options);

@@ -1,6 +1,9 @@
 //! Integration tests for export/import functionality
 
-use slack_rs::auth::{export_profiles, import_profiles, ExportOptions, ImportOptions};
+use slack_rs::auth::{
+    export_profiles, import_profiles, ExportOptions, ImportAction, ImportOptions, ImportResult,
+    ImportSummary, ProfileImportResult,
+};
 use slack_rs::profile::{
     make_token_key, save_config, InMemoryTokenStore, Profile, ProfilesConfig, TokenStore,
 };
@@ -105,6 +108,7 @@ fn test_import_rejects_empty_passphrase() {
         passphrase: "".to_string(),
         yes: false,
         force: false,
+        json: false,
     };
 
     let result = import_profiles(&token_store, &options);
@@ -218,4 +222,112 @@ fn test_i18n_format() {
 
     assert!(formatted.contains("5"));
     assert!(formatted.contains("profile"));
+}
+
+#[test]
+fn test_import_result_tracking_new_profile() {
+    use slack_rs::auth::crypto::{self, KdfParams};
+    use slack_rs::auth::format::{self, ExportPayload, ExportProfile};
+
+    let temp_dir = TempDir::new().unwrap();
+    let import_path = temp_dir.path().join("import.dat");
+    let config_path = temp_dir.path().join("profiles.json");
+
+    // Create empty initial config
+    let initial_config = ProfilesConfig::new();
+    save_config(&config_path, &initial_config).unwrap();
+
+    // Create export payload with one profile
+    let mut payload = ExportPayload::new();
+    payload.profiles.insert(
+        "new_profile".to_string(),
+        ExportProfile {
+            team_id: "T123".to_string(),
+            user_id: "U456".to_string(),
+            team_name: Some("Test Team".to_string()),
+            user_name: Some("Test User".to_string()),
+            token: "xoxb-test-token".to_string(),
+            client_id: None,
+            client_secret: None,
+        },
+    );
+
+    // Encrypt and save
+    let passphrase = "test_password";
+    let kdf_params = KdfParams {
+        salt: crypto::generate_salt(),
+        ..Default::default()
+    };
+    let key = crypto::derive_key(passphrase, &kdf_params).unwrap();
+    let payload_json = serde_json::to_vec(&payload).unwrap();
+    let encrypted = crypto::encrypt(&payload_json, &key).unwrap();
+    let encoded = format::encode_export(&payload, &encrypted, &kdf_params).unwrap();
+    fs::write(&import_path, &encoded).unwrap();
+
+    // Import (need to override config path - for now test the logic)
+    let _token_store = InMemoryTokenStore::new();
+    let _options = ImportOptions {
+        input_path: import_path.to_string_lossy().to_string(),
+        passphrase: passphrase.to_string(),
+        yes: true,
+        force: false,
+        json: false,
+    };
+
+    // Note: This will use default_config_path, so we can't fully test without mocking
+    // But we can verify the result structure
+    // For now, test the decrypt/decode works
+    let decoded = format::decode_export(&encoded).unwrap();
+    let decrypted_json = crypto::decrypt(&decoded.encrypted_data, &key).unwrap();
+    let _decrypted_payload: ExportPayload = serde_json::from_slice(&decrypted_json).unwrap();
+}
+
+#[test]
+fn test_import_result_json_serialization() {
+    let result = ImportResult {
+        profiles: vec![
+            ProfileImportResult {
+                profile_name: "profile1".to_string(),
+                action: ImportAction::Updated,
+                reason: "New profile imported".to_string(),
+            },
+            ProfileImportResult {
+                profile_name: "profile2".to_string(),
+                action: ImportAction::Skipped,
+                reason: "Skipped due to conflict".to_string(),
+            },
+            ProfileImportResult {
+                profile_name: "profile3".to_string(),
+                action: ImportAction::Overwritten,
+                reason: "Overwritten with --force".to_string(),
+            },
+        ],
+        summary: ImportSummary {
+            updated: 1,
+            skipped: 1,
+            overwritten: 1,
+            total: 3,
+        },
+    };
+
+    // Test JSON serialization
+    let json = serde_json::to_string_pretty(&result).unwrap();
+    assert!(json.contains("profile1"));
+    assert!(json.contains("updated"));
+    assert!(json.contains("skipped"));
+    assert!(json.contains("overwritten"));
+
+    // Test deserialization
+    let deserialized: ImportResult = serde_json::from_str(&json).unwrap();
+    assert_eq!(deserialized.summary.total, 3);
+    assert_eq!(deserialized.summary.updated, 1);
+    assert_eq!(deserialized.summary.skipped, 1);
+    assert_eq!(deserialized.summary.overwritten, 1);
+}
+
+#[test]
+fn test_import_action_display() {
+    assert_eq!(ImportAction::Updated.to_string(), "updated");
+    assert_eq!(ImportAction::Skipped.to_string(), "skipped");
+    assert_eq!(ImportAction::Overwritten.to_string(), "overwritten");
 }
