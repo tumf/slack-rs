@@ -12,6 +12,7 @@ use crate::profile::{create_token_store, default_config_path, load_config, make_
 
 /// Diagnostic output structure
 #[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct DiagnosticInfo {
     /// Resolved profiles.json path
     pub config_path: String,
@@ -26,6 +27,7 @@ pub struct DiagnosticInfo {
 
 /// Token store backend information
 #[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct TokenStoreInfo {
     /// Backend type (e.g., "file", "keyring")
     pub backend: String,
@@ -35,6 +37,7 @@ pub struct TokenStoreInfo {
 
 /// Token availability status
 #[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct TokenStatus {
     /// Whether bot token exists (value not shown)
     pub bot_token_exists: bool,
@@ -181,9 +184,6 @@ fn get_token_store_path() -> Result<String, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::profile::{InMemoryTokenStore, Profile, ProfilesConfig};
-    use std::fs;
-    use tempfile::TempDir;
 
     #[test]
     fn test_diagnostic_info_serialization() {
@@ -201,8 +201,8 @@ mod tests {
         };
 
         let json = serde_json::to_string_pretty(&info).unwrap();
-        assert!(json.contains("config_path"));
-        assert!(json.contains("token_store"));
+        assert!(json.contains("configPath"));
+        assert!(json.contains("tokenStore"));
         assert!(json.contains("tokens"));
     }
 
@@ -222,7 +222,7 @@ mod tests {
         };
 
         let json = serde_json::to_string_pretty(&info).unwrap();
-        assert!(json.contains("scope_hints"));
+        assert!(json.contains("scopeHints"));
         assert!(json.contains("No tokens found"));
     }
 }

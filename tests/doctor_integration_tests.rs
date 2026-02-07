@@ -85,11 +85,11 @@ fn test_doctor_output_does_not_contain_token_values() {
         "Output contains user token pattern"
     );
 
-    // Verify expected fields are present
-    assert!(json.contains("config_path"));
-    assert!(json.contains("token_store"));
-    assert!(json.contains("bot_token_exists"));
-    assert!(json.contains("user_token_exists"));
+    // Verify expected fields are present (camelCase)
+    assert!(json.contains("configPath"));
+    assert!(json.contains("tokenStore"));
+    assert!(json.contains("botTokenExists"));
+    assert!(json.contains("userTokenExists"));
 }
 
 #[test]
@@ -110,23 +110,23 @@ fn test_doctor_json_output_schema() {
     let json = serde_json::to_string_pretty(&info).unwrap();
     let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
 
-    // Verify required fields
-    assert!(parsed.get("config_path").is_some());
-    assert!(parsed.get("token_store").is_some());
+    // Verify required fields (camelCase)
+    assert!(parsed.get("configPath").is_some());
+    assert!(parsed.get("tokenStore").is_some());
     assert!(parsed.get("tokens").is_some());
 
-    // Verify token_store structure
-    let token_store = parsed.get("token_store").unwrap();
+    // Verify tokenStore structure (camelCase)
+    let token_store = parsed.get("tokenStore").unwrap();
     assert!(token_store.get("backend").is_some());
     assert!(token_store.get("path").is_some());
 
-    // Verify tokens structure
+    // Verify tokens structure (camelCase)
     let tokens = parsed.get("tokens").unwrap();
-    assert!(tokens.get("bot_token_exists").is_some());
-    assert!(tokens.get("user_token_exists").is_some());
+    assert!(tokens.get("botTokenExists").is_some());
+    assert!(tokens.get("userTokenExists").is_some());
 
-    // Verify scope_hints is present when not empty
-    assert!(parsed.get("scope_hints").is_some());
+    // Verify scopeHints is present when not empty (camelCase)
+    assert!(parsed.get("scopeHints").is_some());
 }
 
 #[test]
@@ -146,7 +146,8 @@ fn test_doctor_json_output_omits_empty_scope_hints() {
 
     let json = serde_json::to_string(&info).unwrap();
 
-    // Empty scope_hints should not appear in JSON due to skip_serializing_if
+    // Empty scopeHints should not appear in JSON due to skip_serializing_if (camelCase)
+    assert!(!json.contains("scopeHints"));
     assert!(!json.contains("scope_hints"));
 }
 
@@ -159,9 +160,9 @@ fn test_token_status_only_contains_existence_flags() {
 
     let json = serde_json::to_string(&status).unwrap();
 
-    // Verify it only contains boolean flags, never token values
-    assert!(json.contains("bot_token_exists"));
-    assert!(json.contains("user_token_exists"));
+    // Verify it only contains boolean flags, never token values (camelCase)
+    assert!(json.contains("botTokenExists"));
+    assert!(json.contains("userTokenExists"));
     assert!(json.contains("true"));
     assert!(json.contains("false"));
 
@@ -174,16 +175,16 @@ fn test_token_status_only_contains_existence_flags() {
 #[test]
 fn test_diagnostic_info_deserialization() {
     let json = r#"{
-        "config_path": "/test/profiles.json",
-        "token_store": {
+        "configPath": "/test/profiles.json",
+        "tokenStore": {
             "backend": "file",
             "path": "/test/tokens.json"
         },
         "tokens": {
-            "bot_token_exists": true,
-            "user_token_exists": false
+            "botTokenExists": true,
+            "userTokenExists": false
         },
-        "scope_hints": ["Hint 1", "Hint 2"]
+        "scopeHints": ["Hint 1", "Hint 2"]
     }"#;
 
     let info: slack_rs::commands::doctor::DiagnosticInfo = serde_json::from_str(json).unwrap();
@@ -194,4 +195,74 @@ fn test_diagnostic_info_deserialization() {
     assert_eq!(info.tokens.bot_token_exists, true);
     assert_eq!(info.tokens.user_token_exists, false);
     assert_eq!(info.scope_hints.len(), 2);
+}
+
+#[test]
+fn test_doctor_help_output() {
+    use std::process::Command;
+
+    let output = Command::new("cargo")
+        .args(&["run", "--", "doctor", "--help"])
+        .output()
+        .expect("Failed to execute command");
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+
+    // Verify help output contains expected sections
+    assert!(
+        stdout.contains("Doctor diagnostics command"),
+        "Help should contain command description"
+    );
+    assert!(
+        stdout.contains("USAGE:"),
+        "Help should contain usage section"
+    );
+    assert!(
+        stdout.contains("OPTIONS:"),
+        "Help should contain options section"
+    );
+    assert!(
+        stdout.contains("--profile"),
+        "Help should mention --profile option"
+    );
+    assert!(
+        stdout.contains("--json"),
+        "Help should mention --json option"
+    );
+    assert!(
+        stdout.contains("EXAMPLES:"),
+        "Help should contain examples section"
+    );
+
+    // Verify it doesn't run diagnostics (no diagnostic output)
+    assert!(
+        !stdout.contains("Doctor Diagnostics"),
+        "Help should not run diagnostics"
+    );
+    assert!(
+        !stdout.contains("Config Path:"),
+        "Help should not show config path"
+    );
+}
+
+#[test]
+fn test_doctor_help_short_flag() {
+    use std::process::Command;
+
+    let output = Command::new("cargo")
+        .args(&["run", "--", "doctor", "-h"])
+        .output()
+        .expect("Failed to execute command");
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+
+    // Verify help output with -h flag
+    assert!(
+        stdout.contains("Doctor diagnostics command"),
+        "Help with -h should contain command description"
+    );
+    assert!(
+        stdout.contains("USAGE:"),
+        "Help with -h should contain usage section"
+    );
 }

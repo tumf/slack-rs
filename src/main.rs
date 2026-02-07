@@ -383,6 +383,32 @@ async fn main() {
             }
         }
         "doctor" => {
+            // Check for --help or -h flag first
+            if cli::has_flag(&args, "--help") || cli::has_flag(&args, "-h") {
+                println!("Doctor diagnostics command");
+                println!();
+                println!("USAGE:");
+                println!("    slack-rs doctor [OPTIONS]");
+                println!();
+                println!("OPTIONS:");
+                println!("    --profile=<name>    Profile to diagnose (default: 'default')");
+                println!("    --json              Output in JSON format");
+                println!("    --help, -h          Show this help message");
+                println!();
+                println!("DESCRIPTION:");
+                println!("    Shows diagnostic information about the CLI environment:");
+                println!("    - Profile configuration path");
+                println!("    - Token store backend and path");
+                println!("    - Token availability (bot/user)");
+                println!("    - Scope hints for common permission issues");
+                println!();
+                println!("EXAMPLES:");
+                println!("    slack-rs doctor");
+                println!("    slack-rs doctor --profile=work");
+                println!("    slack-rs doctor --json");
+                return;
+            }
+
             // Parse --profile and --json flags
             let profile_name = cli::get_option(&args, "--profile=");
             let json_output = cli::has_flag(&args, "--json");
