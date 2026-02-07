@@ -83,7 +83,7 @@ impl TokenStore for InMemoryTokenStore {
 }
 
 /// File-based implementation of TokenStore
-/// Stores tokens in ~/.config/slack-rs/tokens.json with restricted permissions (0600)
+/// Stores tokens in ~/.local/share/slack-rs/tokens.json with restricted permissions (0600)
 #[derive(Debug, Clone)]
 pub struct FileTokenStore {
     file_path: PathBuf,
@@ -91,7 +91,7 @@ pub struct FileTokenStore {
 }
 
 impl FileTokenStore {
-    /// Create a new FileTokenStore with the default path (~/.config/slack-rs/tokens.json)
+    /// Create a new FileTokenStore with the default path (~/.local/share/slack-rs/tokens.json)
     pub fn new() -> Result<Self> {
         let file_path = Self::default_path()?;
         Self::with_path(file_path)
@@ -99,11 +99,26 @@ impl FileTokenStore {
 
     /// Create a FileTokenStore with a custom path
     pub fn with_path(file_path: PathBuf) -> Result<Self> {
+        Self::with_path_and_migration(file_path, None)
+    }
+
+    /// Create a FileTokenStore with a custom path and optional migration source
+    /// Internal method that allows tests to specify a custom old path for migration
+    fn with_path_and_migration(file_path: PathBuf, old_path: Option<PathBuf>) -> Result<Self> {
         // Ensure parent directory exists
         if let Some(parent) = file_path.parent() {
             fs::create_dir_all(parent).map_err(|e| {
                 TokenStoreError::IoError(format!("Failed to create directory: {}", e))
             })?;
+        }
+
+        // Auto-migrate from old path if needed (only when using default path)
+        if std::env::var("SLACK_RS_TOKENS_PATH").is_err() {
+            if let Some(old) = old_path {
+                Self::migrate_from_path(&old, &file_path)?;
+            } else {
+                Self::migrate_from_old_path_if_needed(&file_path)?;
+            }
         }
 
         // Load existing tokens or create empty map
@@ -135,9 +150,69 @@ impl FileTokenStore {
             .home_dir()
             .to_path_buf();
 
-        // Use separate join calls to ensure consistent path separators on Windows
+        // New default: ~/.local/share/slack-rs/tokens.json
+        let data_dir = home.join(".local").join("share").join("slack-rs");
+        Ok(data_dir.join("tokens.json"))
+    }
+
+    /// Get the old config path for migration purposes
+    fn old_config_path() -> Result<PathBuf> {
+        let home = directories::BaseDirs::new()
+            .ok_or_else(|| {
+                TokenStoreError::IoError("Failed to determine home directory".to_string())
+            })?
+            .home_dir()
+            .to_path_buf();
+
+        // Old path: ~/.config/slack-rs/tokens.json
         let config_dir = home.join(".config").join("slack-rs");
         Ok(config_dir.join("tokens.json"))
+    }
+
+    /// Migrate from old path to new path if needed
+    /// Only runs when new path doesn't exist and old path does exist
+    fn migrate_from_old_path_if_needed(new_path: &Path) -> Result<()> {
+        // Get the old path, but don't fail if we can't determine it
+        let old_path = match Self::old_config_path() {
+            Ok(path) => path,
+            Err(_) => return Ok(()), // Can't determine old path, skip migration
+        };
+
+        Self::migrate_from_path(&old_path, new_path)
+    }
+
+    /// Migrate tokens from a specific old path to a new path
+    /// Only runs when new path doesn't exist and old path does exist
+    fn migrate_from_path(old_path: &Path, new_path: &Path) -> Result<()> {
+        // Skip migration if new path already exists
+        if new_path.exists() {
+            return Ok(());
+        }
+
+        // Skip migration if old path doesn't exist
+        if !old_path.exists() {
+            return Ok(());
+        }
+
+        // Copy old file to new location
+        fs::copy(old_path, new_path).map_err(|e| {
+            TokenStoreError::IoError(format!("Failed to migrate tokens from old path: {}", e))
+        })?;
+
+        // Set file permissions to 0600 on Unix systems
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let permissions = fs::Permissions::from_mode(0o600);
+            fs::set_permissions(new_path, permissions).map_err(|e| {
+                TokenStoreError::IoError(format!(
+                    "Failed to set file permissions during migration: {}",
+                    e
+                ))
+            })?;
+        }
+
+        Ok(())
     }
 
     /// Load tokens from file
@@ -509,7 +584,7 @@ mod tests {
     }
 
     /// Test default path for FileTokenStore
-    /// Verifies that FileTokenStore uses ~/.config/slack-rs/tokens.json by default
+    /// Verifies that FileTokenStore uses ~/.local/share/slack-rs/tokens.json by default
     #[test]
     #[serial_test::serial]
     fn test_file_token_store_default_path() {
@@ -519,11 +594,11 @@ mod tests {
         let default_path = FileTokenStore::default_path().unwrap();
         let path_str = default_path.to_string_lossy();
 
-        // Should contain .config/slack-rs/tokens.json
+        // Should contain .local/share/slack-rs/tokens.json
         assert!(
-            path_str.contains(".config/slack-rs/tokens.json")
-                || path_str.contains(".config\\slack-rs\\tokens.json"),
-            "Default path should be ~/.config/slack-rs/tokens.json, got: {}",
+            path_str.contains(".local/share/slack-rs/tokens.json")
+                || path_str.contains(".local\\share\\slack-rs\\tokens.json"),
+            "Default path should be ~/.local/share/slack-rs/tokens.json, got: {}",
             path_str
         );
     }
@@ -618,5 +693,214 @@ mod tests {
         );
         delete_oauth_client_secret(&store, "test").unwrap();
         assert!(!store.exists(&make_oauth_client_secret_key("test")));
+    }
+
+    /// Test migration from old path to new path
+    #[test]
+    fn test_migration_from_old_to_new_path() {
+        use tempfile::TempDir;
+
+        let temp_dir = TempDir::new().unwrap();
+
+        // Create old-style directory structure
+        let old_config_dir = temp_dir.path().join(".config").join("slack-rs");
+        fs::create_dir_all(&old_config_dir).unwrap();
+        let old_path = old_config_dir.join("tokens.json");
+
+        // Create new-style directory structure
+        let new_data_dir = temp_dir
+            .path()
+            .join(".local")
+            .join("share")
+            .join("slack-rs");
+        fs::create_dir_all(&new_data_dir).unwrap();
+        let new_path = new_data_dir.join("tokens.json");
+
+        // Write test data to old path
+        let mut old_tokens = HashMap::new();
+        old_tokens.insert("T123:U456".to_string(), "xoxb-old-token".to_string());
+        old_tokens.insert(
+            "oauth-client-secret:default".to_string(),
+            "old-secret".to_string(),
+        );
+        let old_content = serde_json::to_string_pretty(&old_tokens).unwrap();
+        fs::write(&old_path, old_content).unwrap();
+
+        // Verify old file exists and new file doesn't
+        assert!(old_path.exists());
+        assert!(!new_path.exists());
+
+        // Create FileTokenStore with new path (should trigger migration)
+        let store =
+            FileTokenStore::with_path_and_migration(new_path.clone(), Some(old_path.clone()))
+                .unwrap();
+
+        // Verify new file exists after migration
+        assert!(new_path.exists());
+
+        // Verify content was migrated correctly
+        assert_eq!(store.get("T123:U456").unwrap(), "xoxb-old-token");
+        assert_eq!(
+            store.get("oauth-client-secret:default").unwrap(),
+            "old-secret"
+        );
+
+        // Verify file permissions on Unix
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let metadata = fs::metadata(&new_path).unwrap();
+            let permissions = metadata.permissions();
+            assert_eq!(permissions.mode() & 0o777, 0o600);
+        }
+
+        // Verify old file still exists (not deleted)
+        assert!(old_path.exists());
+    }
+
+    /// Test that migration doesn't happen when new path already exists
+    #[test]
+    fn test_no_migration_when_new_path_exists() {
+        use tempfile::TempDir;
+
+        let temp_dir = TempDir::new().unwrap();
+
+        // Create old-style directory structure
+        let old_config_dir = temp_dir.path().join(".config").join("slack-rs");
+        fs::create_dir_all(&old_config_dir).unwrap();
+        let old_path = old_config_dir.join("tokens.json");
+
+        // Create new-style directory structure
+        let new_data_dir = temp_dir
+            .path()
+            .join(".local")
+            .join("share")
+            .join("slack-rs");
+        fs::create_dir_all(&new_data_dir).unwrap();
+        let new_path = new_data_dir.join("tokens.json");
+
+        // Write different data to both paths
+        let mut old_tokens = HashMap::new();
+        old_tokens.insert("old:key".to_string(), "old-value".to_string());
+        fs::write(
+            &old_path,
+            serde_json::to_string_pretty(&old_tokens).unwrap(),
+        )
+        .unwrap();
+
+        let mut new_tokens = HashMap::new();
+        new_tokens.insert("new:key".to_string(), "new-value".to_string());
+        fs::write(
+            &new_path,
+            serde_json::to_string_pretty(&new_tokens).unwrap(),
+        )
+        .unwrap();
+
+        // Create FileTokenStore with new path
+        let store = FileTokenStore::with_path(new_path.clone()).unwrap();
+
+        // Verify new path content is preserved (no migration happened)
+        assert_eq!(store.get("new:key").unwrap(), "new-value");
+        assert!(store.get("old:key").is_err());
+    }
+
+    /// Test that migration doesn't happen when old path doesn't exist
+    #[test]
+    fn test_no_migration_when_old_path_missing() {
+        use tempfile::TempDir;
+
+        let temp_dir = TempDir::new().unwrap();
+
+        // Create new-style directory structure only
+        let new_data_dir = temp_dir
+            .path()
+            .join(".local")
+            .join("share")
+            .join("slack-rs");
+        fs::create_dir_all(&new_data_dir).unwrap();
+        let new_path = new_data_dir.join("tokens.json");
+
+        // Create FileTokenStore with new path (should not fail)
+        let store = FileTokenStore::with_path(new_path.clone()).unwrap();
+
+        // Should work normally
+        store.set("test:key", "test-value").unwrap();
+        assert_eq!(store.get("test:key").unwrap(), "test-value");
+        assert!(new_path.exists());
+    }
+
+    /// Test that migration doesn't happen when SLACK_RS_TOKENS_PATH is set
+    #[test]
+    #[serial_test::serial]
+    fn test_no_migration_with_env_override() {
+        use tempfile::TempDir;
+
+        let temp_dir = TempDir::new().unwrap();
+
+        // Create old-style directory structure
+        let old_config_dir = temp_dir.path().join(".config").join("slack-rs");
+        fs::create_dir_all(&old_config_dir).unwrap();
+        let old_path = old_config_dir.join("tokens.json");
+
+        // Write test data to old path
+        let mut old_tokens = HashMap::new();
+        old_tokens.insert("old:key".to_string(), "old-value".to_string());
+        fs::write(
+            &old_path,
+            serde_json::to_string_pretty(&old_tokens).unwrap(),
+        )
+        .unwrap();
+
+        // Set custom path via environment variable
+        let custom_path = temp_dir.path().join("custom-tokens.json");
+        std::env::set_var("SLACK_RS_TOKENS_PATH", custom_path.to_str().unwrap());
+
+        // Create FileTokenStore (should use custom path, no migration)
+        let store = FileTokenStore::new().unwrap();
+
+        // Verify custom path is used and old data is not migrated
+        store.set("new:key", "new-value").unwrap();
+        assert_eq!(store.get("new:key").unwrap(), "new-value");
+        assert!(store.get("old:key").is_err());
+        assert!(custom_path.exists());
+
+        std::env::remove_var("SLACK_RS_TOKENS_PATH");
+    }
+
+    /// Test existing key format compatibility (regression test)
+    #[test]
+    fn test_existing_key_format_compatibility() {
+        use tempfile::TempDir;
+
+        let temp_dir = TempDir::new().unwrap();
+        let file_path = temp_dir.path().join("tokens.json");
+        let store = FileTokenStore::with_path(file_path.clone()).unwrap();
+
+        // Test team_id:user_id format
+        let token_key = make_token_key("T123", "U456");
+        assert_eq!(token_key, "T123:U456");
+        store.set(&token_key, "xoxb-test-token").unwrap();
+        assert_eq!(store.get(&token_key).unwrap(), "xoxb-test-token");
+
+        // Test oauth-client-secret:profile_name format
+        let secret_key = make_oauth_client_secret_key("default");
+        assert_eq!(secret_key, "oauth-client-secret:default");
+        store.set(&secret_key, "test-secret").unwrap();
+        assert_eq!(store.get(&secret_key).unwrap(), "test-secret");
+
+        // Verify helper functions work correctly
+        store_oauth_client_secret(&store, "profile1", "secret1").unwrap();
+        assert_eq!(
+            get_oauth_client_secret(&store, "profile1").unwrap(),
+            "secret1"
+        );
+
+        delete_oauth_client_secret(&store, "profile1").unwrap();
+        assert!(get_oauth_client_secret(&store, "profile1").is_err());
+
+        // Verify file content has correct keys
+        let content = fs::read_to_string(&file_path).unwrap();
+        assert!(content.contains("T123:U456"));
+        assert!(content.contains("oauth-client-secret:default"));
     }
 }

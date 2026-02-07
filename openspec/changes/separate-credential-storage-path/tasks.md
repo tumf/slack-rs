@@ -1,5 +1,0 @@
-- [ ] `FileTokenStore::default_path()` の仕様を新デフォルト `~/.local/share/slack-rs/tokens.json` に更新し、`SLACK_RS_TOKENS_PATH` 優先を維持する（確認: `cargo test token_store_default_path` で期待パスを検証）
-- [ ] 旧パス `~/.config/slack-rs/tokens.json` から新パスへの自動移行処理を追加する（確認: 旧パスのみ存在するテストで初期化後に新パスへ同内容が作成される）
-- [ ] 移行時を含めて Unix の 0600 が維持されるようにする（確認: 既存のパーミッションテストと移行テストの双方で 0600 を検証）
-- [ ] 既存キー形式 `{team_id}:{user_id}` と `oauth-client-secret:{profile_name}` の互換性を回帰テストで固定する（確認: 既存キー互換テストが成功する）
-- [ ] 仕様差分を `file-token-storage` と `profiles-and-token-store` に反映する（確認: `npx @fission-ai/openspec@latest validate separate-credential-storage-path --strict` が成功する）

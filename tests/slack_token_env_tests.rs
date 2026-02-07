@@ -157,12 +157,20 @@ async fn test_fallback_to_token_store_when_slack_token_not_set() {
     // Ensure SLACK_TOKEN is not set
     env::remove_var("SLACK_TOKEN");
 
+    // Setup isolated token store path to avoid reading from real home directory
+    let temp_dir = TempDir::new().unwrap();
+    let tokens_path = temp_dir.path().join("tokens.json");
+    env::set_var("SLACK_RS_TOKENS_PATH", tokens_path.to_str().unwrap());
+
     // Setup test profile
-    let (_temp_dir, _config_path) = setup_test_profile();
+    let (_temp_config_dir, _config_path) = setup_test_profile();
 
     // Try to get API client without SLACK_TOKEN
-    // This should fail because we don't have tokens in the keyring
+    // This should fail because we don't have tokens in the isolated token store
     let client_result = get_api_client_with_token_type(None, None).await;
+
+    // Clean up
+    env::remove_var("SLACK_RS_TOKENS_PATH");
 
     // Should fail with token not found error (expected behavior without SLACK_TOKEN)
     assert!(

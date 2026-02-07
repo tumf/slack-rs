@@ -1,138 +1,144 @@
 # file-token-storage Specification
 
 ## Purpose
-ファイルベースのトークンストレージ実装を定義する。トークンを `~/.config/slack-rs/tokens.json` に保存し、ファイルパーミッション（0600）でセキュリティを確保する。
+Defines file-based token storage implementation. Tokens are stored in `~/.config/slack-rs/tokens.json` with file permissions (0600) for security.
+## Requirements
+### Requirement: Tokens are stored in files
 
-## ADDED Requirements
+Tokens MUST be stored in file-based storage at `~/.local/share/slack-rs/tokens.json`. (MUST)
 
-### Requirement: トークンはファイルに保存される
+The file format MUST be JSON, stored as key-value pairs. (MUST)
 
-トークンは `~/.config/slack-rs/tokens.json` にファイルベースで保存されなければならない (MUST)。
+#### Scenario: Tokens are saved and written to file
+- **WHEN** a token is saved with `set(key, token)`
+- **THEN** the token is written to `~/.local/share/slack-rs/tokens.json` in JSON format
 
-ファイル形式は JSON で、キーと値のペアとして保存されなければならない (MUST)。
+### Requirement: File permissions are set to 0600
 
-#### Scenario: トークンを保存してファイルに書き込まれる
-- **WHEN** トークンを `set(key, token)` で保存する
-- **THEN** `~/.config/slack-rs/tokens.json` にトークンが JSON 形式で書き込まれる
+On Unix-like systems, token file permissions MUST be set to 0600 (owner read/write only). (MUST)
 
-#### Scenario: 保存したトークンを取得できる
-- **WHEN** トークンを `set("T123:U456", "xoxb-test-token")` で保存する
-- **THEN** `get("T123:U456")` で同じトークン値が取得できる
+On non-Unix systems such as Windows, permission setting MUST be skipped. (MUST)
 
-### Requirement: ファイルパーミッションは 0600 に設定される
+#### Scenario: File permissions are set to 0600 on Unix systems
+- **WHEN** a token is saved on a Unix system
+- **THEN** `tokens.json` file permissions are set to 0600
 
-Unix 系システムでは、トークンファイルのパーミッションは 0600（所有者のみ読み書き可能）に設定されなければならない (MUST)。
+#### Scenario: Permission setting failure returns an error
+- **WHEN** file permission setting fails
+- **THEN** a `StoreFailed` error is returned
 
-Windows など Unix 以外のシステムでは、パーミッション設定はスキップされなければならない (MUST)。
+### Requirement: Token file path can be overridden with environment variable
 
-#### Scenario: Unix システムでファイルパーミッションが 0600 に設定される
-- **WHEN** Unix システムでトークンを保存する
-- **THEN** `tokens.json` のファイルパーミッションが 0600 になる
+The default token file path MUST be `~/.local/share/slack-rs/tokens.json`. (MUST)
 
-#### Scenario: パーミッション設定失敗時はエラーを返す
-- **WHEN** ファイルパーミッションの設定に失敗する
-- **THEN** `StoreFailed` エラーが返される
+If the environment variable `SLACK_RS_TOKENS_PATH` is set, that path MUST be used. (MUST)
 
-### Requirement: トークンファイルのパスは環境変数でオーバーライド可能
+#### Scenario: Default path is used
+- **WHEN** environment variable `SLACK_RS_TOKENS_PATH` is not set
+- **THEN** `~/.local/share/slack-rs/tokens.json` is used as the token file path
 
-デフォルトのトークンファイルパスは `~/.config/slack-rs/tokens.json` でなければならない (MUST)。
+#### Scenario: Path can be overridden with environment variable
+- **WHEN** environment variable `SLACK_RS_TOKENS_PATH=/tmp/test-tokens.json` is set
+- **THEN** `/tmp/test-tokens.json` is used as the token file path
 
-環境変数 `SLACK_RS_TOKENS_PATH` が設定されている場合、そのパスを使用しなければならない (MUST)。
+### Requirement: Parent directory is created automatically if it does not exist
 
-#### Scenario: デフォルトパスが使用される
-- **WHEN** 環境変数 `SLACK_RS_TOKENS_PATH` が設定されていない
-- **THEN** `~/.config/slack-rs/tokens.json` がトークンファイルパスとして使用される
+If the parent directory of the token file does not exist, it MUST be created automatically. (MUST)
 
-#### Scenario: 環境変数でパスをオーバーライドできる
-- **WHEN** 環境変数 `SLACK_RS_TOKENS_PATH=/tmp/test-tokens.json` が設定されている
-- **THEN** `/tmp/test-tokens.json` がトークンファイルパスとして使用される
+If directory creation fails, an `IoError` MUST be returned. (MUST)
 
-### Requirement: 親ディレクトリが存在しない場合は自動作成される
+#### Scenario: Parent directory is created automatically
+- **WHEN** a token is saved when `~/.config/slack-rs/` does not exist
+- **THEN** the `~/.config/slack-rs/` directory is created automatically
 
-トークンファイルの親ディレクトリが存在しない場合、自動的に作成されなければならない (MUST)。
+#### Scenario: Directory creation failure returns an error
+- **WHEN** parent directory creation fails
+- **THEN** an `IoError` is returned
 
-ディレクトリ作成に失敗した場合は、`IoError` を返さなければならない (MUST)。
+### Requirement: Tokens can be deleted
 
-#### Scenario: 親ディレクトリが自動作成される
-- **WHEN** `~/.config/slack-rs/` が存在しない状態でトークンを保存する
-- **THEN** `~/.config/slack-rs/` ディレクトリが自動的に作成される
+Tokens MUST be deletable with the `delete(key)` method. (MUST)
 
-#### Scenario: ディレクトリ作成失敗時はエラーを返す
-- **WHEN** 親ディレクトリの作成に失敗する
-- **THEN** `IoError` が返される
+After deletion, calling `get(key)` with the same key MUST return a `NotFound` error. (MUST)
 
-### Requirement: トークンの削除が可能
+The file MUST also be updated when deleting. (MUST)
 
-トークンは `delete(key)` メソッドで削除できなければならない (MUST)。
+#### Scenario: Tokens can be deleted
+- **WHEN** `delete("T123:U456")` is called after saving a token
+- **THEN** the token is deleted and `get("T123:U456")` returns a `NotFound` error
 
-削除後、同じキーで `get(key)` を呼び出すと `NotFound` エラーが返されなければならない (MUST)。
+#### Scenario: File is updated after deletion
+- **WHEN** a token is deleted
+- **THEN** the corresponding key is removed from `tokens.json`
 
-削除時にファイルも更新されなければならない (MUST)。
+### Requirement: Token existence can be checked
 
-#### Scenario: トークンを削除できる
-- **WHEN** トークンを保存した後に `delete("T123:U456")` を呼び出す
-- **THEN** トークンが削除され、`get("T123:U456")` が `NotFound` エラーを返す
+Token existence MUST be checkable with the `exists(key)` method. (MUST)
 
-#### Scenario: 削除後にファイルが更新される
-- **WHEN** トークンを削除する
-- **THEN** `tokens.json` から該当のキーが削除される
+It MUST return `true` if the token exists and `false` if it does not. (MUST)
 
-### Requirement: トークンの存在確認が可能
+#### Scenario: Existing tokens return true
+- **WHEN** `exists("T123:U456")` is called after saving a token
+- **THEN** `true` is returned
 
-トークンの存在は `exists(key)` メソッドで確認できなければならない (MUST)。
+#### Scenario: Non-existing tokens return false
+- **WHEN** `exists("nonexistent")` is called with a key that has not been saved
+- **THEN** `false` is returned
 
-トークンが存在する場合は `true`、存在しない場合は `false` を返さなければならない (MUST)。
+### Requirement: Existing token files can be loaded
 
-#### Scenario: 存在するトークンは true を返す
-- **WHEN** トークンを保存した後に `exists("T123:U456")` を呼び出す
-- **THEN** `true` が返される
+When initializing `FileTokenStore`, if an existing `tokens.json` file exists, its contents MUST be loaded. (MUST)
 
-#### Scenario: 存在しないトークンは false を返す
-- **WHEN** 保存されていないキーで `exists("nonexistent")` を呼び出す
-- **THEN** `false` が返される
+If the file does not exist, it MUST be initialized with an empty token map. (MUST)
 
-### Requirement: 既存のトークンファイルを読み込める
+If JSON parsing of the file fails, an `IoError` MUST be returned. (MUST)
 
-`FileTokenStore` の初期化時、既存の `tokens.json` ファイルが存在する場合は、その内容を読み込まなければならない (MUST)。
+#### Scenario: Existing token file can be loaded
+- **WHEN** `FileTokenStore` is initialized when existing tokens are saved in `tokens.json`
+- **THEN** existing tokens are loaded and can be retrieved with `get()`
 
-ファイルが存在しない場合は、空のトークンマップで初期化されなければならない (MUST)。
+#### Scenario: File is initialized empty if it does not exist
+- **WHEN** `FileTokenStore` is initialized when `tokens.json` does not exist
+- **THEN** it is initialized with an empty token map
 
-ファイルの JSON パースに失敗した場合は、`IoError` を返さなければならない (MUST)。
+#### Scenario: JSON parse failure returns an error
+- **WHEN** `tokens.json` is in invalid JSON format
+- **THEN** an `IoError` is returned
 
-#### Scenario: 既存のトークンファイルを読み込める
-- **WHEN** `tokens.json` に既存のトークンが保存されている状態で `FileTokenStore` を初期化する
-- **THEN** 既存のトークンが読み込まれ、`get()` で取得できる
+### Requirement: Multiple tokens can be stored
 
-#### Scenario: ファイルが存在しない場合は空で初期化される
-- **WHEN** `tokens.json` が存在しない状態で `FileTokenStore` を初期化する
-- **THEN** 空のトークンマップで初期化される
+Multiple tokens with different keys MUST be storable. (MUST)
 
-#### Scenario: JSON パース失敗時はエラーを返す
-- **WHEN** `tokens.json` が不正な JSON 形式である
-- **THEN** `IoError` が返される
+Each token MUST be retrievable and deletable independently. (MUST)
 
-### Requirement: 複数のトークンを保存できる
+#### Scenario: Multiple tokens can be stored and retrieved individually
+- **WHEN** `set("T1:U1", "token1")` and `set("T2:U2", "token2")` are called
+- **THEN** `get("T1:U1")` returns `"token1"` and `get("T2:U2")` returns `"token2"`
 
-複数の異なるキーでトークンを保存できなければならない (MUST)。
+#### Scenario: Other tokens remain when one token is deleted
+- **WHEN** one token is deleted after saving multiple tokens
+- **THEN** the deleted token cannot be retrieved but other tokens can be retrieved
 
-各トークンは独立して取得・削除できなければならない (MUST)。
+### Requirement: Automatic migration from legacy token path to new path
 
-#### Scenario: 複数のトークンを保存して個別に取得できる
-- **WHEN** `set("T1:U1", "token1")` と `set("T2:U2", "token2")` を呼び出す
-- **THEN** `get("T1:U1")` は `"token1"` を返し、`get("T2:U2")` は `"token2"` を返す
+When the environment variable `SLACK_RS_TOKENS_PATH` is not set, the new path `~/.local/share/slack-rs/tokens.json` does not exist, and the legacy path `~/.config/slack-rs/tokens.json` exists, the legacy file contents MUST be migrated to the new path during initialization. (MUST)
 
-#### Scenario: 一つのトークンを削除しても他のトークンは残る
-- **WHEN** 複数のトークンを保存した後、一つを削除する
-- **THEN** 削除したトークンは取得できないが、他のトークンは取得できる
+After migration, read and write operations MUST be performed on the new path. (MUST)
+
+#### Scenario: Automatic migration when only legacy path exists
+- **WHEN** `tokens.json` exists only in the legacy path and not in the new path
+- **THEN** the same content is created in the new path during `FileTokenStore` initialization
+- **AND** subsequent `get/set/delete` operations work on the new path
+
 ## Requirements
 ### Requirement: FileTokenStore is always enabled
 
-FileTokenStore は常に有効であり、トークンストレージは必ず FileTokenStore を使用しなければならない (MUST)。
+FileTokenStore is always enabled, and token storage MUST always use FileTokenStore. (MUST)
 
-`SLACKRS_TOKEN_STORE` は使用してはならない (MUST NOT)。
+`SLACKRS_TOKEN_STORE` MUST NOT be used. (MUST NOT)
 
-#### Scenario: FileTokenStore が常時使用される
-- Given `SLACKRS_TOKEN_STORE` が設定されていない
-- When トークンを保存する
-- Then `~/.config/slack-rs/tokens.json` に書き込まれる
+#### Scenario: FileTokenStore is always used
+- Given `SLACKRS_TOKEN_STORE` is not set
+- When saving a token
+- Then it is written to `~/.config/slack-rs/tokens.json`
 

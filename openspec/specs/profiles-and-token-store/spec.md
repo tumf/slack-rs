@@ -5,14 +5,14 @@ Defines how slack-rs persists profile configurations and manages access tokens s
 ## Requirements
 ### Requirement: Profile configuration can be persisted
 
-Profile に含まれる非機密情報は `profiles.json` に保存され、再起動後も同じ内容で取得できなければならない (MUST)。
+Non-sensitive information contained in Profile MUST be saved in `profiles.json` and retrievable with the same content after restart. (MUST)
 
-OAuth の非機密情報（`client_id`、`redirect_uri`、`bot_scopes`、`user_scopes`）も永続化の対象としなければならない (MUST)。
+OAuth non-sensitive information (`client_id`, `redirect_uri`, `bot_scopes`, `user_scopes`) MUST also be subject to persistence. (MUST)
 
-#### Scenario: bot/user スコープを含むプロファイルを保存して再読み込みできる
-- Given `client_id`、`redirect_uri`、`bot_scopes`、`user_scopes` を含むプロファイルを保存する
-- When `profiles.json` を再読み込みする
-- Then すべての値が同一内容で取得できる
+#### Scenario: Profile containing bot/user scopes can be saved and reloaded
+- Given saving a profile containing `client_id`, `redirect_uri`, `bot_scopes`, `user_scopes`
+- When reloading `profiles.json`
+- Then all values can be retrieved with identical content
 
 ### Requirement: Configuration file has a version field
 `profiles.json` MUST contain a `version` field. (MUST)
@@ -37,32 +37,33 @@ Profiles with the same `(team_id, user_id)` MUST NOT be duplicated. (MUST NOT)
 
 ### Requirement: Tokens are saved in file-based storage and not in configuration file
 
-トークン（bot/user）および OAuth `client_secret` は `profiles.json` ではなく、FileTokenStore に保存されなければならない (MUST)。
+Tokens (bot/user) and OAuth `client_secret` MUST be saved in FileTokenStore, not in `profiles.json`. (MUST)
 
-トークンストレージは常に FileTokenStore を使用しなければならない (MUST)。
+The default storage location for FileTokenStore MUST be `~/.local/share/slack-rs/tokens.json`. (MUST)
 
-`SLACKRS_TOKEN_STORE` は使用してはならない (MUST NOT)。
+`profiles.json` and the credential file `tokens.json` MUST NOT be saved in the same file. (MUST NOT)
 
-#### Scenario: 常に FileTokenStore が使用される
-- Given 環境変数が設定されていない
-- When トークンストレージを初期化する
-- Then FileTokenStore が選択される
+#### Scenario: Credentials are saved separately from configuration file
+- Given `profiles.json` exists in the configuration directory
+- When saving bot token and OAuth `client_secret`
+- Then credentials are saved in `~/.local/share/slack-rs/tokens.json`
+- And credentials are not saved in `profiles.json`
 
 ### Requirement: file-based token storage key format is stable
 
-bot トークンのファイルベースストレージ保存キーは `{team_id}:{user_id}` でなければならない (MUST)。
+The file-based storage key for bot tokens MUST be `{team_id}:{user_id}`. (MUST)
 
-user トークンは bot トークンとは異なる、安定した別キーで保存しなければならない (MUST)。
+User tokens MUST be saved with a stable separate key different from bot tokens. (MUST)
 
-OAuth クライアントシークレットは `oauth-client-secret:{profile_name}` のキー形式で保存しなければならない (MUST)。
+OAuth client secrets MUST be saved in the key format `oauth-client-secret:{profile_name}`. (MUST)
 
-#### Scenario: bot と user のトークンが別キーで保存される
-- **WHEN** `team_id=T123` と `user_id=U456` がある
-- **THEN** bot トークンのキーは `T123:U456` で、user トークンは別の安定したキーで保存される
+#### Scenario: bot and user tokens are saved with separate keys
+- **WHEN** there are `team_id=T123` and `user_id=U456`
+- **THEN** the bot token key is `T123:U456` and the user token is saved with a separate stable key
 
-#### Scenario: OAuth クライアントシークレットが正しいキー形式で保存される
-- **WHEN** プロファイル名 `default` の OAuth クライアントシークレットを保存する
-- **THEN** キーは `oauth-client-secret:default` で保存される
+#### Scenario: OAuth client secret is saved with correct key format
+- **WHEN** saving OAuth client secret for profile name `default`
+- **THEN** the key is saved as `oauth-client-secret:default`
 
 ### Requirement: Stable key can be resolved from profile_name
 `(team_id, user_id)` MUST be uniquely resolvable from `profile_name`. (MUST)
@@ -94,15 +95,15 @@ Profile MUST optionally hold `default_token_type` and persist it. (MUST)
 
 ### Requirement: FileTokenStore mode reuses tokens.json path and stable keys
 
-file mode（`SLACKRS_TOKEN_STORE=file`）では、既存の `FileTokenStore` の保存パス `~/.config/slack-rs/tokens.json` を再利用しなければならない (MUST)。
+In file mode (`SLACKRS_TOKEN_STORE=file`), the existing `FileTokenStore` storage path `~/.config/slack-rs/tokens.json` MUST be reused. (MUST)
 
-file mode ではキー形式も既存仕様を維持しなければならない (MUST)。少なくとも以下のキーは同一形式であること:
+In file mode, the key format MUST also maintain the existing specification. (MUST) At minimum, the following keys must be in the same format:
 - bot token: `{team_id}:{user_id}`
 - OAuth `client_secret`: `oauth-client-secret:{profile_name}`
 
-#### Scenario: file mode で tokens.json と既存キー形式を使用する
-- Given `SLACKRS_TOKEN_STORE=file` が設定されている
-- When `team_id=T123` と `user_id=U456` の bot token を保存する
-- Then `~/.config/slack-rs/tokens.json` にキー `T123:U456` で保存される
-- And `profile_name=default` の `client_secret` はキー `oauth-client-secret:default` で保存される
+#### Scenario: file mode uses tokens.json and existing key format
+- Given `SLACKRS_TOKEN_STORE=file` is set
+- When saving bot token for `team_id=T123` and `user_id=U456`
+- Then it is saved in `~/.config/slack-rs/tokens.json` with key `T123:U456`
+- And `client_secret` for `profile_name=default` is saved with key `oauth-client-secret:default`
 
