@@ -578,6 +578,8 @@ pub async fn handle_import_command(args: &[String]) {
     // Parse import-specific arguments
     let mut input_path: Option<String> = None;
     let mut force = false;
+    let mut dry_run = false;
+    let mut json = false;
 
     for (idx, arg) in remaining {
         match arg.as_str() {
@@ -589,6 +591,12 @@ pub async fn handle_import_command(args: &[String]) {
             }
             "--force" => {
                 force = true;
+            }
+            "--dry-run" => {
+                dry_run = true;
+            }
+            "--json" => {
+                json = true;
             }
             _ => {
                 // Check if this is a value for a previous flag
@@ -631,12 +639,51 @@ pub async fn handle_import_command(args: &[String]) {
         passphrase,
         yes: common_args.yes,
         force,
+        dry_run,
+        json,
     };
 
     let token_store = create_token_store().expect("Failed to create token store");
     match auth::import_profiles(&*token_store, &options) {
-        Ok(_) => {
-            println!("{}", messages.get("success.import"));
+        Ok(result) => {
+            if json {
+                // JSON output
+                match serde_json::to_string_pretty(&result) {
+                    Ok(json_str) => println!("{}", json_str),
+                    Err(e) => {
+                        eprintln!("Failed to serialize result to JSON: {}", e);
+                        std::process::exit(1);
+                    }
+                }
+            } else {
+                // Text output
+                if dry_run {
+                    println!("Dry-run mode: No changes will be made\n");
+                }
+
+                for profile_result in &result.profiles {
+                    let action_str = match profile_result.action {
+                        auth::ImportAction::Created => "will be created",
+                        auth::ImportAction::Updated => "will be updated",
+                        auth::ImportAction::Skipped => "will be skipped",
+                        auth::ImportAction::Overwritten => "will be overwritten",
+                    };
+
+                    println!("Profile '{}': {}", profile_result.profile_name, action_str);
+                    println!("  Team ID: {}", profile_result.team_id);
+                    println!("  User ID: {}", profile_result.user_id);
+                    if let Some(ref reason) = profile_result.reason {
+                        println!("  Reason: {}", reason);
+                    }
+                    println!();
+                }
+
+                if dry_run {
+                    println!("Dry-run complete. Use without --dry-run to apply changes.");
+                } else {
+                    println!("{}", messages.get("success.import"));
+                }
+            }
         }
         Err(e) => {
             eprintln!("Import failed: {}", e);

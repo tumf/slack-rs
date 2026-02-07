@@ -105,6 +105,8 @@ fn test_import_rejects_empty_passphrase() {
         passphrase: "".to_string(),
         yes: false,
         force: false,
+        dry_run: false,
+        json: false,
     };
 
     let result = import_profiles(&token_store, &options);

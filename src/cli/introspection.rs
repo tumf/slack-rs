@@ -867,11 +867,35 @@ pub fn get_command_definitions() -> Vec<CommandDef> {
                     description: "Overwrite existing profiles".to_string(),
                     default: None,
                 },
+                FlagDef {
+                    name: "--dry-run".to_string(),
+                    flag_type: "boolean".to_string(),
+                    required: false,
+                    description: "Show what would be imported without making changes".to_string(),
+                    default: None,
+                },
+                FlagDef {
+                    name: "--json".to_string(),
+                    flag_type: "boolean".to_string(),
+                    required: false,
+                    description: "Output results in JSON format".to_string(),
+                    default: None,
+                },
             ],
-            examples: vec![ExampleDef {
-                description: "Import profiles".to_string(),
-                command: "slack-rs auth import --in profiles.enc".to_string(),
-            }],
+            examples: vec![
+                ExampleDef {
+                    description: "Import profiles".to_string(),
+                    command: "slack-rs auth import --in profiles.enc".to_string(),
+                },
+                ExampleDef {
+                    description: "Preview import without making changes".to_string(),
+                    command: "slack-rs auth import --in profiles.enc --dry-run".to_string(),
+                },
+                ExampleDef {
+                    description: "Preview import with JSON output".to_string(),
+                    command: "slack-rs auth import --in profiles.enc --dry-run --json".to_string(),
+                },
+            ],
             exit_codes: vec![
                 ExitCodeDef {
                     code: 0,
