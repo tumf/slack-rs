@@ -1,0 +1,64 @@
+#!/bin/sh
+
+set -eu
+
+PREK_INSTALLER_URL="https://github.com/j178/prek/releases/latest/download/prek-installer.sh"
+
+script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+
+resolve_worktree_root() {
+  if [ -n "${ROOT_WORKTREE_PATH:-}" ] && [ -d "${ROOT_WORKTREE_PATH}" ]; then
+    printf '%s\n' "${ROOT_WORKTREE_PATH}"
+    return 0
+  fi
+
+  if command -v git >/dev/null 2>&1; then
+    if root=$(git rev-parse --show-toplevel 2>/dev/null); then
+      if [ -n "${root}" ] && [ -d "${root}" ]; then
+        printf '%s\n' "${root}"
+        return 0
+      fi
+    fi
+  fi
+
+  printf '%s\n' "$(cd -- "${script_dir}/.." && pwd)"
+}
+
+worktree_root=$(resolve_worktree_root)
+
+echo "wt: ${worktree_root}"
+
+ensure_prek() {
+  if command -v prek >/dev/null 2>&1; then
+    return 0
+  fi
+
+  if ! command -v curl >/dev/null 2>&1; then
+    echo "error: curl is required to install prek" 1>&2
+    return 1
+  fi
+
+  echo "installing prek"
+  curl -LsSf "${PREK_INSTALLER_URL}" | sh
+
+  if [ -d "${HOME}/.local/bin" ]; then
+    case ":${PATH}:" in
+      *":${HOME}/.local/bin:"*) ;;
+      *) PATH="${HOME}/.local/bin:${PATH}" ;;
+    esac
+    export PATH
+  fi
+
+  if ! command -v prek >/dev/null 2>&1; then
+    echo "error: prek install finished but 'prek' is still not on PATH" 1>&2
+    echo "hint: ensure the installer target directory is on PATH (often \$HOME/.local/bin)" 1>&2
+    return 1
+  fi
+}
+
+ensure_prek
+
+echo "installing git hooks"
+(cd -- "${worktree_root}" && prek install)
+
+echo "done"
