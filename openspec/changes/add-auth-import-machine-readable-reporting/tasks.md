@@ -5,3 +5,7 @@
 
 - [x] `auth import --in <file> --yes` で team_id 競合がある場合に `Err(ProfileExists)` で処理全体を失敗させず、対象 profile を `action: skipped` として結果 (`profiles`/`summary`) に含めるよう `import_profiles` を修正する（確認: cargo test および cargo clippy 成功）
 - [x] `auth import --in <file> --yes --force` で「別名 profile と同じ team_id」の競合が発生した場合、`action: updated` ではなく `action: overwritten` となるようにし、競合元 profile が上書きされる実装に修正する（確認: cargo test および cargo clippy 成功）
+
+## Acceptance #2 Failure Follow-up
+
+- [x] `auth import --in <file> --yes --force` の「別名 profile と同じ team_id」競合で、`action: overwritten` だけでなく実データ上も競合元 profile を置換するよう修正する（現状は `src/auth/export_import.rs` の `import_profiles` で競合名検出後も `config.set(name.clone(), profile)` のみ実行され、競合元 profile が残存する）（確認: cargo test および cargo clippy 成功）

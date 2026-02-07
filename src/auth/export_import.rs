@@ -302,6 +302,8 @@ pub fn import_profiles(
         } else if let Some(conflicting_name) = find_conflicting_name() {
             // team_id exists under different name
             if options.force {
+                // Remove the conflicting profile before importing
+                config.remove(&conflicting_name);
                 (
                     ImportAction::Overwritten,
                     format!(
