@@ -1,0 +1,6 @@
+- [x] `conv list` の既定 `types` を `public_channel,private_channel` に変更し、`--types`/`--include-private`/`--all` の排他・優先順が維持されることを確認する（確認: `src/cli/mod.rs` の `run_conv_list` と関連テスト）
+- [x] `conversations.list` 取得を `next_cursor` 追従のページネーション対応に変更し、全ページ `channels` が統合されることを確認する（確認: `src/commands/conv/api.rs` の実装とページング用テスト）
+- [x] `limit` 未指定時の既定値を 1000 に統一し、`conv list` / `conv search` / `conv select` / `conv history --interactive` の会話一覧取得経路で同じ既定が使われることを確認する（確認: 各ハンドラのテストまたは引数解決テスト）
+- [x] フィルタ・ソート・`conv search` の名前マッチが「ページ統合後」に適用されることをモック/fixture 応答で確認する（確認: テストで 2 ページ目にのみ存在する private channel が検索ヒットする）
+- [x] CLI ヘルプ文言を既定動作に合わせて更新し、`conv list --help` で確認する（確認: ヘルプ出力スナップショットまたは文字列検証テスト）
+- [x] 回帰確認として `cargo test` を実行し、関連テストが通過することを確認する（確認: テストコマンド実行結果）

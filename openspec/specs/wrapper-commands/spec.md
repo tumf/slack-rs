@@ -14,21 +14,25 @@ The `search` command MUST call `search.messages` and pass `query`, `count`, `sor
 ### Requirement: Conv list retrieves conversation list
 `conv list` MUST accept `--include-private` and `--all` and reflect them in `types` resolution. (MUST)
 When both `--types` and `--include-private`/`--all` are specified simultaneously, an error MUST be returned. (MUST)
+When none of `--types`, `--include-private`, `--all` are specified, `conv list` MUST use `types=public_channel,private_channel` as default. (MUST)
+When `--limit` is omitted, `conv list` MUST use `limit=1000` and follow `response_metadata.next_cursor` until exhausted, merging all pages before downstream filtering/formatting. (MUST)
 
-#### Scenario: Specify `--include-private`
-- Given `--types` is not specified
-- When executing `conv list --include-private`
+#### Scenario: Default conv list includes private channels
+- Given `--types`, `--include-private`, and `--all` are not specified
+- When executing `conv list`
 - Then `public_channel,private_channel` is passed to `types`
 
-#### Scenario: Specify `--all`
-- Given `--types` is not specified
-- When executing `conv list --all`
-- Then `public_channel,private_channel,im,mpim` is passed to `types`
+#### Scenario: Default conv list follows pagination
+- Given `conversations.list` response has `response_metadata.next_cursor`
+- When executing `conv list` without `--limit`
+- Then the command requests subsequent pages until cursor is empty
+- And channels from all pages are merged in the final result
 
-#### Scenario: Use `--types` and `--all` together
+#### Scenario: Explicit --types keeps priority
 - Given `--types=public_channel` is specified
-- When executing `conv list --types=public_channel --all`
-- Then an error is returned for simultaneous use of `--types` and `--all`
+- When executing `conv list --types=public_channel`
+- Then only the explicit `types` value is used
+- And default `public_channel,private_channel` is not applied
 
 ### Requirement: Conv history retrieves conversation history
 The `conv history` command MUST call `conversations.history` and pass `channel`, `oldest`, `latest`, and `limit` parameters.
@@ -272,12 +276,14 @@ Write operation usage/help text MUST clearly indicate control via `SLACKCLI_ALLO
 ### Requirement: `conv search` は名前で検索できる
 `conv search <pattern>` は `conversations.list` の結果に対して `name:<pattern>` のフィルタを適用し、結果を出力しなければならない。(MUST)
 `conv search` は `--types`/`--limit`/`--format`/`--sort`/`--sort-dir` を `conv list` と同様に受け付けなければならない。(MUST)
+`conv search` で `--types` と `--limit` が未指定の場合、会話取得の既定値（`types=public_channel,private_channel`, `limit=1000`, `next_cursor` 追従）を `conv list` と同一に適用しなければならない。(MUST)
 
-#### Scenario: `conv search` で名前パターン検索する
-- Given `conv search "ark*" --format jsonl` を実行する
-- When 会話一覧を取得する
-- Then `name:ark*` フィルタが適用される
-- And 出力は `jsonl` 形式である
+#### Scenario: `conv search` default can discover private channel on later page
+- Given 対象 private channel が 2 ページ目以降に存在する
+- And `conv search` 実行時に `--types` と `--limit` は未指定である
+- When `conv search "infra"` を実行する
+- Then `conversations.list` は cursor を辿って複数ページ取得される
+- And private channel が検索結果に含まれる
 
 ### Requirement: `conv search --select` はチャンネル ID を返す
 `conv search --select` はフィルタ後の一覧から対話的に 1 件を選択し、チャンネル ID を出力しなければならない。(MUST)

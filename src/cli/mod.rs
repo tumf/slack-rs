@@ -445,11 +445,11 @@ pub async fn run_conv_list(args: &[String]) -> Result<(), String> {
         // --all flag: include all conversation types
         Some("public_channel,private_channel,im,mpim".to_string())
     } else if include_private {
-        // --include-private flag: include public and private channels
+        // --include-private flag: include public and private channels (same as default now)
         Some("public_channel,private_channel".to_string())
     } else {
-        // No flags: use default (public_channel only)
-        None
+        // No flags: use default (public and private channels)
+        Some("public_channel,private_channel".to_string())
     };
 
     // Parse format option (default: json)
@@ -595,8 +595,11 @@ pub async fn run_conv_select(args: &[String]) -> Result<(), String> {
         .collect();
     let filters = filters.map_err(|e| e.to_string())?;
 
+    // Resolve types: default to public_channel,private_channel if not specified
+    let resolved_types = types.or(Some("public_channel,private_channel".to_string()));
+
     let client = get_api_client_with_token_type(Some(profile_name), token_type).await?;
-    let mut response = commands::conv_list(&client, types, limit)
+    let mut response = commands::conv_list(&client, resolved_types, limit)
         .await
         .map_err(|e| e.to_string())?;
 
@@ -673,8 +676,11 @@ pub async fn run_conv_search(args: &[String]) -> Result<(), String> {
         filters.push(commands::ConversationFilter::parse(&filter_str).map_err(|e| e.to_string())?);
     }
 
+    // Resolve types: default to public_channel,private_channel if not specified
+    let resolved_types = types.or(Some("public_channel,private_channel".to_string()));
+
     let client = get_api_client_with_token_type(Some(profile_name.clone()), token_type).await?;
-    let mut response = commands::conv_list(&client, types, limit)
+    let mut response = commands::conv_list(&client, resolved_types, limit)
         .await
         .map_err(|e| e.to_string())?;
 
@@ -739,10 +745,13 @@ pub async fn run_conv_history(args: &[String]) -> Result<(), String> {
             .collect();
         let filters = filters.map_err(|e| e.to_string())?;
 
+        // Resolve types: default to public_channel,private_channel if not specified
+        let resolved_types = types.or(Some("public_channel,private_channel".to_string()));
+
         let token_type_inner = parse_token_type(args)?;
         let client =
             get_api_client_with_token_type(Some(profile_name_inner), token_type_inner).await?;
-        let mut response = commands::conv_list(&client, types, None)
+        let mut response = commands::conv_list(&client, resolved_types, None)
             .await
             .map_err(|e| e.to_string())?;
 
@@ -1685,10 +1694,9 @@ pub fn print_conv_usage(prog: &str) {
     );
     println!("    List conversations with optional filtering and sorting");
     println!("    Options accept both --option=value and --option value formats");
+    println!("    Default: Includes public and private channels (limit=1000, auto-paginated)");
     println!("    Type shortcuts (mutually exclusive with --types):");
-    println!(
-        "      - --include-private: Include private channels (public_channel,private_channel)"
-    );
+    println!("      - --include-private: Include private channels (same as default now)");
     println!(
         "      - --all: Include all conversation types (public_channel,private_channel,im,mpim)"
     );
@@ -1713,6 +1721,7 @@ pub fn print_conv_usage(prog: &str) {
         prog
     );
     println!("    Search conversations by name pattern (applies name:<pattern> filter)");
+    println!("    Default: Includes public and private channels (limit=1000, auto-paginated)");
     println!("    Options accept both --option=value and --option value formats");
     println!("    --select: Interactively select from results and output channel ID only");
     println!();
@@ -1721,6 +1730,7 @@ pub fn print_conv_usage(prog: &str) {
         prog
     );
     println!("    Interactively select a conversation and output its channel ID");
+    println!("    Default: Includes public and private channels (limit=1000, auto-paginated)");
     println!("    Options accept both --option=value and --option value formats");
     println!();
     println!(
@@ -1732,6 +1742,7 @@ pub fn print_conv_usage(prog: &str) {
         prog
     );
     println!("    Select channel interactively before fetching history");
+    println!("    Default: Includes public and private channels (limit=1000, auto-paginated)");
     println!("    Options accept both --option=value and --option value formats");
 }
 
