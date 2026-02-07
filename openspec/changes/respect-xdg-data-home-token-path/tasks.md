@@ -1,0 +1,5 @@
+- [ ] `FileTokenStore::default_path()` の解決優先順位を `SLACK_RS_TOKENS_PATH` > `XDG_DATA_HOME` > `~/.local/share` に更新する（確認: `src/profile/token_store.rs` で分岐順が一致し、関連ユニットテストが成功する）
+- [ ] `XDG_DATA_HOME` が空文字または無効値のときに従来フォールバックへ戻るガードを追加する（確認: 空値ケースのテストで `~/.local/share/slack-rs/tokens.json` が解決される）
+- [ ] `auth status` の file backend 表示が上記解決結果を表示することを回帰テストで固定する（確認: `XDG_DATA_HOME` を与えた実行で表示パスが `$XDG_DATA_HOME/slack-rs/tokens.json` になる）
+- [ ] `SLACK_RS_TOKENS_PATH` と `XDG_DATA_HOME` の競合時に前者が優先されることを回帰テストで固定する（確認: 両方設定時に `SLACK_RS_TOKENS_PATH` 側のパスが表示・利用される）
+- [ ] OpenSpec の差分仕様を `file-token-storage` と `auth-status` に反映し、厳格バリデーションを通す（確認: `npx @fission-ai/openspec@latest validate respect-xdg-data-home-token-path --strict` が成功する）
