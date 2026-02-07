@@ -38,14 +38,6 @@ repos:
         language: system
         types: [text]
 
-      # Check YAML syntax
-      - id: check-yaml
-        name: check yaml
-        description: Check YAML syntax
-        entry: bash -c 'for file in "$@"; do python3 -c "import yaml; yaml.safe_load(open(\"$file\"))" || exit 1; done'
-        language: system
-        types: [yaml]
-
       # Check TOML syntax
       - id: check-toml
         name: check toml
@@ -53,3 +45,8 @@ repos:
         entry: bash -c 'for file in "$@"; do cargo read-manifest --manifest-path "$file" > /dev/null 2>&1 || exit 1; done'
         language: system
         files: ^.*Cargo\.toml$
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: check-yaml

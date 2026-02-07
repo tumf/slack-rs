@@ -502,7 +502,9 @@ fn print_help() {
     );
     println!("    react remove <channel> <ts> <emoji> Remove a reaction (requires SLACKCLI_ALLOW_WRITE=true, supports --idempotency-key)");
     println!("    file upload <path>               Upload a file (external upload method, supports --idempotency-key)");
-    println!("    file download [<file_id>]        Download a file from Slack (supports --url, --out)");
+    println!(
+        "    file download [<file_id>]        Download a file from Slack (supports --url, --out)"
+    );
     println!("    demo                             Run demonstration");
     println!();
     println!("API CALL OPTIONS:");
@@ -573,7 +575,9 @@ fn print_usage() {
     );
     println!("  react remove <channel> <ts> <emoji> - Remove a reaction (requires SLACKCLI_ALLOW_WRITE=true, supports --idempotency-key)");
     println!("  file upload <path>             - Upload a file using external upload method (supports --idempotency-key)");
-    println!("  file download [<file_id>]      - Download a file from Slack (supports --url, --out)");
+    println!(
+        "  file download [<file_id>]      - Download a file from Slack (supports --url, --out)"
+    );
     println!("  demo                           - Run demonstration");
     println!("  --help, -h                     - Show help");
     println!("  --version, -v                  - Show version");

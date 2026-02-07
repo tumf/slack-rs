@@ -243,15 +243,16 @@ pub async fn file_download(
             .await
             .map_err(|e| ApiError::SlackError(format!("Failed to call files.info: {}", e)))?;
 
-        let info_result: FilesInfoResponse = info_response
-            .json()
-            .await
-            .map_err(|e| ApiError::SlackError(format!("Failed to parse files.info response: {}", e)))?;
+        let info_result: FilesInfoResponse = info_response.json().await.map_err(|e| {
+            ApiError::SlackError(format!("Failed to parse files.info response: {}", e))
+        })?;
 
         if !info_result.ok {
             return Err(ApiError::SlackError(format!(
                 "files.info failed: {}",
-                info_result.error.unwrap_or_else(|| "Unknown error".to_string())
+                info_result
+                    .error
+                    .unwrap_or_else(|| "Unknown error".to_string())
             )));
         }
 
@@ -263,7 +264,9 @@ pub async fn file_download(
         let url = file
             .url_private_download
             .or(file.url_private)
-            .ok_or_else(|| ApiError::SlackError("No download URL found in file info".to_string()))?;
+            .ok_or_else(|| {
+                ApiError::SlackError("No download URL found in file info".to_string())
+            })?;
 
         let name = file.name.unwrap_or_else(|| format!("file-{}", fid));
         (url, name)
@@ -455,7 +458,7 @@ mod tests {
 
         // file_download should NOT check SLACKCLI_ALLOW_WRITE (read operation)
         let client = ApiClient::with_token("test_token".to_string());
-        
+
         // This would fail with network error (no mock server), but NOT with WriteNotAllowed
         let result = file_download(
             &client,
