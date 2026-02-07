@@ -2,6 +2,7 @@
 
 mod context;
 mod handlers;
+mod help;
 pub mod introspection;
 
 pub use context::CliContext;
