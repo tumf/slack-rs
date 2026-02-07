@@ -219,3 +219,191 @@ fn test_i18n_format() {
     assert!(formatted.contains("5"));
     assert!(formatted.contains("profile"));
 }
+
+#[test]
+fn test_auth_export_help_flag() {
+    use std::process::Command;
+
+    let output = Command::new("cargo")
+        .args(&["run", "--", "auth", "export", "-h"])
+        .output()
+        .expect("Failed to execute command");
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "Exit code should be 0 for -h flag"
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("Export profiles to encrypted file"),
+        "Help should contain export description"
+    );
+    assert!(
+        stdout.contains("USAGE:"),
+        "Help should contain USAGE section"
+    );
+    assert!(
+        stdout.contains("--out <file>"),
+        "Help should mention --out option"
+    );
+    assert!(
+        stdout.contains("-h, --help"),
+        "Help should mention help flags"
+    );
+}
+
+#[test]
+fn test_auth_export_help_long_flag() {
+    use std::process::Command;
+
+    let output = Command::new("cargo")
+        .args(&["run", "--", "auth", "export", "--help"])
+        .output()
+        .expect("Failed to execute command");
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "Exit code should be 0 for --help flag"
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("Export profiles to encrypted file"),
+        "Help should contain export description"
+    );
+    assert!(
+        stdout.contains("USAGE:"),
+        "Help should contain USAGE section"
+    );
+    assert!(
+        stdout.contains("--out <file>"),
+        "Help should mention --out option"
+    );
+}
+
+#[test]
+fn test_auth_import_help_flag() {
+    use std::process::Command;
+
+    let output = Command::new("cargo")
+        .args(&["run", "--", "auth", "import", "-h"])
+        .output()
+        .expect("Failed to execute command");
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "Exit code should be 0 for -h flag"
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("Import profiles from encrypted file"),
+        "Help should contain import description"
+    );
+    assert!(
+        stdout.contains("USAGE:"),
+        "Help should contain USAGE section"
+    );
+    assert!(
+        stdout.contains("--in <file>"),
+        "Help should mention --in option"
+    );
+    assert!(
+        stdout.contains("-h, --help"),
+        "Help should mention help flags"
+    );
+}
+
+#[test]
+fn test_auth_import_help_long_flag() {
+    use std::process::Command;
+
+    let output = Command::new("cargo")
+        .args(&["run", "--", "auth", "import", "--help"])
+        .output()
+        .expect("Failed to execute command");
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "Exit code should be 0 for --help flag"
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("Import profiles from encrypted file"),
+        "Help should contain import description"
+    );
+    assert!(
+        stdout.contains("USAGE:"),
+        "Help should contain USAGE section"
+    );
+    assert!(
+        stdout.contains("--in <file>"),
+        "Help should mention --in option"
+    );
+}
+
+#[test]
+fn test_auth_export_help_has_no_side_effects() {
+    use std::process::Command;
+    use tempfile::TempDir;
+
+    let temp_dir = TempDir::new().unwrap();
+    let export_path = temp_dir.path().join("should_not_exist.dat");
+
+    // Run help command with export options (should be ignored)
+    let output = Command::new("cargo")
+        .args(&[
+            "run",
+            "--",
+            "auth",
+            "export",
+            "-h",
+            "--out",
+            export_path.to_str().unwrap(),
+        ])
+        .output()
+        .expect("Failed to execute command");
+
+    assert_eq!(output.status.code(), Some(0), "Exit code should be 0");
+    assert!(
+        !export_path.exists(),
+        "Help command should not create export file"
+    );
+}
+
+#[test]
+fn test_auth_import_help_has_no_side_effects() {
+    use std::process::Command;
+    use tempfile::TempDir;
+
+    let temp_dir = TempDir::new().unwrap();
+    let import_path = temp_dir.path().join("dummy.dat");
+
+    // Create a dummy file
+    fs::write(&import_path, b"dummy content").unwrap();
+
+    // Run help command (should not attempt to import)
+    let output = Command::new("cargo")
+        .args(&[
+            "run",
+            "--",
+            "auth",
+            "import",
+            "--help",
+            "--in",
+            import_path.to_str().unwrap(),
+        ])
+        .output()
+        .expect("Failed to execute command");
+
+    assert_eq!(output.status.code(), Some(0), "Exit code should be 0");
+
+    // File should still exist and be unchanged
+    let content = fs::read(&import_path).unwrap();
+    assert_eq!(
+        content, b"dummy content",
+        "Help command should not modify file"
+    );
+}

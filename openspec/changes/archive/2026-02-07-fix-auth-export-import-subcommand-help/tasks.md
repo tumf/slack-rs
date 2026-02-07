@@ -1,0 +1,4 @@
+- [x] `auth export` の引数処理で `-h` / `--help` をサブコマンドヘルプ表示へ接続する（確認: `slack-rs auth export -h` と `slack-rs auth export --help` が exit code 0）
+- [x] `auth import` の引数処理で `-h` / `--help` をサブコマンドヘルプ表示へ接続する（確認: `slack-rs auth import -h` と `slack-rs auth import --help` が exit code 0）
+- [x] ヘルプ表示時に副作用がないことを回帰テストで固定する（確認: ヘルプ実行時に export/import の実処理が呼ばれないことをテストで検証）
+- [x] `auth-export-import` の仕様差分を更新し、strict validation を通す（確認: `npx @fission-ai/openspec@latest validate fix-auth-export-import-subcommand-help --strict` が成功）

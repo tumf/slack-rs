@@ -90,10 +90,15 @@ OAuthクライアントシークレットは設定ファイルに保存されな
 - import時に `client_secret` はKeyringへ保存され、設定ファイルには書き込まれない
 
 ### Requirement: Unified argument parsing preserves existing behavior
-`auth export` and `auth import` MUST maintain existing flag, confirmation, and error behavior even when using a shared argument parser. (MUST)
+`auth export` と `auth import` は共有引数パーサを使う場合でも既存フラグ互換を維持しなければならない。(MUST)
 
-#### Scenario: Shared parser maintains compatibility
-- **GIVEN** existing `auth export`/`auth import` argument sets are used
-- **WHEN** each command is executed
-- **THEN** the same confirmation flows and error conditions apply as before
+`-h` および `--help` は unknown option として失敗してはならず、サブコマンド固有ヘルプを表示して終了コード 0 で終了しなければならない。(MUST)
+
+#### Scenario: `auth export` / `auth import` のヘルプフラグが成功する
+- **WHEN** `slack-rs auth export -h` または `slack-rs auth export --help` を実行する
+- **THEN** export サブコマンドの usage/options が表示される
+- **AND** 終了コードは 0 になる
+- **WHEN** `slack-rs auth import -h` または `slack-rs auth import --help` を実行する
+- **THEN** import サブコマンドの usage/options が表示される
+- **AND** 終了コードは 0 になる
 
