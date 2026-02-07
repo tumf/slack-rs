@@ -1,0 +1,4 @@
+- [ ] `wrapper-commands` の spec delta を更新し、`file download` が 3xx リダイレクトを追従する要求を追加する（確認方法: `openspec/changes/2026-02-07-harden-file-download-ux/specs/wrapper-commands/spec.md` に該当 Requirement/Scenario が存在すること）。
+- [ ] `wrapper-commands` の spec delta を更新し、`text/html` 応答時にヒントに加えて短い本文スニペットを含める失敗要件を追加する（確認方法: 同 spec delta に Scenario と期待出力条件が明記されていること）。
+- [ ] モックベースの検証タスクを定義し、外部 Slack 資格情報なしで確認可能にする（確認方法: tasks 内に 302 モックと HTML モックでの検証観点が明示されていること）。
+- [ ] 変更提案を `npx @fission-ai/openspec@latest validate 2026-02-07-harden-file-download-ux --strict` で検証し、成功させる（確認方法: コマンド終了コード 0 と "Change ... is valid" の出力）。
