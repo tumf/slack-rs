@@ -1686,6 +1686,61 @@ pub async fn run_file_upload(args: &[String], non_interactive: bool) -> Result<(
     Ok(())
 }
 
+pub async fn run_file_download(args: &[String]) -> Result<(), String> {
+    if args.len() < 3 {
+        return Err(
+            "Usage: file download [<file_id>] [--url=URL] [--out=PATH] [--profile=NAME] [--token-type=bot|user]"
+                .to_string(),
+        );
+    }
+
+    // Parse arguments
+    let file_id = args.get(3).filter(|arg| !arg.starts_with("--")).cloned();
+    let url = get_option(args, "--url=");
+    let out = get_option(args, "--out=");
+    let profile_name = resolve_profile_name(args);
+    let token_type = parse_token_type(args)?;
+    let raw = should_output_raw(args);
+
+    // Validate: at least one of file_id or url must be provided
+    if file_id.is_none() && url.is_none() {
+        return Err("Either <file_id> or --url must be provided".to_string());
+    }
+
+    let client = get_api_client_with_token_type(Some(profile_name.clone()), token_type).await?;
+    let response = commands::file_download(&client, file_id, url, out)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    // For --out -, don't print any output (file bytes already written to stdout)
+    if let Some(out_path) = response.get("output").and_then(|v| v.as_str()) {
+        if out_path == "-" {
+            return Ok(());
+        }
+    }
+
+    // Display error guidance if response contains a known error
+    crate::api::display_json_error_guidance(&response);
+
+    // Output with or without envelope
+    let output = if raw {
+        serde_json::to_string_pretty(&response).unwrap()
+    } else {
+        let wrapped = wrap_with_envelope_and_token_type(
+            response,
+            "files.info + download",
+            "file download",
+            Some(profile_name),
+            token_type,
+        )
+        .await?;
+        serde_json::to_string_pretty(&wrapped).unwrap()
+    };
+
+    println!("{}", output);
+    Ok(())
+}
+
 pub fn print_conv_usage(prog: &str) {
     println!("Conv command usage:");
     println!(
@@ -1803,8 +1858,17 @@ pub fn print_file_usage(prog: &str) {
         "  {} file upload <path> [--channel=ID] [--channels=IDs] [--title=TITLE] [--comment=TEXT] [--idempotency-key=KEY] [--profile=NAME] [--token-type=bot|user]",
         prog
     );
+    println!("    Upload a file using external upload method");
+    println!("    Requires SLACKCLI_ALLOW_WRITE=true environment variable");
+    println!(
+        "  {} file download [<file_id>] [--url=URL] [--out=PATH] [--profile=NAME] [--token-type=bot|user]",
+        prog
+    );
+    println!("    Download a file from Slack");
+    println!("    Either <file_id> or --url must be provided");
+    println!("    --out: Output path (omit for current directory, '-' for stdout, directory for auto-naming)");
     println!("  Options accept both --option=value and --option value formats");
-    println!("  --idempotency-key: Prevent duplicate writes (replays stored result on retry)");
+    println!("  --idempotency-key: Prevent duplicate writes (replays stored result on retry, upload only)");
 }
 
 #[cfg(test)]

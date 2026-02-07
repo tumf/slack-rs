@@ -638,6 +638,66 @@ pub fn get_command_definitions() -> Vec<CommandDef> {
                 },
             ],
         },
+        // file download
+        CommandDef {
+            name: "file download".to_string(),
+            description: "Download a file from Slack".to_string(),
+            usage: "slack-rs file download [<file_id>] [flags]".to_string(),
+            flags: vec![
+                FlagDef {
+                    name: "--url".to_string(),
+                    flag_type: "string".to_string(),
+                    required: false,
+                    description: "Direct download URL (alternative to file_id)".to_string(),
+                    default: None,
+                },
+                FlagDef {
+                    name: "--out".to_string(),
+                    flag_type: "string".to_string(),
+                    required: false,
+                    description: "Output path (omit for current directory, '-' for stdout, directory for auto-naming)".to_string(),
+                    default: None,
+                },
+                FlagDef {
+                    name: "--profile".to_string(),
+                    flag_type: "string".to_string(),
+                    required: false,
+                    description: "Profile name".to_string(),
+                    default: Some("default".to_string()),
+                },
+                FlagDef {
+                    name: "--token-type".to_string(),
+                    flag_type: "string".to_string(),
+                    required: false,
+                    description: "Token type (bot or user)".to_string(),
+                    default: None,
+                },
+            ],
+            examples: vec![
+                ExampleDef {
+                    description: "Download by file ID".to_string(),
+                    command: "slack-rs file download F123456".to_string(),
+                },
+                ExampleDef {
+                    description: "Download to stdout".to_string(),
+                    command: "slack-rs file download F123456 --out -".to_string(),
+                },
+                ExampleDef {
+                    description: "Download by URL".to_string(),
+                    command: "slack-rs file download --url https://files.slack.com/...".to_string(),
+                },
+            ],
+            exit_codes: vec![
+                ExitCodeDef {
+                    code: 0,
+                    description: "Success".to_string(),
+                },
+                ExitCodeDef {
+                    code: 1,
+                    description: "Download failed".to_string(),
+                },
+            ],
+        },
         // search
         CommandDef {
             name: "search".to_string(),

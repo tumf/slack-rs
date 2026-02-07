@@ -321,3 +321,48 @@ When the pattern contains `*`, glob matching MUST be used. (MUST)
 - When executing `conv search "gen*"`
 - Then channel names starting with `gen` are matched
 
+### Requirement: `file download` retrieves Slack files with authentication
+`file download <file_id>` MUST call `files.info` to resolve the download URL and retrieve the file via authenticated GET. (MUST)
+`file download <file_id>` MUST prefer `url_private_download` and fall back to `url_private` when unavailable. (MUST)
+`file download --url <url_private_or_download>` MUST skip `files.info` and directly retrieve from the specified URL. (MUST)
+
+#### Scenario: Resolve URL and download by specifying `<file_id>`
+- Given valid profile and token exist
+- When executing `file download F1234567890`
+- Then `files.info` is called with `file=F1234567890`
+- And authenticated GET is performed against `url_private_download` (or `url_private` if unavailable)
+
+#### Scenario: Download directly by specifying `--url`
+- Given valid token exists
+- When executing `file download --url https://files.slack.com/files-pri/...`
+- Then authenticated GET is performed to the specified URL without calling `files.info`
+
+### Requirement: `file download` controls output destination and method
+`file download` MUST accept `--out <path>` and write downloaded content to the specified destination. (MUST)
+When `--out` is not specified, it MUST save to a safe default filename in the current directory. (MUST)
+When `--out -` is specified, it MUST stream binary content to stdout and MUST NOT output any non-data content to stdout. (MUST NOT)
+
+#### Scenario: Stream to stdout with `--out -`
+- Given executing `file download F123 --out -`
+- When download succeeds
+- Then file bytes are written to stdout
+- And progress or diagnostic messages do not mix with stdout
+
+### Requirement: `file download` explicitly errors on HTML responses and HTTP failures
+`file download` MUST exit with non-zero status and return a concise error message when the download response is non-2xx. (MUST)
+`file download` MUST return an error indicating a possible URL mismatch or authentication issue when the download response has `Content-Type: text/html`. (MUST)
+
+#### Scenario: Detect HTML response and error out
+- Given download target returns `Content-Type: text/html`
+- When executing `file download F123`
+- Then command exits with failure
+- And error message includes a hint about URL type mismatch or authentication problem
+
+### Requirement: `file download` is excluded from write guard
+`file download` MUST be treated as a read operation and MUST be executable even when `SLACKCLI_ALLOW_WRITE` is `false` or `0`. (MUST)
+
+#### Scenario: Download is allowed with `SLACKCLI_ALLOW_WRITE=false`
+- Given `SLACKCLI_ALLOW_WRITE=false` is set
+- When executing `file download F123`
+- Then no write-guard rejection occurs
+
