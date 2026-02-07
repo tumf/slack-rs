@@ -4,14 +4,17 @@
 TBD - created by archiving change clarify-auth-status-token-visibility. Update Purpose after archive.
 ## Requirements
 ### Requirement: `auth status` は token store backend を表示する
+
 `auth status` は現在選択されている token store backend（`keyring` または `file`）を表示しなければならない。(MUST)
 `file` backend の場合は保存先パスを表示しなければならない。(MUST)
+表示される保存先パスは `FileTokenStore` の実際のパス解決結果と一致しなければならない。(MUST)
 
-#### Scenario: file backend の保存先が表示される
+#### Scenario: `XDG_DATA_HOME` 設定時に解決済み保存先が表示される
 - Given `SLACKRS_TOKEN_STORE=file` が設定されている
+- And `SLACK_RS_TOKENS_PATH` は未設定で `XDG_DATA_HOME=/tmp/data` が設定されている
 - When `auth status` を実行する
 - Then `Token Store: file` が表示される
-- And tokens.json の保存先パスが表示される
+- And `/tmp/data/slack-rs/tokens.json` が保存先として表示される
 
 ### Requirement: 別 backend に token がある場合は案内を出す
 `auth status` が keyring backend を参照していて bot/user token が見つからない場合、file backend に該当キーが存在するなら `SLACKRS_TOKEN_STORE=file` を設定する案内を表示しなければならない。(MUST)
