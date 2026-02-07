@@ -478,6 +478,12 @@ impl ExportImportArgs {
 
 /// Handle auth export command
 pub async fn handle_export_command(args: &[String]) {
+    // Check for help flags first
+    if args.iter().any(|arg| arg == "-h" || arg == "--help") {
+        super::help::print_export_help();
+        return;
+    }
+
     // Parse common arguments
     let (common_args, remaining) = ExportImportArgs::parse(args);
 
@@ -572,6 +578,12 @@ pub async fn handle_export_command(args: &[String]) {
 
 /// Handle auth import command
 pub async fn handle_import_command(args: &[String]) {
+    // Check for help flags first
+    if args.iter().any(|arg| arg == "-h" || arg == "--help") {
+        super::help::print_import_help();
+        return;
+    }
+
     // Parse common arguments
     let (common_args, remaining) = ExportImportArgs::parse(args);
 

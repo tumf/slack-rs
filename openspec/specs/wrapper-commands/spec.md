@@ -322,16 +322,36 @@ When the pattern contains `*`, glob matching MUST be used. (MUST)
 - Then channel names starting with `gen` are matched
 
 ### Requirement: `file download` retrieves Slack files with authentication
-`file download <file_id>` MUST call `files.info` to resolve the download URL and retrieve the file via authenticated GET. (MUST)
-`file download <file_id>` MUST prefer `url_private_download` and fall back to `url_private` when unavailable. (MUST)
-`file download --url <url_private_or_download>` MUST skip `files.info` and directly retrieve from the specified URL. (MUST)
-`file download` の HTTP 取得は、Slack の標準的な配布経路に対応するため 3xx リダイレクトを追従しなければならない。(MUST)
+`file download` は `file_id` 指定と `--url` 指定の両方で、認証付きダウンロードを実行できなければならない。(MUST)
 
-#### Scenario: 3xx リダイレクト先を追従してダウンロードする
-- Given 有効なトークンが存在し、初回 URL が 302 を返す
-- When `file download F1234567890` を実行する
-- Then クライアントは `Location` を追従し、最終到達先で認証付き GET を完了する
-- And 最終応答が 2xx の場合はダウンロード成功として扱う
+`file_id` 指定時は `files.info` へ正しい形式の引数（form-encoded）を送信し、取得した private URL へ遷移しなければならない。(MUST)
+
+`--url` 指定時は `files.info` を呼ばず、指定された URL へ直接認証ヘッダ付きでアクセスしなければならない。(MUST)
+
+#### Scenario: `file_id` 指定で `files.info` に正しい引数を送る（回帰防止）
+- Given `file download F123` を実行する
+- When Slack API へメタデータ取得を行う
+- Then `files.info` には `file=F123` が form パラメータとして送信される
+- And Content-Type は `application/x-www-form-urlencoded` である
+- And `invalid_arguments` で失敗しない
+
+#### Scenario: `--url` 指定で認証付き直接ダウンロードを行う（回帰防止）
+- Given `file download --url https://files.slack.com/...` を実行する
+- When 対象 URL を取得する
+- Then `files.info` は呼ばれない
+- And ダウンロードリクエストに `Authorization: Bearer ...` ヘッダが含まれる
+
+#### Scenario: 画像ファイルを `file_id` 経路でダウンロードする
+- Given PNG 形式のファイル ID が存在する
+- When `file download <image_file_id>` を実行する
+- Then `files.info` で取得した URL から画像をダウンロードする
+- And ダウンロードされたファイルは有効な PNG 形式である
+
+#### Scenario: 動画ファイルを `--url` 経路でダウンロードする
+- Given MP4 形式のプライベート URL が存在する
+- When `file download --url <video_url>` を実行する
+- Then 認証ヘッダ付きで URL から直接ダウンロードする
+- And ダウンロードされたファイルは有効な MP4 形式である
 
 ### Requirement: `file download` controls output destination and method
 `file download` MUST accept `--out <path>` and write downloaded content to the specified destination. (MUST)

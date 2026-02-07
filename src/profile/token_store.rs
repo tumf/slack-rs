@@ -136,13 +136,28 @@ impl FileTokenStore {
 
     /// Get the default path for the tokens file
     /// Can be overridden with SLACK_RS_TOKENS_PATH environment variable (useful for testing)
+    /// Respects XDG_DATA_HOME when set
     pub fn default_path() -> Result<PathBuf> {
-        // Check for environment variable override (useful for testing)
+        // Priority 1: Check for environment variable override (useful for testing)
         if let Ok(path) = std::env::var("SLACK_RS_TOKENS_PATH") {
             return Ok(PathBuf::from(path));
         }
 
-        // Use cross-platform home directory detection
+        // Priority 2: Check for XDG_DATA_HOME
+        if let Ok(xdg_data_home) = std::env::var("XDG_DATA_HOME") {
+            // Guard against empty or whitespace-only values
+            let trimmed = xdg_data_home.trim();
+            if !trimmed.is_empty() {
+                let xdg_path = PathBuf::from(trimmed);
+                // Ensure the path is absolute to avoid confusion
+                if xdg_path.is_absolute() {
+                    let data_dir = xdg_path.join("slack-rs");
+                    return Ok(data_dir.join("tokens.json"));
+                }
+            }
+        }
+
+        // Priority 3: Fallback to ~/.local/share/slack-rs/tokens.json
         let home = directories::BaseDirs::new()
             .ok_or_else(|| {
                 TokenStoreError::IoError("Failed to determine home directory".to_string())
@@ -150,7 +165,6 @@ impl FileTokenStore {
             .home_dir()
             .to_path_buf();
 
-        // New default: ~/.local/share/slack-rs/tokens.json
         let data_dir = home.join(".local").join("share").join("slack-rs");
         Ok(data_dir.join("tokens.json"))
     }
@@ -227,7 +241,12 @@ impl FileTokenStore {
     /// Save tokens to file with restricted permissions
     fn save_tokens(&self) -> Result<()> {
         let tokens = self.tokens.lock().unwrap();
-        let content = serde_json::to_string_pretty(&*tokens).map_err(|e| {
+
+        // Convert HashMap to BTreeMap for deterministic key ordering
+        use std::collections::BTreeMap;
+        let sorted_tokens: BTreeMap<_, _> = tokens.iter().collect();
+
+        let content = serde_json::to_string_pretty(&sorted_tokens).map_err(|e| {
             TokenStoreError::StoreFailed(format!("Failed to serialize tokens: {}", e))
         })?;
 
@@ -697,8 +716,13 @@ mod tests {
 
     /// Test migration from old path to new path
     #[test]
+    #[serial_test::serial]
     fn test_migration_from_old_to_new_path() {
         use tempfile::TempDir;
+
+        // Clear environment variables to ensure migration logic runs
+        std::env::remove_var("SLACK_RS_TOKENS_PATH");
+        std::env::remove_var("XDG_DATA_HOME");
 
         let temp_dir = TempDir::new().unwrap();
 
@@ -867,6 +891,92 @@ mod tests {
         std::env::remove_var("SLACK_RS_TOKENS_PATH");
     }
 
+    /// Test deterministic serialization with different insertion orders
+    /// Regression test for Issue #24
+    #[test]
+    fn test_deterministic_serialization_different_insertion_orders() {
+        use tempfile::TempDir;
+
+        // Create separate temp directories for each store to avoid state sharing
+        let temp_dir1 = TempDir::new().unwrap();
+        let temp_dir2 = TempDir::new().unwrap();
+
+        // Create first store and insert keys in order: A, B, C
+        let file_path_1 = temp_dir1.path().join("tokens.json");
+        let store1 = FileTokenStore::with_path(file_path_1.clone()).unwrap();
+        store1.set("key_a", "value_a").unwrap();
+        store1.set("key_b", "value_b").unwrap();
+        store1.set("key_c", "value_c").unwrap();
+
+        // Create second store and insert keys in order: C, A, B
+        let file_path_2 = temp_dir2.path().join("tokens.json");
+        let store2 = FileTokenStore::with_path(file_path_2.clone()).unwrap();
+        store2.set("key_c", "value_c").unwrap();
+        store2.set("key_a", "value_a").unwrap();
+        store2.set("key_b", "value_b").unwrap();
+
+        // Read both files and compare content
+        let content1 = fs::read_to_string(&file_path_1).unwrap();
+        let content2 = fs::read_to_string(&file_path_2).unwrap();
+
+        // Content should be identical despite different insertion orders
+        assert_eq!(content1, content2,
+            "Files should have identical content regardless of insertion order.\nFile1:\n{}\nFile2:\n{}",
+            content1, content2);
+
+        // Verify keys are sorted alphabetically in the output
+        let content_lines: Vec<&str> = content1.lines().collect();
+        let key_a_idx = content_lines
+            .iter()
+            .position(|l| l.contains("key_a"))
+            .unwrap();
+        let key_b_idx = content_lines
+            .iter()
+            .position(|l| l.contains("key_b"))
+            .unwrap();
+        let key_c_idx = content_lines
+            .iter()
+            .position(|l| l.contains("key_c"))
+            .unwrap();
+
+        assert!(key_a_idx < key_b_idx, "key_a should appear before key_b");
+        assert!(key_b_idx < key_c_idx, "key_b should appear before key_c");
+    }
+
+    /// Test no diff on consecutive saves with unchanged content
+    /// Regression test for Issue #24
+    #[test]
+    fn test_no_diff_on_consecutive_saves() {
+        use tempfile::TempDir;
+
+        let temp_dir = TempDir::new().unwrap();
+        let file_path = temp_dir.path().join("tokens.json");
+        let store = FileTokenStore::with_path(file_path.clone()).unwrap();
+
+        // First save
+        store.set("key1", "value1").unwrap();
+        store.set("key2", "value2").unwrap();
+        let content_after_first_save = fs::read_to_string(&file_path).unwrap();
+
+        // Second save with no changes (re-save existing data)
+        store.set("key1", "value1").unwrap();
+        let content_after_second_save = fs::read_to_string(&file_path).unwrap();
+
+        // Third save with no changes
+        store.set("key2", "value2").unwrap();
+        let content_after_third_save = fs::read_to_string(&file_path).unwrap();
+
+        // All saves should produce identical content
+        assert_eq!(
+            content_after_first_save, content_after_second_save,
+            "Second save should not change file content"
+        );
+        assert_eq!(
+            content_after_second_save, content_after_third_save,
+            "Third save should not change file content"
+        );
+    }
+
     /// Test existing key format compatibility (regression test)
     #[test]
     fn test_existing_key_format_compatibility() {
@@ -902,5 +1012,147 @@ mod tests {
         let content = fs::read_to_string(&file_path).unwrap();
         assert!(content.contains("T123:U456"));
         assert!(content.contains("oauth-client-secret:default"));
+    }
+
+    /// Test XDG_DATA_HOME resolution (when set to valid absolute path)
+    #[test]
+    #[serial_test::serial]
+    fn test_xdg_data_home_resolution() {
+        use tempfile::TempDir;
+
+        // Clear SLACK_RS_TOKENS_PATH to ensure XDG_DATA_HOME is tested
+        std::env::remove_var("SLACK_RS_TOKENS_PATH");
+
+        let temp_dir = TempDir::new().unwrap();
+        let xdg_data_home = temp_dir.path().to_str().unwrap();
+        std::env::set_var("XDG_DATA_HOME", xdg_data_home);
+
+        let path = FileTokenStore::default_path().unwrap();
+        let expected = temp_dir.path().join("slack-rs").join("tokens.json");
+
+        assert_eq!(
+            path, expected,
+            "XDG_DATA_HOME should resolve to $XDG_DATA_HOME/slack-rs/tokens.json"
+        );
+
+        std::env::remove_var("XDG_DATA_HOME");
+    }
+
+    /// Test that SLACK_RS_TOKENS_PATH takes priority over XDG_DATA_HOME
+    #[test]
+    #[serial_test::serial]
+    fn test_slack_rs_tokens_path_priority_over_xdg() {
+        use tempfile::TempDir;
+
+        let temp_dir = TempDir::new().unwrap();
+        let custom_path = temp_dir.path().join("custom-tokens.json");
+        let xdg_data_home = temp_dir.path().join("xdg-data");
+
+        // Set both environment variables
+        std::env::set_var("SLACK_RS_TOKENS_PATH", custom_path.to_str().unwrap());
+        std::env::set_var("XDG_DATA_HOME", xdg_data_home.to_str().unwrap());
+
+        let path = FileTokenStore::default_path().unwrap();
+
+        // SLACK_RS_TOKENS_PATH should win
+        assert_eq!(
+            path, custom_path,
+            "SLACK_RS_TOKENS_PATH should take priority over XDG_DATA_HOME"
+        );
+
+        std::env::remove_var("SLACK_RS_TOKENS_PATH");
+        std::env::remove_var("XDG_DATA_HOME");
+    }
+
+    /// Test fallback to ~/.local/share when XDG_DATA_HOME is not set
+    #[test]
+    #[serial_test::serial]
+    fn test_fallback_when_xdg_data_home_not_set() {
+        // Clear both environment variables
+        std::env::remove_var("SLACK_RS_TOKENS_PATH");
+        std::env::remove_var("XDG_DATA_HOME");
+
+        let path = FileTokenStore::default_path().unwrap();
+        let path_str = path.to_string_lossy();
+
+        // Should fallback to ~/.local/share/slack-rs/tokens.json
+        assert!(
+            path_str.contains(".local/share/slack-rs/tokens.json")
+                || path_str.contains(".local\\share\\slack-rs\\tokens.json"),
+            "Should fallback to ~/.local/share/slack-rs/tokens.json when XDG_DATA_HOME is not set, got: {}",
+            path_str
+        );
+    }
+
+    /// Test that empty XDG_DATA_HOME falls back to default
+    #[test]
+    #[serial_test::serial]
+    fn test_empty_xdg_data_home_fallback() {
+        // Clear SLACK_RS_TOKENS_PATH
+        std::env::remove_var("SLACK_RS_TOKENS_PATH");
+
+        // Set XDG_DATA_HOME to empty string
+        std::env::set_var("XDG_DATA_HOME", "");
+
+        let path = FileTokenStore::default_path().unwrap();
+        let path_str = path.to_string_lossy();
+
+        // Should fallback to ~/.local/share/slack-rs/tokens.json
+        assert!(
+            path_str.contains(".local/share/slack-rs/tokens.json")
+                || path_str.contains(".local\\share\\slack-rs\\tokens.json"),
+            "Empty XDG_DATA_HOME should fallback to ~/.local/share/slack-rs/tokens.json, got: {}",
+            path_str
+        );
+
+        std::env::remove_var("XDG_DATA_HOME");
+    }
+
+    /// Test that whitespace-only XDG_DATA_HOME falls back to default
+    #[test]
+    #[serial_test::serial]
+    fn test_whitespace_xdg_data_home_fallback() {
+        // Clear SLACK_RS_TOKENS_PATH
+        std::env::remove_var("SLACK_RS_TOKENS_PATH");
+
+        // Set XDG_DATA_HOME to whitespace
+        std::env::set_var("XDG_DATA_HOME", "   ");
+
+        let path = FileTokenStore::default_path().unwrap();
+        let path_str = path.to_string_lossy();
+
+        // Should fallback to ~/.local/share/slack-rs/tokens.json
+        assert!(
+            path_str.contains(".local/share/slack-rs/tokens.json")
+                || path_str.contains(".local\\share\\slack-rs\\tokens.json"),
+            "Whitespace XDG_DATA_HOME should fallback to ~/.local/share/slack-rs/tokens.json, got: {}",
+            path_str
+        );
+
+        std::env::remove_var("XDG_DATA_HOME");
+    }
+
+    /// Test that relative XDG_DATA_HOME path falls back to default
+    #[test]
+    #[serial_test::serial]
+    fn test_relative_xdg_data_home_fallback() {
+        // Clear SLACK_RS_TOKENS_PATH
+        std::env::remove_var("SLACK_RS_TOKENS_PATH");
+
+        // Set XDG_DATA_HOME to relative path
+        std::env::set_var("XDG_DATA_HOME", "relative/path");
+
+        let path = FileTokenStore::default_path().unwrap();
+        let path_str = path.to_string_lossy();
+
+        // Should fallback to ~/.local/share/slack-rs/tokens.json
+        assert!(
+            path_str.contains(".local/share/slack-rs/tokens.json")
+                || path_str.contains(".local\\share\\slack-rs\\tokens.json"),
+            "Relative XDG_DATA_HOME should fallback to ~/.local/share/slack-rs/tokens.json, got: {}",
+            path_str
+        );
+
+        std::env::remove_var("XDG_DATA_HOME");
     }
 }

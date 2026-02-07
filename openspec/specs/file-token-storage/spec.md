@@ -29,17 +29,23 @@ On non-Unix systems such as Windows, permission setting MUST be skipped. (MUST)
 
 ### Requirement: Token file path can be overridden with environment variable
 
-The default token file path MUST be `~/.local/share/slack-rs/tokens.json`. (MUST)
+The default token file path MUST resolve in the following order. (MUST)
 
-If the environment variable `SLACK_RS_TOKENS_PATH` is set, that path MUST be used. (MUST)
+1. If `SLACK_RS_TOKENS_PATH` is set, use it.
+2. Else if `XDG_DATA_HOME` is set to a non-empty value, use `$XDG_DATA_HOME/slack-rs/tokens.json`.
+3. Else, use `~/.local/share/slack-rs/tokens.json`.
 
-#### Scenario: Default path is used
-- **WHEN** environment variable `SLACK_RS_TOKENS_PATH` is not set
-- **THEN** `~/.local/share/slack-rs/tokens.json` is used as the token file path
+#### Scenario: `XDG_DATA_HOME` が設定されている場合はその配下を使う
+- **WHEN** `SLACK_RS_TOKENS_PATH` が未設定で `XDG_DATA_HOME=/tmp/data` が設定されている
+- **THEN** token file path は `/tmp/data/slack-rs/tokens.json` になる
 
-#### Scenario: Path can be overridden with environment variable
-- **WHEN** environment variable `SLACK_RS_TOKENS_PATH=/tmp/test-tokens.json` is set
-- **THEN** `/tmp/test-tokens.json` is used as the token file path
+#### Scenario: `SLACK_RS_TOKENS_PATH` は `XDG_DATA_HOME` より優先される
+- **WHEN** `SLACK_RS_TOKENS_PATH=/tmp/override.json` と `XDG_DATA_HOME=/tmp/data` の両方が設定されている
+- **THEN** token file path は `/tmp/override.json` になる
+
+#### Scenario: `XDG_DATA_HOME` が未設定または空値の場合は従来フォールバックを使う
+- **WHEN** `SLACK_RS_TOKENS_PATH` が未設定で `XDG_DATA_HOME` が未設定または空値である
+- **THEN** token file path は `~/.local/share/slack-rs/tokens.json` になる
 
 ### Requirement: Parent directory is created automatically if it does not exist
 
@@ -129,6 +135,37 @@ After migration, read and write operations MUST be performed on the new path. (M
 - **WHEN** `tokens.json` exists only in the legacy path and not in the new path
 - **THEN** the same content is created in the new path during `FileTokenStore` initialization
 - **AND** subsequent `get/set/delete` operations work on the new path
+
+### Requirement: Deterministic JSON serialization
+
+JSON output MUST be deterministic such that identical token content always produces identical file bytes. (MUST)
+
+Keys in the JSON object MUST be sorted alphabetically to ensure deterministic ordering. (MUST)
+
+When the same tokens are saved in different insertion orders, the resulting file content MUST be identical. (MUST)
+
+When a token is re-saved with unchanged content, the file content MUST remain unchanged. (MUST)
+
+#### Scenario: Different insertion orders produce identical output
+- **WHEN** tokens with keys "key_a", "key_b", "key_c" are saved in order A-B-C
+- **AND** tokens with the same keys and values are saved in order C-A-B in a different store
+- **THEN** both token files have identical content with keys sorted alphabetically
+
+#### Scenario: Re-saving unchanged content produces no diff
+- **WHEN** tokens are saved to a file
+- **AND** the same tokens are saved again with identical values
+- **THEN** the file content remains byte-for-byte identical
+
+### Requirement: `tokens.json` のシリアライズは決定的である
+`FileTokenStore` は `tokens.json` 保存時にキー順序を決定的にし、同一内容からは同一の論理出力を生成しなければならない。(MUST)
+
+意味的に変更がない場合、再保存で不要な差分を発生させてはならない。(MUST NOT)
+
+#### Scenario: 同一内容を保存した場合は安定した出力になる
+- Given 同じキーと値を異なる挿入順で保存する
+- When `tokens.json` を書き出す
+- Then 出力されるキー順序は一貫している
+- And 内容不変の再保存で不要な差分が発生しない
 
 ## Requirements
 ### Requirement: FileTokenStore is always enabled

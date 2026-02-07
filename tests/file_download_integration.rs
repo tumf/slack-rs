@@ -543,3 +543,325 @@ async fn test_file_download_follows_redirect_to_different_host() {
         "Downloaded content should match file from second server"
     );
 }
+
+/// Regression test: Verify that files.info receives file parameter in correct form format (not JSON)
+/// This prevents recurrence of the invalid_arguments error
+#[tokio::test]
+async fn test_file_download_with_file_id_sends_correct_params() {
+    let mock_server = MockServer::start().await;
+    let temp_dir = TempDir::new().unwrap();
+    let output_path = temp_dir.path().join("regression_test.txt");
+
+    let file_content = b"Regression test content";
+
+    // Mock files.info endpoint - verify it receives form-encoded parameters
+    // NOT JSON body (which would cause invalid_arguments)
+    let mut files_info_response = HashMap::new();
+    files_info_response.insert("ok".to_string(), serde_json::json!(true));
+    files_info_response.insert(
+        "file".to_string(),
+        serde_json::json!({
+            "id": "F123456789",
+            "name": "regression.txt",
+            "url_private_download": format!("{}/files-pri/download", mock_server.uri())
+        }),
+    );
+
+    // This mock will ONLY match if the request has form-encoded body (not JSON)
+    // The header matcher ensures Content-Type is application/x-www-form-urlencoded
+    Mock::given(method("POST"))
+        .and(path("/files.info"))
+        .and(header("authorization", "Bearer test_token"))
+        .and(header("content-type", "application/x-www-form-urlencoded"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(&files_info_response))
+        .expect(1)
+        .mount(&mock_server)
+        .await;
+
+    // Mock file download endpoint
+    Mock::given(method("GET"))
+        .and(path("/files-pri/download"))
+        .and(header("authorization", "Bearer test_token"))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_bytes(file_content)
+                .insert_header("Content-Type", "application/octet-stream"),
+        )
+        .expect(1)
+        .mount(&mock_server)
+        .await;
+
+    let client = ApiClient::new_with_base_url("test_token".to_string(), mock_server.uri());
+    let result = commands::file_download(
+        &client,
+        Some("F123456789".to_string()),
+        None,
+        Some(output_path.to_str().unwrap().to_string()),
+    )
+    .await;
+
+    assert!(
+        result.is_ok(),
+        "Download should succeed when files.info receives form parameters: {:?}",
+        result
+    );
+
+    let downloaded_content = std::fs::read(&output_path).unwrap();
+    assert_eq!(downloaded_content, file_content);
+}
+
+/// Regression test: Verify that --url path downloads with Authorization header
+/// This ensures direct URL downloads are authenticated properly
+#[tokio::test]
+async fn test_file_download_with_url_uses_authorization_header() {
+    let mock_server = MockServer::start().await;
+    let temp_dir = TempDir::new().unwrap();
+    let output_path = temp_dir.path().join("url_download.txt");
+
+    let file_content = b"Direct URL download content";
+
+    // Mock the direct download endpoint
+    // This mock will ONLY match if Authorization header is present
+    Mock::given(method("GET"))
+        .and(path("/files-pri-temp/direct-url-file"))
+        .and(header("authorization", "Bearer test_token"))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_bytes(file_content)
+                .insert_header("Content-Type", "application/octet-stream"),
+        )
+        .expect(1)
+        .mount(&mock_server)
+        .await;
+
+    let client = ApiClient::new_with_base_url("test_token".to_string(), mock_server.uri());
+    let direct_url = format!("{}/files-pri-temp/direct-url-file", mock_server.uri());
+    let result = commands::file_download(
+        &client,
+        None,
+        Some(direct_url),
+        Some(output_path.to_str().unwrap().to_string()),
+    )
+    .await;
+
+    assert!(
+        result.is_ok(),
+        "Download should succeed when using --url with Authorization header: {:?}",
+        result
+    );
+
+    let downloaded_content = std::fs::read(&output_path).unwrap();
+    assert_eq!(downloaded_content, file_content);
+}
+
+/// Integration test: Download image file via file_id path with realistic fixture
+#[tokio::test]
+async fn test_file_download_image_via_file_id() {
+    let mock_server = MockServer::start().await;
+    let temp_dir = TempDir::new().unwrap();
+    let output_path = temp_dir.path().join("test_image.png");
+
+    // Realistic PNG file header (1x1 transparent PNG)
+    let png_content: &[u8] = &[
+        0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, // PNG signature
+        0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52, // IHDR chunk
+        0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, // 1x1 dimensions
+        0x08, 0x06, 0x00, 0x00, 0x00, 0x1F, 0x15, 0xC4, // bit depth, color type, etc.
+        0x89, 0x00, 0x00, 0x00, 0x0A, 0x49, 0x44, 0x41, // IDAT chunk
+        0x54, 0x78, 0x9C, 0x63, 0x00, 0x01, 0x00, 0x00, 0x05, 0x00, 0x01, 0x0D, 0x0A, 0x2D, 0xB4,
+        0x00, // image data
+        0x00, 0x00, 0x00, 0x49, 0x45, 0x4E, 0x44, 0xAE, // IEND chunk
+        0x42, 0x60, 0x82,
+    ];
+
+    // Mock files.info response for image
+    let mut files_info_response = HashMap::new();
+    files_info_response.insert("ok".to_string(), serde_json::json!(true));
+    files_info_response.insert(
+        "file".to_string(),
+        serde_json::json!({
+            "id": "F_IMG_123",
+            "name": "screenshot.png",
+            "mimetype": "image/png",
+            "url_private_download": format!("{}/files-pri/img123", mock_server.uri())
+        }),
+    );
+
+    Mock::given(method("POST"))
+        .and(path("/files.info"))
+        .and(header("authorization", "Bearer test_token"))
+        .and(header("content-type", "application/x-www-form-urlencoded"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(&files_info_response))
+        .expect(1)
+        .mount(&mock_server)
+        .await;
+
+    // Mock image download
+    Mock::given(method("GET"))
+        .and(path("/files-pri/img123"))
+        .and(header("authorization", "Bearer test_token"))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_bytes(png_content)
+                .insert_header("Content-Type", "image/png"),
+        )
+        .expect(1)
+        .mount(&mock_server)
+        .await;
+
+    let client = ApiClient::new_with_base_url("test_token".to_string(), mock_server.uri());
+    let result = commands::file_download(
+        &client,
+        Some("F_IMG_123".to_string()),
+        None,
+        Some(output_path.to_str().unwrap().to_string()),
+    )
+    .await;
+
+    assert!(
+        result.is_ok(),
+        "Image download via file_id should succeed: {:?}",
+        result
+    );
+
+    let downloaded_content = std::fs::read(&output_path).unwrap();
+    assert_eq!(downloaded_content, png_content);
+    // Verify PNG signature
+    assert_eq!(&downloaded_content[0..8], &png_content[0..8]);
+}
+
+/// Integration test: Download video file via --url path with realistic fixture
+#[tokio::test]
+async fn test_file_download_video_via_url() {
+    let mock_server = MockServer::start().await;
+    let temp_dir = TempDir::new().unwrap();
+    let output_path = temp_dir.path().join("test_video.mp4");
+
+    // Realistic MP4 file header (minimal valid MP4)
+    let mp4_content: &[u8] = &[
+        0x00, 0x00, 0x00, 0x20, 0x66, 0x74, 0x79, 0x70, // ftyp box
+        0x69, 0x73, 0x6F, 0x6D, 0x00, 0x00, 0x02, 0x00, // isom
+        0x69, 0x73, 0x6F, 0x6D, 0x69, 0x73, 0x6F, 0x32, // compatible brands
+        0x61, 0x76, 0x63, 0x31, 0x6D, 0x70, 0x34, 0x31, 0x00, 0x00, 0x00, 0x08, 0x66, 0x72, 0x65,
+        0x65, // free box
+    ];
+
+    let video_url = format!("{}/files-pri-temp/video456", mock_server.uri());
+
+    // Mock direct video download with Authorization header
+    Mock::given(method("GET"))
+        .and(path("/files-pri-temp/video456"))
+        .and(header("authorization", "Bearer test_token"))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_bytes(mp4_content)
+                .insert_header("Content-Type", "video/mp4"),
+        )
+        .expect(1)
+        .mount(&mock_server)
+        .await;
+
+    let client = ApiClient::new_with_base_url("test_token".to_string(), mock_server.uri());
+    let result = commands::file_download(
+        &client,
+        None,
+        Some(video_url),
+        Some(output_path.to_str().unwrap().to_string()),
+    )
+    .await;
+
+    assert!(
+        result.is_ok(),
+        "Video download via --url should succeed: {:?}",
+        result
+    );
+
+    let downloaded_content = std::fs::read(&output_path).unwrap();
+    assert_eq!(downloaded_content, mp4_content);
+    // Verify MP4 ftyp box signature
+    assert_eq!(&downloaded_content[4..8], b"ftyp");
+}
+
+/// Integration test: Both paths work with image file
+#[tokio::test]
+async fn test_file_download_image_both_paths() {
+    let mock_server = MockServer::start().await;
+    let temp_dir = TempDir::new().unwrap();
+
+    // Minimal JPEG header
+    let jpeg_content: &[u8] = &[
+        0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, 0x4A, 0x46, // JPEG SOI and APP0
+        0x49, 0x46, 0x00, 0x01, 0x01, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0xFF,
+        0xD9, // JPEG EOI
+    ];
+
+    // Test 1: file_id path
+    let output_path_1 = temp_dir.path().join("via_file_id.jpg");
+
+    let mut files_info_response = HashMap::new();
+    files_info_response.insert("ok".to_string(), serde_json::json!(true));
+    files_info_response.insert(
+        "file".to_string(),
+        serde_json::json!({
+            "id": "F_JPEG_789",
+            "name": "photo.jpg",
+            "mimetype": "image/jpeg",
+            "url_private_download": format!("{}/files-pri/jpeg789", mock_server.uri())
+        }),
+    );
+
+    Mock::given(method("POST"))
+        .and(path("/files.info"))
+        .and(header("content-type", "application/x-www-form-urlencoded"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(&files_info_response))
+        .expect(1)
+        .mount(&mock_server)
+        .await;
+
+    // Mock the download endpoint - will be called twice (once for each path)
+    Mock::given(method("GET"))
+        .and(path("/files-pri/jpeg789"))
+        .and(header("authorization", "Bearer test_token"))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_bytes(jpeg_content)
+                .insert_header("Content-Type", "image/jpeg"),
+        )
+        .expect(2) // Expecting 2 calls: one from file_id path, one from --url path
+        .mount(&mock_server)
+        .await;
+
+    let client = ApiClient::new_with_base_url("test_token".to_string(), mock_server.uri());
+
+    // Test 1: file_id path
+    let result_1 = commands::file_download(
+        &client,
+        Some("F_JPEG_789".to_string()),
+        None,
+        Some(output_path_1.to_str().unwrap().to_string()),
+    )
+    .await;
+
+    assert!(result_1.is_ok(), "file_id path should succeed");
+    let downloaded_1 = std::fs::read(&output_path_1).unwrap();
+    assert_eq!(&downloaded_1[0..2], &[0xFF, 0xD8]); // JPEG SOI
+
+    // Test 2: --url path
+    let output_path_2 = temp_dir.path().join("via_url.jpg");
+    let direct_url = format!("{}/files-pri/jpeg789", mock_server.uri());
+
+    let result_2 = commands::file_download(
+        &client,
+        None,
+        Some(direct_url),
+        Some(output_path_2.to_str().unwrap().to_string()),
+    )
+    .await;
+
+    assert!(result_2.is_ok(), "--url path should succeed");
+    let downloaded_2 = std::fs::read(&output_path_2).unwrap();
+    assert_eq!(
+        downloaded_1, downloaded_2,
+        "Both paths should download the same content"
+    );
+}
