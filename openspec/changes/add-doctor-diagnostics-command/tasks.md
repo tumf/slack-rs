@@ -1,5 +1,0 @@
-- [ ] `doctor` コマンドのエントリポイントを追加し、既存コマンドルーティングへ接続する（確認: `slack-rs doctor --help` が表示される）
-- [ ] 診断出力に `configPath`、token store backend/path、bot/user token 有無を含める（確認: モック構成で期待キーが出力される統合テストが成功）
-- [ ] トークン値を出力しない安全制約を追加する（確認: 出力に `xoxb-` / `xoxp-` が含まれないことをテストで検証）
-- [ ] `doctor --json` の機械可読出力を追加する（確認: JSON パース可能で必須フィールドを検証できる）
-- [ ] 新規 capability の仕様差分を追加し、コマンド追加を明文化する（確認: `npx @fission-ai/openspec@latest validate add-doctor-diagnostics-command --strict` が成功）
