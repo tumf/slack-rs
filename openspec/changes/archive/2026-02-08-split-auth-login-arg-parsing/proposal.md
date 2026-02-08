@@ -1,5 +1,14 @@
 # 変更提案: auth login の入力解析と OAuth 実行コアを統合整理する
 
+## Why
+The current `auth login` implementation mixes argument parsing, non-interactive constraint checking, input prompting, and execution routing in a single function (`run_auth_login`), making it difficult to maintain and test. Additionally, the standard and extended login paths duplicate OAuth execution logic, creating risk of inconsistency and maintenance errors.
+
+## What Changes
+- Separate `auth login` argument parsing into a dedicated parser structure to clarify responsibilities
+- Explicitly define `--cloudflared`/`--ngrok` mutual exclusion, non-interactive constraints, and default value application
+- Consolidate duplicate OAuth execution logic from standard and extended login paths into a single core
+- Document CLI specification and storage compatibility as explicit requirements
+
 ## 背景
 - `run_auth_login` は引数解析、非対話制約判定、入力プロンプト分岐、実行経路選択を同時に担っている。
 - `auth::login` と拡張ログイン経路には OAuth 実行手順の重複があり、保守時の差分漏れリスクがある。
