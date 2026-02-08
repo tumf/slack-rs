@@ -171,7 +171,7 @@ async fn main() {
                 handle_command_error(&e.to_string(), "Doctor command failed");
             }
         }
-        "install-skill" => {
+        "install-skills" => {
             if let Err(e) = cli::run_install_skill(&args[2..]) {
                 handle_command_error(&e, "Skill installation failed");
             }
@@ -551,7 +551,7 @@ fn print_help() {
         "    file download [<file_id>]        Download a file from Slack (supports --url, --out)"
     );
     println!("    doctor [--profile=NAME] [--json] Show diagnostic information");
-    println!("    install-skill [source] [--global] Install agent skill (default: self)");
+    println!("    install-skills [source] [--global] Install agent skill (default: self)");
     println!("    demo                             Run demonstration");
     println!();
     println!("API CALL OPTIONS:");
@@ -626,7 +626,7 @@ fn print_usage() {
         "  file download [<file_id>]      - Download a file from Slack (supports --url, --out)"
     );
     println!("  doctor [options]               - Show diagnostic information (supports --profile, --json)");
-    println!("  install-skill [source] [--global] - Install agent skill (default: self, supports local:<path>)");
+    println!("  install-skills [source] [--global] - Install agent skill (default: self, supports local:<path>)");
     println!("  demo                           - Run demonstration");
     println!("  --help, -h                     - Show help");
     println!("  --version, -v                  - Show version");

@@ -1,4 +1,4 @@
-//! Integration tests for install-skill command
+//! Integration tests for install-skills command
 //!
 //! These tests verify the CLI entry point and JSON output format
 
@@ -27,7 +27,7 @@ fn install_skill_outputs_required_json_fields() {
     let temp_home = temp_dir.path();
 
     let (exit_code, stdout, stderr) = Command::new(env!("CARGO_BIN_EXE_slack-rs"))
-        .args(["install-skill"])
+        .args(["install-skills"])
         .env("HOME", temp_home)
         .current_dir(temp_home)
         .output()
@@ -94,7 +94,7 @@ fn install_skill_outputs_required_json_fields() {
 
 #[test]
 fn install_skill_invalid_source_exits_non_zero() {
-    let (exit_code, _stdout, stderr) = run_slack_rs(&["install-skill", "github:user/repo"]);
+    let (exit_code, _stdout, stderr) = run_slack_rs(&["install-skills", "github:user/repo"]);
 
     // Should fail with non-zero exit
     assert_ne!(exit_code, 0, "Should exit non-zero for invalid source");
@@ -109,7 +109,7 @@ fn install_skill_invalid_source_exits_non_zero() {
 
 #[test]
 fn install_skill_invalid_source_shows_allowed_schemes() {
-    let (exit_code, _stdout, stderr) = run_slack_rs(&["install-skill", "foo:bar"]);
+    let (exit_code, _stdout, stderr) = run_slack_rs(&["install-skills", "foo:bar"]);
 
     // Should fail with non-zero exit
     assert_ne!(exit_code, 0, "Should exit non-zero for invalid source");
@@ -126,7 +126,7 @@ fn install_skill_invalid_source_shows_allowed_schemes() {
 fn install_skill_is_routed_from_main() {
     // This test verifies that the command is properly routed
     // We test by running with invalid args to see if it gets to our handler
-    let (exit_code, _stdout, stderr) = run_slack_rs(&["install-skill", "invalid:scheme"]);
+    let (exit_code, _stdout, stderr) = run_slack_rs(&["install-skills", "invalid:scheme"]);
 
     // Should fail (because of invalid scheme)
     assert_ne!(exit_code, 0);
@@ -149,14 +149,14 @@ fn commands_json_includes_install_skill() {
         .as_array()
         .expect("commands should be an array");
 
-    // Find install-skill command
+    // Find install-skills command
     let install_skill_cmd = commands
         .iter()
-        .find(|cmd| cmd["name"].as_str() == Some("install-skill"));
+        .find(|cmd| cmd["name"].as_str() == Some("install-skills"));
 
     assert!(
         install_skill_cmd.is_some(),
-        "install-skill should be in commands list"
+        "install-skills should be in commands list"
     );
 
     let cmd = install_skill_cmd.unwrap();
@@ -172,7 +172,7 @@ fn schema_for_install_skill_is_available() {
     let (exit_code, stdout, _stderr) = run_slack_rs(&[
         "schema",
         "--command",
-        "install-skill",
+        "install-skills",
         "--output",
         "json-schema",
     ]);
@@ -182,7 +182,7 @@ fn schema_for_install_skill_is_available() {
     let json: Value = serde_json::from_str(&stdout).expect("Invalid JSON output");
 
     // Verify schema response structure
-    assert_eq!(json["command"].as_str(), Some("install-skill"));
+    assert_eq!(json["command"].as_str(), Some("install-skills"));
     assert!(json["schema"].is_object(), "Should have schema object");
 
     let schema = &json["schema"];
@@ -224,7 +224,7 @@ fn install_skill_with_local_source() {
 
     let source_arg = format!("local:{}", skill_path.display());
     let (exit_code, stdout, stderr) = Command::new(env!("CARGO_BIN_EXE_slack-rs"))
-        .args(["install-skill", &source_arg])
+        .args(["install-skills", &source_arg])
         .env("HOME", temp_home.path())
         .current_dir(temp_home.path())
         .output()
@@ -257,7 +257,7 @@ fn install_skill_global_uses_home_agents_dir() {
     let temp_home = TempDir::new().unwrap();
 
     let (exit_code, stdout, stderr) = Command::new(env!("CARGO_BIN_EXE_slack-rs"))
-        .args(["install-skill", "--global"])
+        .args(["install-skills", "--global"])
         .env("HOME", temp_home.path())
         .current_dir(temp_home.path())
         .output()

@@ -1209,11 +1209,11 @@ pub fn get_command_definitions() -> Vec<CommandDef> {
                 },
             ],
         },
-        // install-skill
+        // install-skills
         CommandDef {
-            name: "install-skill".to_string(),
+            name: "install-skills".to_string(),
             description: "Install agent skill from embedded or local source".to_string(),
-            usage: "slack-rs install-skill [source] [--global]".to_string(),
+            usage: "slack-rs install-skills [source] [--global]".to_string(),
             flags: vec![
                 FlagDef {
                     name: "source".to_string(),
@@ -1233,15 +1233,15 @@ pub fn get_command_definitions() -> Vec<CommandDef> {
             examples: vec![
                 ExampleDef {
                     description: "Install embedded skill (default)".to_string(),
-                    command: "slack-rs install-skill".to_string(),
+                    command: "slack-rs install-skills".to_string(),
                 },
                 ExampleDef {
                     description: "Install from local path".to_string(),
-                    command: "slack-rs install-skill local:/path/to/skill".to_string(),
+                    command: "slack-rs install-skills local:/path/to/skill".to_string(),
                 },
                 ExampleDef {
                     description: "Install globally to ~/.agents".to_string(),
-                    command: "slack-rs install-skill --global".to_string(),
+                    command: "slack-rs install-skills --global".to_string(),
                 },
             ],
             exit_codes: vec![
@@ -1323,8 +1323,8 @@ pub fn generate_schema(command_name: &str) -> Result<SchemaResponse, String> {
     let _cmd = get_command_definition(command_name)
         .ok_or_else(|| format!("Command '{}' not found", command_name))?;
 
-    // Special case for install-skill
-    let schema = if command_name == "install-skill" {
+    // Special case for install-skills
+    let schema = if command_name == "install-skills" {
         serde_json::json!({
             "$schema": "http://json-schema.org/draft-07/schema#",
             "type": "object",

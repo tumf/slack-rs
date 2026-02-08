@@ -835,7 +835,7 @@ pub async fn handle_import_command(args: &[String]) {
     }
 }
 
-/// Run install-skill command
+/// Run install-skills command
 ///
 /// # Arguments
 /// * `args` - Command line arguments (may include source)

@@ -38,6 +38,7 @@ aes-gcm = "0.10"
 rpassword = "7.3"
 regex = "1.11"
 arboard = "3.4"
+agent-skills-rs = "0.2.0"
 
 [dev-dependencies]
 tempfile = "3.14"
