@@ -1,32 +1,45 @@
-# skill-installation Specification
+# skill-installation 仕様
 
-## Purpose
+## 目的
 `agent-skills-rs` を利用して `install-skill` コマンドでスキルを導入できるようにする。
+`@skills/slack-rs` 相当の内容は `skills/slack-rs` を埋め込み資産として扱い、既定導入をネットワーク非依存にする。
+スキルはコマンドバイナリに埋め込み、コマンドのバージョンに追従して配布する。
+
+## 方針理由
+- 実行時の外部取り込みを前提にすると、導入対象が実行環境や時点で変動し再現性が低下する
+- バイナリ埋め込みで配布すれば、利用者はコマンドのバージョンに対応したスキルを一貫して導入できる
 
 ## ADDED Requirements
 
-### Requirement: install-skill は埋め込みスキルを既定でインストールする
-`slack-rs install-skill` が引数なしで実行された場合、埋め込みスキルを検出してインストールしなければならない。(MUST)
+### Requirement: install-skill は引数なし時に self を既定解決する
+`slack-rs install-skill` が引数なしで実行された場合、実行時の既定ソースとして `self` を解決しなければならない。(MUST)
+`self` は `skills/slack-rs` の埋め込み資産を参照しなければならない。(MUST)
+引数なし実行は `self` のみを導入対象とし、外部ソース探索を行ってはならない。(MUST NOT)
 インストール先は `~/.config/slack-rs/.agents/skills/<skill-name>` の正規パスでなければならない。(MUST)
 `~/.config/slack-rs/.agents/.skill-lock.json` にロック情報を更新しなければならない。(MUST)
 
-#### Scenario: 引数なしで埋め込みスキルを導入する
+#### Scenario: 引数なしで self から導入する
 - Given `install-skill` を引数なしで実行する
-- When 埋め込みスキルが検出される
-- Then `~/.config/slack-rs/.agents/skills/<skill-name>` にスキルが配置される
+- When 既定ソースとして `self` が解決される
+- Then `skills/slack-rs` の埋め込み資産が参照される
+- And `~/.config/slack-rs/.agents/skills/<skill-name>` にスキルが配置される
 - And ロックファイルが更新される
 
-### Requirement: install-skill は source 文字列を受け付ける
+### Requirement: install-skill は self と local の source 形式を受け付ける
 `install-skill <source>` は以下の source 形式を受け付けなければならない。(MUST)
 - `self`
 - `local:<path>`
-- `github:<owner>/<repo>[#ref][:subpath]`
 未知のスキームはエラーにしなければならない。(MUST)
 
 #### Scenario: local ソースでスキルを導入する
 - Given `local:/path/to/skills` に `SKILL.md` が存在する
 - When `slack-rs install-skill local:/path/to/skills` を実行する
 - Then 指定パスからスキルを検出してインストールする
+
+#### Scenario: self 指定で埋め込みスキルを導入する
+- Given `slack-rs install-skill self` を実行する
+- When 埋め込みスキルが検出される
+- Then 埋め込みスキルをインストールする
 
 #### Scenario: 未知スキームはエラーになる
 - Given `slack-rs install-skill foo:bar` を実行する
