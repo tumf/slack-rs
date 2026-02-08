@@ -1,0 +1,1 @@
+Rust CLI project `slack-rs` for Slack API/OAuth/profile management with command wrappers and introspection. Entry points: `src/main.rs` (bin), `src/lib.rs` (library modules). Main modules: `api`, `auth`, `cli`, `commands`, `oauth`, `profile`, `idempotency`.

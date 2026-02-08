@@ -1,0 +1,1 @@
+After code changes: run `cargo fmt`, run targeted tests (or `cargo test`), run `cargo clippy -- -D warnings` when practical, and ensure command/help/introspection updates stay consistent with CLI behavior.

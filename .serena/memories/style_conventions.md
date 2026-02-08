@@ -1,0 +1,1 @@
+Code style: Rust 2021, snake_case functions/modules, PascalCase types, SCREAMING_SNAKE_CASE constants. Prefer `thiserror` enums for errors and `Result<T, E>` propagation with `?`. Module-level docs `//!` and public API docs `///`. Use `tokio` for async. Keep functions focused and avoid unwrap/expect in library code.
