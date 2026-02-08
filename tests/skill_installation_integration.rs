@@ -29,6 +29,7 @@ fn install_skill_outputs_required_json_fields() {
     let (exit_code, stdout, stderr) = Command::new(env!("CARGO_BIN_EXE_slack-rs"))
         .args(["install-skill"])
         .env("HOME", temp_home)
+        .current_dir(temp_home)
         .output()
         .map(|output| {
             (
@@ -82,6 +83,12 @@ fn install_skill_outputs_required_json_fields() {
         skill["source_type"].as_str(),
         Some("self"),
         "Default source_type should be self"
+    );
+    let path = skill["path"].as_str().expect("skill.path should be string");
+    assert!(
+        path.ends_with("/.agents/skills/slack-rs") || path.ends_with("\\.agents\\skills\\slack-rs"),
+        "Default install should use project .agents path, got: {}",
+        path
     );
 }
 
@@ -219,6 +226,7 @@ fn install_skill_with_local_source() {
     let (exit_code, stdout, stderr) = Command::new(env!("CARGO_BIN_EXE_slack-rs"))
         .args(["install-skill", &source_arg])
         .env("HOME", temp_home.path())
+        .current_dir(temp_home.path())
         .output()
         .map(|output| {
             (
@@ -242,4 +250,35 @@ fn install_skill_with_local_source() {
     let skills = json["skills"].as_array().unwrap();
     assert_eq!(skills.len(), 1);
     assert_eq!(skills[0]["source_type"].as_str(), Some("local"));
+}
+
+#[test]
+fn install_skill_global_uses_home_agents_dir() {
+    let temp_home = TempDir::new().unwrap();
+
+    let (exit_code, stdout, stderr) = Command::new(env!("CARGO_BIN_EXE_slack-rs"))
+        .args(["install-skill", "--global"])
+        .env("HOME", temp_home.path())
+        .current_dir(temp_home.path())
+        .output()
+        .map(|output| {
+            (
+                output.status.code().unwrap_or(-1),
+                String::from_utf8_lossy(&output.stdout).to_string(),
+                String::from_utf8_lossy(&output.stderr).to_string(),
+            )
+        })
+        .unwrap();
+
+    assert_eq!(exit_code, 0, "Global install should succeed: {}", stderr);
+
+    let json: Value = serde_json::from_str(&stdout).expect("Invalid JSON output");
+    let skill = &json["skills"].as_array().unwrap()[0];
+    let path = skill["path"].as_str().unwrap();
+    let expected_prefix = temp_home.path().join(".agents").join("skills");
+    assert!(
+        path.starts_with(&expected_prefix.to_string_lossy().to_string()),
+        "Global install should use ~/.agents path, got: {}",
+        path
+    );
 }

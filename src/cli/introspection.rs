@@ -1213,7 +1213,7 @@ pub fn get_command_definitions() -> Vec<CommandDef> {
         CommandDef {
             name: "install-skill".to_string(),
             description: "Install agent skill from embedded or local source".to_string(),
-            usage: "slack-rs install-skill [source]".to_string(),
+            usage: "slack-rs install-skill [source] [--global]".to_string(),
             flags: vec![
                 FlagDef {
                     name: "source".to_string(),
@@ -1221,6 +1221,13 @@ pub fn get_command_definitions() -> Vec<CommandDef> {
                     required: false,
                     description: "Source to install from: 'self' (embedded) or 'local:<path>'".to_string(),
                     default: Some("self".to_string()),
+                },
+                FlagDef {
+                    name: "--global".to_string(),
+                    flag_type: "boolean".to_string(),
+                    required: false,
+                    description: "Install to ~/.agents instead of ./.agents".to_string(),
+                    default: Some("false".to_string()),
                 },
             ],
             examples: vec![
@@ -1231,6 +1238,10 @@ pub fn get_command_definitions() -> Vec<CommandDef> {
                 ExampleDef {
                     description: "Install from local path".to_string(),
                     command: "slack-rs install-skill local:/path/to/skill".to_string(),
+                },
+                ExampleDef {
+                    description: "Install globally to ~/.agents".to_string(),
+                    command: "slack-rs install-skill --global".to_string(),
                 },
             ],
             exit_codes: vec![

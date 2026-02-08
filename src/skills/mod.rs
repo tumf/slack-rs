@@ -1,10 +1,11 @@
 //! Skill installation module
 //!
 //! This module provides functionality to install agent skills from embedded resources
-//! or local filesystem paths. Skills are deployed to ~/.config/slack-rs/.agents/skills/
+//! or local filesystem paths. Skills are deployed to .agents/skills/
 //! and tracked in a lock file.
 
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::fs;
 use std::path::{Path, PathBuf};
 use thiserror::Error;
@@ -106,47 +107,91 @@ impl Default for SkillLock {
     }
 }
 
-/// Get the skills directory path
-fn get_skills_dir() -> Result<PathBuf, SkillError> {
-    let config_dir = directories::BaseDirs::new()
-        .ok_or_else(|| SkillError::PathError("Cannot determine home directory".to_string()))?
-        .home_dir()
-        .join(".config")
-        .join("slack-rs")
-        .join(".agents")
-        .join("skills");
+/// Resolve .agents base directory.
+///
+/// - global=true  => ~/.agents
+/// - global=false => <current-project>/.agents
+fn resolve_agents_base_dir(global: bool) -> Result<PathBuf, SkillError> {
+    if global {
+        let home = directories::BaseDirs::new()
+            .ok_or_else(|| SkillError::PathError("Cannot determine home directory".to_string()))?
+            .home_dir()
+            .to_path_buf();
+        return Ok(home.join(".agents"));
+    }
 
-    Ok(config_dir)
+    let cwd = std::env::current_dir()
+        .map_err(|e| SkillError::PathError(format!("Cannot determine current directory: {}", e)))?;
+    Ok(cwd.join(".agents"))
+}
+
+/// Get the skills directory path
+fn get_skills_dir(global: bool) -> Result<PathBuf, SkillError> {
+    Ok(resolve_agents_base_dir(global)?.join("skills"))
 }
 
 /// Get the lock file path
-fn get_lock_file_path() -> Result<PathBuf, SkillError> {
-    let config_dir = directories::BaseDirs::new()
-        .ok_or_else(|| SkillError::PathError("Cannot determine home directory".to_string()))?
-        .home_dir()
-        .join(".config")
-        .join("slack-rs")
-        .join(".agents");
-
-    Ok(config_dir.join(".skill-lock.json"))
+fn get_lock_file_path(global: bool) -> Result<PathBuf, SkillError> {
+    Ok(resolve_agents_base_dir(global)?.join(".skill-lock.json"))
 }
 
 /// Load lock file
-fn load_lock() -> Result<SkillLock, SkillError> {
-    let lock_path = get_lock_file_path()?;
+fn load_lock(global: bool) -> Result<SkillLock, SkillError> {
+    let lock_path = get_lock_file_path(global)?;
 
     if !lock_path.exists() {
         return Ok(SkillLock::new());
     }
 
     let contents = fs::read_to_string(&lock_path)?;
-    let lock: SkillLock = serde_json::from_str(&contents)?;
-    Ok(lock)
+
+    // Current format: { "skills": [ ... ] }
+    if let Ok(lock) = serde_json::from_str::<SkillLock>(&contents) {
+        return Ok(lock);
+    }
+
+    // Compatibility: map format used by some installers
+    // {
+    //   "skills": {
+    //     "name": {"path": "...", "source_type": "self"}
+    //   }
+    // }
+    let value: Value = serde_json::from_str(&contents)?;
+    if let Some(skills_obj) = value.get("skills").and_then(|v| v.as_object()) {
+        let mut lock = SkillLock::new();
+        for (name, entry) in skills_obj {
+            let path = entry
+                .get("path")
+                .and_then(|v| v.as_str())
+                .unwrap_or_default()
+                .to_string();
+            let source_type = entry
+                .get("source_type")
+                .or_else(|| entry.get("sourceType"))
+                .and_then(|v| v.as_str())
+                .unwrap_or("unknown")
+                .to_string();
+
+            lock.add_skill(InstalledSkill {
+                name: name.clone(),
+                path,
+                source_type,
+            });
+        }
+        return Ok(lock);
+    }
+
+    Err(SkillError::SerializationError(serde_json::Error::io(
+        std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            "Unrecognized lock file format",
+        ),
+    )))
 }
 
 /// Save lock file
-fn save_lock(lock: &SkillLock) -> Result<(), SkillError> {
-    let lock_path = get_lock_file_path()?;
+fn save_lock(lock: &SkillLock, global: bool) -> Result<(), SkillError> {
+    let lock_path = get_lock_file_path(global)?;
 
     // Ensure parent directory exists
     if let Some(parent) = lock_path.parent() {
@@ -187,7 +232,12 @@ fn deploy_local_skill(source_dir: &Path, target_dir: &Path) -> Result<(), SkillE
 
     // Remove existing target if present
     if target_dir.exists() {
-        fs::remove_dir_all(target_dir)?;
+        match fs::remove_dir_all(target_dir) {
+            Ok(_) => {}
+            Err(_) => {
+                fs::remove_file(target_dir)?;
+            }
+        }
     }
 
     // Ensure parent directory exists
@@ -232,11 +282,12 @@ fn copy_dir_all(src: &Path, dst: &Path) -> Result<(), SkillError> {
 ///
 /// # Arguments
 /// * `source` - Source to install from (None defaults to self)
+/// * `global` - Whether to install into ~/.agents (true) or ./.agents (false)
 ///
 /// # Returns
 /// * `Ok(InstalledSkill)` - Successfully installed skill info
 /// * `Err(SkillError)` - Installation failed
-pub fn install_skill(source: Option<&str>) -> Result<InstalledSkill, SkillError> {
+pub fn install_skill(source: Option<&str>, global: bool) -> Result<InstalledSkill, SkillError> {
     // Default to self if no source provided
     let source_str = source.unwrap_or("self");
     let parsed_source = Source::parse(source_str)?;
@@ -259,7 +310,7 @@ pub fn install_skill(source: Option<&str>) -> Result<InstalledSkill, SkillError>
     };
 
     // Determine target directory
-    let skills_dir = get_skills_dir()?;
+    let skills_dir = get_skills_dir(global)?;
     let target_dir = skills_dir.join(&skill_name);
 
     // Deploy based on source type
@@ -273,14 +324,14 @@ pub fn install_skill(source: Option<&str>) -> Result<InstalledSkill, SkillError>
     }
 
     // Update lock file
-    let mut lock = load_lock()?;
+    let mut lock = load_lock(global)?;
     let installed = InstalledSkill {
         name: skill_name,
         path: target_dir.to_string_lossy().to_string(),
         source_type,
     };
     lock.add_skill(installed.clone());
-    save_lock(&lock)?;
+    save_lock(&lock, global)?;
 
     Ok(installed)
 }
@@ -417,5 +468,41 @@ mod tests {
         assert!(copied_file.exists());
         let contents = fs::read_to_string(copied_file).unwrap();
         assert_eq!(contents, "test content");
+    }
+
+    #[test]
+    fn parse_legacy_map_lock_format() {
+        let json = r#"{
+            "skills": {
+                "slack-rs": {
+                    "path": "/tmp/.agents/skills/slack-rs",
+                    "source_type": "self"
+                }
+            }
+        }"#;
+
+        let value: Value = serde_json::from_str(json).unwrap();
+        let skills_obj = value.get("skills").unwrap().as_object().unwrap();
+
+        let mut lock = SkillLock::new();
+        for (name, entry) in skills_obj {
+            lock.add_skill(InstalledSkill {
+                name: name.clone(),
+                path: entry
+                    .get("path")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or_default()
+                    .to_string(),
+                source_type: entry
+                    .get("source_type")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("unknown")
+                    .to_string(),
+            });
+        }
+
+        assert_eq!(lock.skills.len(), 1);
+        assert_eq!(lock.skills[0].name, "slack-rs");
+        assert_eq!(lock.skills[0].source_type, "self");
     }
 }

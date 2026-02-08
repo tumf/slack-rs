@@ -847,6 +847,8 @@ pub fn run_install_skill(args: &[String]) -> Result<(), String> {
     use crate::skills;
     use serde_json::json;
 
+    let global = args.iter().any(|arg| arg == "--global");
+
     // Extract source argument (first non-flag argument, or None for default)
     let source = args
         .iter()
@@ -854,7 +856,7 @@ pub fn run_install_skill(args: &[String]) -> Result<(), String> {
         .map(|s| s.as_str());
 
     // Install skill
-    let installed = skills::install_skill(source).map_err(|e| e.to_string())?;
+    let installed = skills::install_skill(source, global).map_err(|e| e.to_string())?;
 
     // Build JSON response
     let response = json!({

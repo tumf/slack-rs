@@ -551,7 +551,7 @@ fn print_help() {
         "    file download [<file_id>]        Download a file from Slack (supports --url, --out)"
     );
     println!("    doctor [--profile=NAME] [--json] Show diagnostic information");
-    println!("    install-skill [source]           Install agent skill (default: self)");
+    println!("    install-skill [source] [--global] Install agent skill (default: self)");
     println!("    demo                             Run demonstration");
     println!();
     println!("API CALL OPTIONS:");
@@ -626,7 +626,7 @@ fn print_usage() {
         "  file download [<file_id>]      - Download a file from Slack (supports --url, --out)"
     );
     println!("  doctor [options]               - Show diagnostic information (supports --profile, --json)");
-    println!("  install-skill [source]         - Install agent skill (default: self, supports local:<path>)");
+    println!("  install-skill [source] [--global] - Install agent skill (default: self, supports local:<path>)");
     println!("  demo                           - Run demonstration");
     println!("  --help, -h                     - Show help");
     println!("  --version, -v                  - Show version");
