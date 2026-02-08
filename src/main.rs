@@ -58,112 +58,17 @@ async fn main() {
                 // Run api call command
                 let api_args: Vec<String> = args[3..].to_vec();
                 if let Err(e) = cli::run_api_call(api_args).await {
-                    eprintln!("Error: {}", e);
-                    std::process::exit(1);
+                    handle_command_error(&e.to_string(), "Error");
                 }
             } else {
                 print_api_usage();
             }
         }
         "auth" => {
-            if args.len() < 3 {
-                print_auth_usage();
-                return;
-            }
-            match args[2].as_str() {
-                "login" => {
-                    if let Err(e) = cli::run_auth_login(&args[3..], ctx.is_non_interactive()).await
-                    {
-                        eprintln!("Login failed: {}", e);
-                        std::process::exit(1);
-                    }
-                }
-                "status" => {
-                    let profile_name = args.get(3).cloned();
-                    if let Err(e) = auth::status(profile_name) {
-                        eprintln!("Status command failed: {}", e);
-                        std::process::exit(1);
-                    }
-                }
-                "list" => {
-                    if let Err(e) = auth::list() {
-                        eprintln!("List command failed: {}", e);
-                        std::process::exit(1);
-                    }
-                }
-                "rename" => {
-                    if args.len() < 5 {
-                        eprintln!("Usage: {} auth rename <old_name> <new_name>", args[0]);
-                        std::process::exit(1);
-                    }
-                    if let Err(e) = auth::rename(args[3].clone(), args[4].clone()) {
-                        eprintln!("Rename command failed: {}", e);
-                        std::process::exit(1);
-                    }
-                }
-                "logout" => {
-                    let profile_name = args.get(3).cloned();
-                    if let Err(e) = auth::logout(profile_name) {
-                        eprintln!("Logout command failed: {}", e);
-                        std::process::exit(1);
-                    }
-                }
-                "export" => {
-                    cli::handle_export_command(&args[3..]).await;
-                }
-                "import" => {
-                    cli::handle_import_command(&args[3..]).await;
-                }
-                _ => {
-                    print_auth_usage();
-                }
-            }
+            handle_auth_command(&args, &ctx).await;
         }
         "config" => {
-            if args.len() < 3 {
-                print_config_usage(&args[0]);
-                return;
-            }
-            match args[2].as_str() {
-                "oauth" => {
-                    if args.len() < 4 {
-                        print_config_oauth_usage(&args[0]);
-                        std::process::exit(1);
-                    }
-                    match args[3].as_str() {
-                        "set" => {
-                            if let Err(e) = run_config_oauth_set(&args[4..]) {
-                                eprintln!("OAuth config set failed: {}", e);
-                                std::process::exit(1);
-                            }
-                        }
-                        "show" => {
-                            if let Err(e) = run_config_oauth_show(&args[4..]) {
-                                eprintln!("OAuth config show failed: {}", e);
-                                std::process::exit(1);
-                            }
-                        }
-                        "delete" => {
-                            if let Err(e) = run_config_oauth_delete(&args[4..]) {
-                                eprintln!("OAuth config delete failed: {}", e);
-                                std::process::exit(1);
-                            }
-                        }
-                        _ => {
-                            print_config_oauth_usage(&args[0]);
-                        }
-                    }
-                }
-                "set" => {
-                    if let Err(e) = run_config_set(&args[3..]) {
-                        eprintln!("Config set failed: {}", e);
-                        std::process::exit(1);
-                    }
-                }
-                _ => {
-                    print_config_usage(&args[0]);
-                }
-            }
+            handle_config_command(&args);
         }
         "search" => {
             if args.len() < 3 {
@@ -174,173 +79,23 @@ async fn main() {
                 std::process::exit(1);
             }
             if let Err(e) = run_search(&args).await {
-                eprintln!("Search failed: {}", e);
-                std::process::exit(1);
+                handle_command_error(&e.to_string(), "Search failed");
             }
         }
         "conv" => {
-            if args.len() < 3 {
-                print_conv_usage(&args[0]);
-                std::process::exit(1);
-            }
-            match args[2].as_str() {
-                "list" => {
-                    if let Err(e) = run_conv_list(&args).await {
-                        eprintln!("Conv list failed: {}", e);
-                        std::process::exit(1);
-                    }
-                }
-                "select" => {
-                    if let Err(e) = run_conv_select(&args).await {
-                        eprintln!("Conv select failed: {}", e);
-                        std::process::exit(1);
-                    }
-                }
-                "search" => {
-                    if let Err(e) = run_conv_search(&args).await {
-                        eprintln!("Conv search failed: {}", e);
-                        std::process::exit(1);
-                    }
-                }
-                "history" => {
-                    // --interactive flag makes channel argument optional
-                    let has_interactive = args.iter().any(|arg| arg == "--interactive");
-                    if !has_interactive && args.len() < 4 {
-                        eprintln!(
-                            "Usage: {} conv history <channel> [--limit=N] [--profile=NAME]",
-                            args[0]
-                        );
-                        eprintln!(
-                            "   or: {} conv history --interactive [--filter=KEY:VALUE]... [--profile=NAME]",
-                            args[0]
-                        );
-                        std::process::exit(1);
-                    }
-                    if let Err(e) = run_conv_history(&args).await {
-                        eprintln!("Conv history failed: {}", e);
-                        std::process::exit(1);
-                    }
-                }
-                _ => print_conv_usage(&args[0]),
-            }
+            handle_conv_command(&args).await;
         }
         "users" => {
-            if args.len() < 3 {
-                print_users_usage(&args[0]);
-                std::process::exit(1);
-            }
-            match args[2].as_str() {
-                "info" => {
-                    if args.len() < 4 {
-                        eprintln!("Usage: {} users info <user_id> [--profile=NAME]", args[0]);
-                        std::process::exit(1);
-                    }
-                    if let Err(e) = run_users_info(&args).await {
-                        eprintln!("Users info failed: {}", e);
-                        std::process::exit(1);
-                    }
-                }
-                "cache-update" => {
-                    if let Err(e) = run_users_cache_update(&args).await {
-                        eprintln!("Users cache-update failed: {}", e);
-                        std::process::exit(1);
-                    }
-                }
-                "resolve-mentions" => {
-                    if let Err(e) = run_users_resolve_mentions(&args).await {
-                        eprintln!("Users resolve-mentions failed: {}", e);
-                        std::process::exit(1);
-                    }
-                }
-                _ => print_users_usage(&args[0]),
-            }
+            handle_users_command(&args).await;
         }
         "msg" => {
-            if args.len() < 3 {
-                print_msg_usage(&args[0]);
-                std::process::exit(1);
-            }
-            match args[2].as_str() {
-                "post" => {
-                    if let Err(e) = run_msg_post(&args, ctx.is_non_interactive()).await {
-                        eprintln!("Msg post failed: {}", e);
-                        if cli::is_non_interactive_error(&e) {
-                            std::process::exit(2);
-                        }
-                        std::process::exit(1);
-                    }
-                }
-                "update" => {
-                    if let Err(e) = run_msg_update(&args, ctx.is_non_interactive()).await {
-                        eprintln!("Msg update failed: {}", e);
-                        if cli::is_non_interactive_error(&e) {
-                            std::process::exit(2);
-                        }
-                        std::process::exit(1);
-                    }
-                }
-                "delete" => {
-                    if let Err(e) = run_msg_delete(&args, ctx.is_non_interactive()).await {
-                        eprintln!("Msg delete failed: {}", e);
-                        if cli::is_non_interactive_error(&e) {
-                            std::process::exit(2);
-                        }
-                        std::process::exit(1);
-                    }
-                }
-                _ => print_msg_usage(&args[0]),
-            }
+            handle_msg_command(&args, &ctx).await;
         }
         "react" => {
-            if args.len() < 3 {
-                print_react_usage(&args[0]);
-                std::process::exit(1);
-            }
-            match args[2].as_str() {
-                "add" => {
-                    if let Err(e) = run_react_add(&args, ctx.is_non_interactive()).await {
-                        eprintln!("React add failed: {}", e);
-                        if cli::is_non_interactive_error(&e) {
-                            std::process::exit(2);
-                        }
-                        std::process::exit(1);
-                    }
-                }
-                "remove" => {
-                    if let Err(e) = run_react_remove(&args, ctx.is_non_interactive()).await {
-                        eprintln!("React remove failed: {}", e);
-                        if cli::is_non_interactive_error(&e) {
-                            std::process::exit(2);
-                        }
-                        std::process::exit(1);
-                    }
-                }
-                _ => print_react_usage(&args[0]),
-            }
+            handle_react_command(&args, &ctx).await;
         }
         "file" => {
-            if args.len() < 3 {
-                print_file_usage(&args[0]);
-                std::process::exit(1);
-            }
-            match args[2].as_str() {
-                "upload" => {
-                    if let Err(e) = run_file_upload(&args, ctx.is_non_interactive()).await {
-                        eprintln!("File upload failed: {}", e);
-                        if cli::is_non_interactive_error(&e) {
-                            std::process::exit(2);
-                        }
-                        std::process::exit(1);
-                    }
-                }
-                "download" => {
-                    if let Err(e) = cli::run_file_download(&args).await {
-                        eprintln!("File download failed: {}", e);
-                        std::process::exit(1);
-                    }
-                }
-                _ => print_file_usage(&args[0]),
-            }
+            handle_file_command(&args, &ctx).await;
         }
         "commands" => {
             // Check for --json flag
@@ -366,8 +121,7 @@ async fn main() {
                             println!("{}", json);
                         }
                         Err(e) => {
-                            eprintln!("Schema error: {}", e);
-                            std::process::exit(1);
+                            handle_command_error(&e, "Schema error");
                         }
                     }
                 } else {
@@ -414,8 +168,7 @@ async fn main() {
             let json_output = cli::has_flag(&args, "--json");
 
             if let Err(e) = commands::doctor(profile_name, json_output) {
-                eprintln!("Doctor command failed: {}", e);
-                std::process::exit(1);
+                handle_command_error(&e.to_string(), "Doctor command failed");
             }
         }
         "demo" => {
@@ -488,6 +241,257 @@ fn normalize_global_flags(args: &[String]) -> Vec<String> {
     result.extend(global_flags);
 
     result
+}
+
+/// Handle command error and exit with appropriate code
+///
+/// This helper consolidates the common error handling pattern:
+/// - Print error message to stderr with prefix
+/// - Exit with code 2 for non-interactive errors, code 1 otherwise
+fn handle_command_error(error: &str, prefix: &str) -> ! {
+    eprintln!("{}: {}", prefix, error);
+    
+    // Check if this is a non-interactive error
+    if cli::is_non_interactive_error(error) {
+        std::process::exit(2);
+    }
+    std::process::exit(1);
+}
+
+/// Handle auth subcommand dispatch
+async fn handle_auth_command(args: &[String], ctx: &cli::CliContext) {
+    if args.len() < 3 {
+        print_auth_usage();
+        return;
+    }
+    match args[2].as_str() {
+        "login" => {
+            if let Err(e) = cli::run_auth_login(&args[3..], ctx.is_non_interactive()).await {
+                handle_command_error(&e.to_string(), "Login failed");
+            }
+        }
+        "status" => {
+            let profile_name = args.get(3).cloned();
+            if let Err(e) = auth::status(profile_name) {
+                handle_command_error(&e.to_string(), "Status command failed");
+            }
+        }
+        "list" => {
+            if let Err(e) = auth::list() {
+                handle_command_error(&e.to_string(), "List command failed");
+            }
+        }
+        "rename" => {
+            if args.len() < 5 {
+                eprintln!("Usage: {} auth rename <old_name> <new_name>", args[0]);
+                std::process::exit(1);
+            }
+            if let Err(e) = auth::rename(args[3].clone(), args[4].clone()) {
+                handle_command_error(&e.to_string(), "Rename command failed");
+            }
+        }
+        "logout" => {
+            let profile_name = args.get(3).cloned();
+            if let Err(e) = auth::logout(profile_name) {
+                handle_command_error(&e.to_string(), "Logout command failed");
+            }
+        }
+        "export" => {
+            cli::handle_export_command(&args[3..]).await;
+        }
+        "import" => {
+            cli::handle_import_command(&args[3..]).await;
+        }
+        _ => {
+            print_auth_usage();
+        }
+    }
+}
+
+/// Handle config subcommand dispatch
+fn handle_config_command(args: &[String]) {
+    if args.len() < 3 {
+        print_config_usage(&args[0]);
+        return;
+    }
+    match args[2].as_str() {
+        "oauth" => {
+            if args.len() < 4 {
+                print_config_oauth_usage(&args[0]);
+                std::process::exit(1);
+            }
+            match args[3].as_str() {
+                "set" => {
+                    if let Err(e) = run_config_oauth_set(&args[4..]) {
+                        handle_command_error(&e, "OAuth config set failed");
+                    }
+                }
+                "show" => {
+                    if let Err(e) = run_config_oauth_show(&args[4..]) {
+                        handle_command_error(&e, "OAuth config show failed");
+                    }
+                }
+                "delete" => {
+                    if let Err(e) = run_config_oauth_delete(&args[4..]) {
+                        handle_command_error(&e, "OAuth config delete failed");
+                    }
+                }
+                _ => {
+                    print_config_oauth_usage(&args[0]);
+                }
+            }
+        }
+        "set" => {
+            if let Err(e) = run_config_set(&args[3..]) {
+                handle_command_error(&e, "Config set failed");
+            }
+        }
+        _ => {
+            print_config_usage(&args[0]);
+        }
+    }
+}
+
+/// Handle conv subcommand dispatch
+async fn handle_conv_command(args: &[String]) {
+    if args.len() < 3 {
+        print_conv_usage(&args[0]);
+        std::process::exit(1);
+    }
+    match args[2].as_str() {
+        "list" => {
+            if let Err(e) = run_conv_list(args).await {
+                handle_command_error(&e.to_string(), "Conv list failed");
+            }
+        }
+        "select" => {
+            if let Err(e) = run_conv_select(args).await {
+                handle_command_error(&e.to_string(), "Conv select failed");
+            }
+        }
+        "search" => {
+            if let Err(e) = run_conv_search(args).await {
+                handle_command_error(&e.to_string(), "Conv search failed");
+            }
+        }
+        "history" => {
+            // --interactive flag makes channel argument optional
+            let has_interactive = args.iter().any(|arg| arg == "--interactive");
+            if !has_interactive && args.len() < 4 {
+                eprintln!(
+                    "Usage: {} conv history <channel> [--limit=N] [--profile=NAME]",
+                    args[0]
+                );
+                eprintln!(
+                    "   or: {} conv history --interactive [--filter=KEY:VALUE]... [--profile=NAME]",
+                    args[0]
+                );
+                std::process::exit(1);
+            }
+            if let Err(e) = run_conv_history(args).await {
+                handle_command_error(&e.to_string(), "Conv history failed");
+            }
+        }
+        _ => print_conv_usage(&args[0]),
+    }
+}
+
+/// Handle users subcommand dispatch
+async fn handle_users_command(args: &[String]) {
+    if args.len() < 3 {
+        print_users_usage(&args[0]);
+        std::process::exit(1);
+    }
+    match args[2].as_str() {
+        "info" => {
+            if args.len() < 4 {
+                eprintln!("Usage: {} users info <user_id> [--profile=NAME]", args[0]);
+                std::process::exit(1);
+            }
+            if let Err(e) = run_users_info(args).await {
+                handle_command_error(&e.to_string(), "Users info failed");
+            }
+        }
+        "cache-update" => {
+            if let Err(e) = run_users_cache_update(args).await {
+                handle_command_error(&e.to_string(), "Users cache-update failed");
+            }
+        }
+        "resolve-mentions" => {
+            if let Err(e) = run_users_resolve_mentions(args).await {
+                handle_command_error(&e.to_string(), "Users resolve-mentions failed");
+            }
+        }
+        _ => print_users_usage(&args[0]),
+    }
+}
+
+/// Handle msg subcommand dispatch
+async fn handle_msg_command(args: &[String], ctx: &cli::CliContext) {
+    if args.len() < 3 {
+        print_msg_usage(&args[0]);
+        std::process::exit(1);
+    }
+    match args[2].as_str() {
+        "post" => {
+            if let Err(e) = run_msg_post(args, ctx.is_non_interactive()).await {
+                handle_command_error(&e.to_string(), "Msg post failed");
+            }
+        }
+        "update" => {
+            if let Err(e) = run_msg_update(args, ctx.is_non_interactive()).await {
+                handle_command_error(&e.to_string(), "Msg update failed");
+            }
+        }
+        "delete" => {
+            if let Err(e) = run_msg_delete(args, ctx.is_non_interactive()).await {
+                handle_command_error(&e.to_string(), "Msg delete failed");
+            }
+        }
+        _ => print_msg_usage(&args[0]),
+    }
+}
+
+/// Handle react subcommand dispatch
+async fn handle_react_command(args: &[String], ctx: &cli::CliContext) {
+    if args.len() < 3 {
+        print_react_usage(&args[0]);
+        std::process::exit(1);
+    }
+    match args[2].as_str() {
+        "add" => {
+            if let Err(e) = run_react_add(args, ctx.is_non_interactive()).await {
+                handle_command_error(&e.to_string(), "React add failed");
+            }
+        }
+        "remove" => {
+            if let Err(e) = run_react_remove(args, ctx.is_non_interactive()).await {
+                handle_command_error(&e.to_string(), "React remove failed");
+            }
+        }
+        _ => print_react_usage(&args[0]),
+    }
+}
+
+/// Handle file subcommand dispatch
+async fn handle_file_command(args: &[String], ctx: &cli::CliContext) {
+    if args.len() < 3 {
+        print_file_usage(&args[0]);
+        std::process::exit(1);
+    }
+    match args[2].as_str() {
+        "upload" => {
+            if let Err(e) = run_file_upload(args, ctx.is_non_interactive()).await {
+                handle_command_error(&e.to_string(), "File upload failed");
+            }
+        }
+        "download" => {
+            if let Err(e) = cli::run_file_download(args).await {
+                handle_command_error(&e.to_string(), "File download failed");
+            }
+        }
+        _ => print_file_usage(&args[0]),
+    }
 }
 
 /// Print version information
