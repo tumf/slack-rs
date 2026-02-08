@@ -835,6 +835,47 @@ pub async fn handle_import_command(args: &[String]) {
     }
 }
 
+/// Run install-skill command
+///
+/// # Arguments
+/// * `args` - Command line arguments (may include source)
+///
+/// # Returns
+/// * `Ok(())` - Success (JSON output to stdout)
+/// * `Err(String)` - Error (error message to stderr, non-zero exit)
+pub fn run_install_skill(args: &[String]) -> Result<(), String> {
+    use crate::skills;
+    use serde_json::json;
+
+    // Extract source argument (first non-flag argument, or None for default)
+    let source = args
+        .iter()
+        .find(|arg| !arg.starts_with("--"))
+        .map(|s| s.as_str());
+
+    // Install skill
+    let installed = skills::install_skill(source).map_err(|e| e.to_string())?;
+
+    // Build JSON response
+    let response = json!({
+        "schemaVersion": "1.0",
+        "type": "skill-installation",
+        "ok": true,
+        "skills": [
+            {
+                "name": installed.name,
+                "path": installed.path,
+                "source_type": installed.source_type,
+            }
+        ]
+    });
+
+    // Output JSON to stdout
+    println!("{}", serde_json::to_string_pretty(&response).unwrap());
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1214,6 +1255,9 @@ mod tests {
 
     #[test]
     fn test_resolve_token_with_bot_token_in_store() {
+        // Ensure no SLACK_TOKEN env var is set (cleanup from other tests)
+        std::env::remove_var("SLACK_TOKEN");
+
         let token_store = InMemoryTokenStore::new();
         let team_id = "T123";
         let user_id = "U456";
@@ -1234,6 +1278,9 @@ mod tests {
 
     #[test]
     fn test_resolve_token_with_user_token_in_store() {
+        // Ensure no SLACK_TOKEN env var is set (cleanup from other tests)
+        std::env::remove_var("SLACK_TOKEN");
+
         let token_store = InMemoryTokenStore::new();
         let team_id = "T123";
         let user_id = "U456";
@@ -1278,6 +1325,9 @@ mod tests {
 
     #[test]
     fn test_resolve_token_explicit_bot_request_fails_without_bot_token() {
+        // Ensure no SLACK_TOKEN env var is set (cleanup from other tests)
+        std::env::remove_var("SLACK_TOKEN");
+
         let token_store = InMemoryTokenStore::new();
         let team_id = "T123";
         let user_id = "U456";
@@ -1308,6 +1358,9 @@ mod tests {
 
     #[test]
     fn test_resolve_token_explicit_user_request_fails_without_user_token() {
+        // Ensure no SLACK_TOKEN env var is set (cleanup from other tests)
+        std::env::remove_var("SLACK_TOKEN");
+
         let token_store = InMemoryTokenStore::new();
         let team_id = "T123";
         let user_id = "U456";
@@ -1335,6 +1388,9 @@ mod tests {
 
     #[test]
     fn test_resolve_token_fallback_from_user_to_bot() {
+        // Ensure no SLACK_TOKEN env var is set (cleanup from other tests)
+        std::env::remove_var("SLACK_TOKEN");
+
         let token_store = InMemoryTokenStore::new();
         let team_id = "T123";
         let user_id = "U456";
@@ -1376,6 +1432,9 @@ mod tests {
 
     #[test]
     fn test_resolve_token_no_fallback_when_profile_default_set() {
+        // Ensure no SLACK_TOKEN env var is set (cleanup from other tests)
+        std::env::remove_var("SLACK_TOKEN");
+
         let token_store = InMemoryTokenStore::new();
         let team_id = "T123";
         let user_id = "U456";
@@ -1403,6 +1462,9 @@ mod tests {
 
     #[test]
     fn test_resolve_token_cli_overrides_profile_default() {
+        // Ensure no SLACK_TOKEN env var is set (cleanup from other tests)
+        std::env::remove_var("SLACK_TOKEN");
+
         let token_store = InMemoryTokenStore::new();
         let team_id = "T123";
         let user_id = "U456";
@@ -1462,6 +1524,9 @@ mod tests {
 
     #[test]
     fn test_resolve_token_with_both_tokens_prefers_user() {
+        // Ensure no SLACK_TOKEN env var is set (cleanup from other tests)
+        std::env::remove_var("SLACK_TOKEN");
+
         let token_store = InMemoryTokenStore::new();
         let team_id = "T123";
         let user_id = "U456";

@@ -1209,6 +1209,41 @@ pub fn get_command_definitions() -> Vec<CommandDef> {
                 },
             ],
         },
+        // install-skill
+        CommandDef {
+            name: "install-skill".to_string(),
+            description: "Install agent skill from embedded or local source".to_string(),
+            usage: "slack-rs install-skill [source]".to_string(),
+            flags: vec![
+                FlagDef {
+                    name: "source".to_string(),
+                    flag_type: "string".to_string(),
+                    required: false,
+                    description: "Source to install from: 'self' (embedded) or 'local:<path>'".to_string(),
+                    default: Some("self".to_string()),
+                },
+            ],
+            examples: vec![
+                ExampleDef {
+                    description: "Install embedded skill (default)".to_string(),
+                    command: "slack-rs install-skill".to_string(),
+                },
+                ExampleDef {
+                    description: "Install from local path".to_string(),
+                    command: "slack-rs install-skill local:/path/to/skill".to_string(),
+                },
+            ],
+            exit_codes: vec![
+                ExitCodeDef {
+                    code: 0,
+                    description: "Success - skill installed".to_string(),
+                },
+                ExitCodeDef {
+                    code: 1,
+                    description: "Failure - installation error".to_string(),
+                },
+            ],
+        },
         // demo
         CommandDef {
             name: "demo".to_string(),
@@ -1277,41 +1312,87 @@ pub fn generate_schema(command_name: &str) -> Result<SchemaResponse, String> {
     let _cmd = get_command_definition(command_name)
         .ok_or_else(|| format!("Command '{}' not found", command_name))?;
 
-    // Generate basic envelope schema
-    let schema = serde_json::json!({
-        "$schema": "http://json-schema.org/draft-07/schema#",
-        "type": "object",
-        "properties": {
-            "schemaVersion": {
-                "type": "integer",
-                "description": "Schema version number"
-            },
-            "type": {
-                "type": "string",
-                "description": "Response type identifier"
-            },
-            "ok": {
-                "type": "boolean",
-                "description": "Indicates if the operation was successful"
-            },
-            "response": {
-                "type": "object",
-                "description": "Slack API response data"
-            },
-            "meta": {
-                "type": "object",
-                "description": "Metadata about the request and profile",
-                "properties": {
-                    "profile": {"type": "string"},
-                    "team_id": {"type": "string"},
-                    "user_id": {"type": "string"},
-                    "method": {"type": "string"},
-                    "command": {"type": "string"}
+    // Special case for install-skill
+    let schema = if command_name == "install-skill" {
+        serde_json::json!({
+            "$schema": "http://json-schema.org/draft-07/schema#",
+            "type": "object",
+            "properties": {
+                "schemaVersion": {
+                    "type": "string",
+                    "description": "Schema version number"
+                },
+                "type": {
+                    "type": "string",
+                    "description": "Response type identifier",
+                    "const": "skill-installation"
+                },
+                "ok": {
+                    "type": "boolean",
+                    "description": "Indicates if the operation was successful"
+                },
+                "skills": {
+                    "type": "array",
+                    "description": "List of installed skills",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "name": {
+                                "type": "string",
+                                "description": "Skill name"
+                            },
+                            "path": {
+                                "type": "string",
+                                "description": "Installation path"
+                            },
+                            "source_type": {
+                                "type": "string",
+                                "description": "Source type (self or local)"
+                            }
+                        },
+                        "required": ["name", "path", "source_type"]
+                    }
                 }
-            }
-        },
-        "required": ["schemaVersion", "type", "ok"]
-    });
+            },
+            "required": ["schemaVersion", "type", "ok", "skills"]
+        })
+    } else {
+        // Generate basic envelope schema for other commands
+        serde_json::json!({
+            "$schema": "http://json-schema.org/draft-07/schema#",
+            "type": "object",
+            "properties": {
+                "schemaVersion": {
+                    "type": "integer",
+                    "description": "Schema version number"
+                },
+                "type": {
+                    "type": "string",
+                    "description": "Response type identifier"
+                },
+                "ok": {
+                    "type": "boolean",
+                    "description": "Indicates if the operation was successful"
+                },
+                "response": {
+                    "type": "object",
+                    "description": "Slack API response data"
+                },
+                "meta": {
+                    "type": "object",
+                    "description": "Metadata about the request and profile",
+                    "properties": {
+                        "profile": {"type": "string"},
+                        "team_id": {"type": "string"},
+                        "user_id": {"type": "string"},
+                        "method": {"type": "string"},
+                        "command": {"type": "string"}
+                    }
+                }
+            },
+            "required": ["schemaVersion", "type", "ok"]
+        })
+    };
 
     Ok(SchemaResponse {
         schema_version: 1,

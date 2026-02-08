@@ -171,6 +171,11 @@ async fn main() {
                 handle_command_error(&e.to_string(), "Doctor command failed");
             }
         }
+        "install-skill" => {
+            if let Err(e) = cli::run_install_skill(&args[2..]) {
+                handle_command_error(&e, "Skill installation failed");
+            }
+        }
         "demo" => {
             println!("Slack CLI - OAuth authentication flow");
             println!();
@@ -250,7 +255,7 @@ fn normalize_global_flags(args: &[String]) -> Vec<String> {
 /// - Exit with code 2 for non-interactive errors, code 1 otherwise
 fn handle_command_error(error: &str, prefix: &str) -> ! {
     eprintln!("{}: {}", prefix, error);
-    
+
     // Check if this is a non-interactive error
     if cli::is_non_interactive_error(error) {
         std::process::exit(2);
@@ -546,6 +551,7 @@ fn print_help() {
         "    file download [<file_id>]        Download a file from Slack (supports --url, --out)"
     );
     println!("    doctor [--profile=NAME] [--json] Show diagnostic information");
+    println!("    install-skill [source]           Install agent skill (default: self)");
     println!("    demo                             Run demonstration");
     println!();
     println!("API CALL OPTIONS:");
@@ -620,6 +626,7 @@ fn print_usage() {
         "  file download [<file_id>]      - Download a file from Slack (supports --url, --out)"
     );
     println!("  doctor [options]               - Show diagnostic information (supports --profile, --json)");
+    println!("  install-skill [source]         - Install agent skill (default: self, supports local:<path>)");
     println!("  demo                           - Run demonstration");
     println!("  --help, -h                     - Show help");
     println!("  --version, -v                  - Show version");
