@@ -101,6 +101,21 @@ fn install_skill_invalid_source_exits_non_zero() {
 }
 
 #[test]
+fn install_skill_invalid_source_shows_allowed_schemes() {
+    let (exit_code, _stdout, stderr) = run_slack_rs(&["install-skill", "foo:bar"]);
+
+    // Should fail with non-zero exit
+    assert_ne!(exit_code, 0, "Should exit non-zero for invalid source");
+
+    // Should mention allowed schemes in error message
+    assert!(
+        stderr.contains("self") && stderr.contains("local:"),
+        "Error message should mention allowed schemes (self, local:<path>), got: {}",
+        stderr
+    );
+}
+
+#[test]
 fn install_skill_is_routed_from_main() {
     // This test verifies that the command is properly routed
     // We test by running with invalid args to see if it gets to our handler

@@ -23,3 +23,8 @@
 
 - [x] すべての検証を外部依存なしで再実行できるよう、テストは一時ディレクトリとリポジトリ内 fixture（`skills/slack-rs`）のみを使用し、ネットワークアクセス不要に固定する。
   検証: `cargo test --lib skills::tests` と `cargo test --test skill_installation_integration` がオフライン前提で成功する。
+
+## Acceptance #1 Failure Follow-up
+
+- [x] `slack-rs install-skill foo:bar` の失敗時エラーメッセージに、許容スキーム一覧（`self`, `local:<path>`）を含めるよう修正し、`src/skills/mod.rs` と統合テストで検証する。
+- [x] `cargo test --lib` で失敗している `cli::handlers::tests::test_resolve_token_fallback_from_user_to_bot`（`src/cli/handlers.rs`）を解消し、`resolve_token` の実装またはテスト期待値を現仕様と一致させる。

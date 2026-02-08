@@ -27,7 +27,7 @@ pub enum SkillError {
     #[error("Invalid source: {0}")]
     InvalidSource(String),
 
-    #[error("Unknown source scheme: {0}")]
+    #[error("Unknown source scheme: {0}. Allowed schemes: 'self', 'local:<path>'")]
     UnknownScheme(String),
 
     #[error("IO error: {0}")]
@@ -317,6 +317,21 @@ mod tests {
             }
             _ => panic!("Expected UnknownScheme error"),
         }
+    }
+
+    #[test]
+    fn unknown_scheme_error_includes_allowed_schemes() {
+        let result = Source::parse("foo:bar");
+        assert!(result.is_err());
+        let err_msg = format!("{}", result.unwrap_err());
+        assert!(
+            err_msg.contains("self"),
+            "Error should mention 'self' scheme"
+        );
+        assert!(
+            err_msg.contains("local:"),
+            "Error should mention 'local:<path>' scheme"
+        );
     }
 
     #[test]
