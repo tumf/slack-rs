@@ -43,16 +43,10 @@ fn setup_test_env() -> (TempDir, String) {
 
     // Store tokens with realistic-looking values
     token_store
-        .set(
-            &bot_key,
-            "bot_test_token_placeholder",
-        )
+        .set(&bot_key, "bot_test_token_placeholder")
         .unwrap();
     token_store
-        .set(
-            &user_key,
-            "user_test_token_placeholder",
-        )
+        .set(&user_key, "user_test_token_placeholder")
         .unwrap();
 
     (temp_dir, config_path.display().to_string())

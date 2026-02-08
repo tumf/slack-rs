@@ -894,8 +894,12 @@ mod tests {
     /// Test deterministic serialization with different insertion orders
     /// Regression test for Issue #24
     #[test]
+    #[serial_test::serial]
     fn test_deterministic_serialization_different_insertion_orders() {
         use tempfile::TempDir;
+
+        // Ensure test isolation from global path overrides
+        std::env::remove_var("SLACK_RS_TOKENS_PATH");
 
         // Create separate temp directories for each store to avoid state sharing
         let temp_dir1 = TempDir::new().unwrap();
@@ -941,6 +945,9 @@ mod tests {
 
         assert!(key_a_idx < key_b_idx, "key_a should appear before key_b");
         assert!(key_b_idx < key_c_idx, "key_b should appear before key_c");
+
+        // Leave environment in a clean state for other tests
+        std::env::remove_var("SLACK_RS_TOKENS_PATH");
     }
 
     /// Test no diff on consecutive saves with unchanged content
