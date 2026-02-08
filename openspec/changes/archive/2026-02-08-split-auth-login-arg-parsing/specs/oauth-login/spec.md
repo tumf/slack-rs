@@ -1,4 +1,6 @@
-## MODIFIED Requirements
+# oauth-login Change Proposal
+
+## ADDED Requirements
 
 ### Requirement: auth login の引数解釈規約は内部解析分離後も維持される
 `auth login` の引数解析を内部的に分離した後も、既存のオプション解釈（排他制約、既定値適用、非対話制約、エラーメッセージ種別）は互換性を維持しなければならない。(MUST)

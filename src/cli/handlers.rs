@@ -11,8 +11,59 @@ use crate::profile::{
     create_token_store, default_config_path, make_token_key, resolve_profile_full, TokenType,
 };
 
-/// Run the auth login command with argument parsing
-pub async fn run_auth_login(args: &[String], non_interactive: bool) -> Result<(), String> {
+/// Parsed login arguments structure
+#[derive(Debug, Clone, PartialEq)]
+pub struct LoginArgs {
+    pub profile_name: Option<String>,
+    pub client_id: Option<String>,
+    pub bot_scopes: Option<Vec<String>>,
+    pub user_scopes: Option<Vec<String>>,
+    pub tunnel_mode: TunnelMode,
+}
+
+/// Tunnel mode for login
+#[derive(Debug, Clone, PartialEq)]
+pub enum TunnelMode {
+    None,
+    Cloudflared(Option<String>),
+    Ngrok(Option<String>),
+}
+
+impl TunnelMode {
+    /// Check if tunnel mode is enabled
+    pub fn is_enabled(&self) -> bool {
+        !matches!(self, TunnelMode::None)
+    }
+
+    /// Check if cloudflared is enabled
+    pub fn is_cloudflared(&self) -> bool {
+        matches!(self, TunnelMode::Cloudflared(_))
+    }
+
+    /// Check if ngrok is enabled
+    #[allow(dead_code)]
+    pub fn is_ngrok(&self) -> bool {
+        matches!(self, TunnelMode::Ngrok(_))
+    }
+}
+
+/// Parse login command arguments
+///
+/// This function extracts and validates arguments for the `auth login` command.
+/// It enforces mutual exclusivity between --cloudflared and --ngrok flags.
+///
+/// # Arguments
+/// * `args` - Raw command line arguments after "auth login"
+///
+/// # Returns
+/// * `Ok(LoginArgs)` - Successfully parsed and validated arguments
+/// * `Err(String)` - Parse error with descriptive message
+///
+/// # Validation Rules
+/// 1. --cloudflared and --ngrok are mutually exclusive
+/// 2. Unknown options are rejected
+/// 3. Scope inputs are normalized (comma-separated, whitespace-trimmed)
+pub fn parse_login_args(args: &[String]) -> Result<LoginArgs, String> {
     let mut profile_name: Option<String> = None;
     let mut client_id: Option<String> = None;
     let mut cloudflared_path: Option<String> = None;
@@ -91,6 +142,29 @@ pub async fn run_auth_login(args: &[String], non_interactive: bool) -> Result<()
         return Err("Cannot specify both --cloudflared and --ngrok at the same time".to_string());
     }
 
+    // Determine tunnel mode
+    let tunnel_mode = if let Some(path) = cloudflared_path {
+        TunnelMode::Cloudflared(Some(path))
+    } else if let Some(path) = ngrok_path {
+        TunnelMode::Ngrok(Some(path))
+    } else {
+        TunnelMode::None
+    };
+
+    Ok(LoginArgs {
+        profile_name,
+        client_id,
+        bot_scopes,
+        user_scopes,
+        tunnel_mode,
+    })
+}
+
+/// Run the auth login command with argument parsing
+pub async fn run_auth_login(args: &[String], non_interactive: bool) -> Result<(), String> {
+    // Parse arguments
+    let parsed_args = parse_login_args(args)?;
+
     // Use default redirect_uri
     let redirect_uri = "http://127.0.0.1:8765/callback".to_string();
 
@@ -98,17 +172,17 @@ pub async fn run_auth_login(args: &[String], non_interactive: bool) -> Result<()
     let base_url = std::env::var("SLACK_OAUTH_BASE_URL").ok();
 
     // If cloudflared or ngrok is specified, use extended login flow
-    if cloudflared_path.is_some() || ngrok_path.is_some() {
+    if parsed_args.tunnel_mode.is_enabled() {
         // Collect missing parameters in non-interactive mode
         if non_interactive {
             let mut missing = Vec::new();
-            if client_id.is_none() {
+            if parsed_args.client_id.is_none() {
                 missing.push("--client-id");
             }
-            if bot_scopes.is_none() {
+            if parsed_args.bot_scopes.is_none() {
                 missing.push("--bot-scopes");
             }
-            if user_scopes.is_none() {
+            if parsed_args.user_scopes.is_none() {
                 missing.push("--user-scopes");
             }
             if !missing.is_empty() {
@@ -122,7 +196,7 @@ pub async fn run_auth_login(args: &[String], non_interactive: bool) -> Result<()
         }
 
         // Prompt for client_id if not provided (only in interactive mode)
-        let client_id = if let Some(id) = client_id {
+        let client_id = if let Some(id) = parsed_args.client_id {
             id
         } else if non_interactive {
             return Err(
@@ -138,8 +212,10 @@ pub async fn run_auth_login(args: &[String], non_interactive: bool) -> Result<()
         };
 
         // Use default scopes if not provided
-        let bot_scopes = bot_scopes.unwrap_or_else(oauth::bot_all_scopes);
-        let user_scopes = user_scopes.unwrap_or_else(oauth::user_all_scopes);
+        let bot_scopes = parsed_args.bot_scopes.unwrap_or_else(oauth::bot_all_scopes);
+        let user_scopes = parsed_args
+            .user_scopes
+            .unwrap_or_else(oauth::user_all_scopes);
 
         if debug::enabled() {
             debug::log("Preparing to call login_with_credentials_extended");
@@ -161,8 +237,8 @@ pub async fn run_auth_login(args: &[String], non_interactive: bool) -> Result<()
             client_secret,
             bot_scopes,
             user_scopes,
-            profile_name,
-            cloudflared_path.is_some(),
+            parsed_args.profile_name,
+            parsed_args.tunnel_mode.is_cloudflared(),
         )
         .await
         .map_err(|e| e.to_string())
@@ -170,12 +246,12 @@ pub async fn run_auth_login(args: &[String], non_interactive: bool) -> Result<()
         // Call standard login with credentials
         // This will prompt for client_secret and other missing OAuth config
         auth::login_with_credentials(
-            client_id,
-            profile_name,
+            parsed_args.client_id,
+            parsed_args.profile_name,
             redirect_uri,
             vec![], // Legacy scopes parameter (unused)
-            bot_scopes,
-            user_scopes,
+            parsed_args.bot_scopes,
+            parsed_args.user_scopes,
             base_url,
             non_interactive,
         )
@@ -712,6 +788,198 @@ mod tests {
     use crate::profile::{InMemoryTokenStore, TokenStore};
     use serde_json::json;
     use std::collections::HashMap;
+
+    #[test]
+    fn test_parse_login_args_empty() {
+        let args = vec![];
+        let result = parse_login_args(&args);
+        assert!(result.is_ok());
+        let parsed = result.unwrap();
+        assert_eq!(parsed.profile_name, None);
+        assert_eq!(parsed.client_id, None);
+        assert_eq!(parsed.bot_scopes, None);
+        assert_eq!(parsed.user_scopes, None);
+        assert_eq!(parsed.tunnel_mode, TunnelMode::None);
+    }
+
+    #[test]
+    fn test_parse_login_args_profile_only() {
+        let args = vec!["my-profile".to_string()];
+        let result = parse_login_args(&args);
+        assert!(result.is_ok());
+        let parsed = result.unwrap();
+        assert_eq!(parsed.profile_name, Some("my-profile".to_string()));
+        assert_eq!(parsed.tunnel_mode, TunnelMode::None);
+    }
+
+    #[test]
+    fn test_parse_login_args_with_client_id() {
+        let args = vec!["--client-id".to_string(), "123.456".to_string()];
+        let result = parse_login_args(&args);
+        assert!(result.is_ok());
+        let parsed = result.unwrap();
+        assert_eq!(parsed.client_id, Some("123.456".to_string()));
+    }
+
+    #[test]
+    fn test_parse_login_args_cloudflared_default() {
+        let args = vec!["--cloudflared".to_string()];
+        let result = parse_login_args(&args);
+        assert!(result.is_ok());
+        let parsed = result.unwrap();
+        assert!(matches!(
+            parsed.tunnel_mode,
+            TunnelMode::Cloudflared(Some(_))
+        ));
+        if let TunnelMode::Cloudflared(Some(path)) = parsed.tunnel_mode {
+            assert_eq!(path, "cloudflared");
+        }
+    }
+
+    #[test]
+    fn test_parse_login_args_cloudflared_with_path() {
+        let args = vec![
+            "--cloudflared".to_string(),
+            "/usr/bin/cloudflared".to_string(),
+        ];
+        let result = parse_login_args(&args);
+        assert!(result.is_ok());
+        let parsed = result.unwrap();
+        if let TunnelMode::Cloudflared(Some(path)) = parsed.tunnel_mode {
+            assert_eq!(path, "/usr/bin/cloudflared");
+        } else {
+            panic!("Expected Cloudflared tunnel mode");
+        }
+    }
+
+    #[test]
+    fn test_parse_login_args_ngrok_default() {
+        let args = vec!["--ngrok".to_string()];
+        let result = parse_login_args(&args);
+        assert!(result.is_ok());
+        let parsed = result.unwrap();
+        assert!(matches!(parsed.tunnel_mode, TunnelMode::Ngrok(Some(_))));
+        if let TunnelMode::Ngrok(Some(path)) = parsed.tunnel_mode {
+            assert_eq!(path, "ngrok");
+        }
+    }
+
+    #[test]
+    fn test_parse_login_args_cloudflared_ngrok_mutual_exclusion() {
+        let args = vec!["--cloudflared".to_string(), "--ngrok".to_string()];
+        let result = parse_login_args(&args);
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .contains("Cannot specify both --cloudflared and --ngrok"));
+    }
+
+    #[test]
+    fn test_parse_login_args_bot_scopes() {
+        let args = vec![
+            "--bot-scopes".to_string(),
+            "chat:write,users:read".to_string(),
+        ];
+        let result = parse_login_args(&args);
+        assert!(result.is_ok());
+        let parsed = result.unwrap();
+        assert!(parsed.bot_scopes.is_some());
+        let scopes = parsed.bot_scopes.unwrap();
+        assert!(scopes.contains(&"chat:write".to_string()));
+        assert!(scopes.contains(&"users:read".to_string()));
+    }
+
+    #[test]
+    fn test_parse_login_args_user_scopes() {
+        let args = vec![
+            "--user-scopes".to_string(),
+            "search:read,users:read".to_string(),
+        ];
+        let result = parse_login_args(&args);
+        assert!(result.is_ok());
+        let parsed = result.unwrap();
+        assert!(parsed.user_scopes.is_some());
+    }
+
+    #[test]
+    fn test_parse_login_args_all_parameters() {
+        let args = vec![
+            "work".to_string(),
+            "--client-id".to_string(),
+            "123.456".to_string(),
+            "--bot-scopes".to_string(),
+            "chat:write".to_string(),
+            "--user-scopes".to_string(),
+            "users:read".to_string(),
+            "--cloudflared".to_string(),
+        ];
+        let result = parse_login_args(&args);
+        assert!(result.is_ok());
+        let parsed = result.unwrap();
+        assert_eq!(parsed.profile_name, Some("work".to_string()));
+        assert_eq!(parsed.client_id, Some("123.456".to_string()));
+        assert!(parsed.bot_scopes.is_some());
+        assert!(parsed.user_scopes.is_some());
+        assert!(parsed.tunnel_mode.is_cloudflared());
+    }
+
+    #[test]
+    fn test_parse_login_args_unknown_option() {
+        let args = vec!["--unknown-flag".to_string()];
+        let result = parse_login_args(&args);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("Unknown option"));
+    }
+
+    #[test]
+    fn test_parse_login_args_unexpected_positional() {
+        let args = vec!["profile1".to_string(), "profile2".to_string()];
+        let result = parse_login_args(&args);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("Unexpected argument"));
+    }
+
+    #[test]
+    fn test_parse_login_args_client_id_missing_value() {
+        let args = vec!["--client-id".to_string()];
+        let result = parse_login_args(&args);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("--client-id requires a value"));
+    }
+
+    #[test]
+    fn test_parse_login_args_bot_scopes_missing_value() {
+        let args = vec!["--bot-scopes".to_string()];
+        let result = parse_login_args(&args);
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .contains("--bot-scopes requires a value"));
+    }
+
+    #[test]
+    fn test_tunnel_mode_none() {
+        let mode = TunnelMode::None;
+        assert!(!mode.is_enabled());
+        assert!(!mode.is_cloudflared());
+        assert!(!mode.is_ngrok());
+    }
+
+    #[test]
+    fn test_tunnel_mode_cloudflared() {
+        let mode = TunnelMode::Cloudflared(Some("cloudflared".to_string()));
+        assert!(mode.is_enabled());
+        assert!(mode.is_cloudflared());
+        assert!(!mode.is_ngrok());
+    }
+
+    #[test]
+    fn test_tunnel_mode_ngrok() {
+        let mode = TunnelMode::Ngrok(Some("ngrok".to_string()));
+        assert!(mode.is_enabled());
+        assert!(!mode.is_cloudflared());
+        assert!(mode.is_ngrok());
+    }
 
     #[test]
     fn test_should_show_private_channel_guidance_empty_response() {
