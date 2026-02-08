@@ -285,42 +285,45 @@ fn resolve_token(
     // If either is set, we should NOT fallback to a different token type
     let explicit_request = cli_token_type.is_some() || profile_default_token_type.is_some();
 
-    // Retrieve token from token store
-    let token = match token_store.get(&token_key) {
-        Ok(t) => t,
-        Err(_) => {
-            // If token not found in store, check environment variable
-            if let Ok(env_token) = std::env::var("SLACK_TOKEN") {
-                env_token
-            } else if explicit_request {
-                // If token type was explicitly requested, fail without fallback
-                return Err(format!(
-                    "No {} token found for profile '{}' ({}:{}). Explicitly requested token type not available. Set SLACK_TOKEN environment variable or run 'slack login' to obtain a {} token.",
-                    resolved_token_type, profile_name, team_id, user_id, resolved_token_type
-                ));
-            } else {
-                // If no token type preference was specified, try bot token as fallback
-                if resolved_token_type == TokenType::User {
-                    if let Ok(bot_token) = token_store.get(&token_key_bot) {
-                        eprintln!(
-                            "Warning: User token not found, falling back to bot token for profile '{}'",
-                            profile_name
-                        );
-                        return Ok(ResolvedToken {
-                            token: bot_token,
-                            token_type: TokenType::Bot,
-                        });
+    // PRIORITY 1: Check SLACK_TOKEN environment variable first (highest priority)
+    let token = if let Ok(env_token) = std::env::var("SLACK_TOKEN") {
+        env_token
+    } else {
+        // PRIORITY 2: Try to retrieve token from token store
+        match token_store.get(&token_key) {
+            Ok(t) => t,
+            Err(_) => {
+                // PRIORITY 3: If token not found in store, apply fallback logic
+                if explicit_request {
+                    // If token type was explicitly requested, fail without fallback
+                    return Err(format!(
+                        "No {} token found for profile '{}' ({}:{}). Explicitly requested token type not available. Set SLACK_TOKEN environment variable or run 'slack login' to obtain a {} token.",
+                        resolved_token_type, profile_name, team_id, user_id, resolved_token_type
+                    ));
+                } else {
+                    // If no token type preference was specified, try bot token as fallback
+                    if resolved_token_type == TokenType::User {
+                        if let Ok(bot_token) = token_store.get(&token_key_bot) {
+                            eprintln!(
+                                "Warning: User token not found, falling back to bot token for profile '{}'",
+                                profile_name
+                            );
+                            return Ok(ResolvedToken {
+                                token: bot_token,
+                                token_type: TokenType::Bot,
+                            });
+                        } else {
+                            return Err(format!(
+                                "No {} token found for profile '{}' ({}:{}). Set SLACK_TOKEN environment variable or run 'slack login' to obtain a token.",
+                                resolved_token_type, profile_name, team_id, user_id
+                            ));
+                        }
                     } else {
                         return Err(format!(
                             "No {} token found for profile '{}' ({}:{}). Set SLACK_TOKEN environment variable or run 'slack login' to obtain a token.",
                             resolved_token_type, profile_name, team_id, user_id
                         ));
                     }
-                } else {
-                    return Err(format!(
-                        "No {} token found for profile '{}' ({}:{}). Set SLACK_TOKEN environment variable or run 'slack login' to obtain a token.",
-                        resolved_token_type, profile_name, team_id, user_id
-                    ));
                 }
             }
         }
@@ -1174,16 +1177,19 @@ mod tests {
             .set(&format!("{}:{}", team_id, user_id), "xoxb-store-token")
             .unwrap();
 
-        // But actually, resolve_token retrieves from store first, not env
-        // The SLACK_TOKEN is only used as fallback when store.get() fails
-        // So this test is incorrect
+        // Set SLACK_TOKEN environment variable
+        std::env::set_var("SLACK_TOKEN", "xoxb-env-token");
 
         let result = resolve_token(&token_store, team_id, user_id, None, None, "default");
 
+        // Clean up environment variable
+        std::env::remove_var("SLACK_TOKEN");
+
         assert!(result.is_ok());
         let resolved = result.unwrap();
-        // Should use store token, not env
-        assert_eq!(resolved.token, "xoxb-store-token");
+        // Should use env token (SLACK_TOKEN), NOT store token
+        assert_eq!(resolved.token, "xoxb-env-token");
+        assert_eq!(resolved.token_type, TokenType::Bot);
     }
 
     #[test]
