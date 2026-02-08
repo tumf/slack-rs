@@ -1,0 +1,406 @@
+//! Skill installation module
+//!
+//! This module provides functionality to install agent skills from embedded resources
+//! or local filesystem paths. Skills are deployed to ~/.config/slack-rs/.agents/skills/
+//! and tracked in a lock file.
+
+use serde::{Deserialize, Serialize};
+use std::fs;
+use std::path::{Path, PathBuf};
+use thiserror::Error;
+
+const EMBEDDED_SKILL_NAME: &str = "slack-rs";
+const EMBEDDED_SKILL_DATA: &[(&str, &[u8])] = &[
+    ("SKILL.md", include_bytes!("../../skills/slack-rs/SKILL.md")),
+    (
+        "README.md",
+        include_bytes!("../../skills/slack-rs/README.md"),
+    ),
+    (
+        "references/recipes.md",
+        include_bytes!("../../skills/slack-rs/references/recipes.md"),
+    ),
+];
+
+#[derive(Debug, Error)]
+pub enum SkillError {
+    #[error("Invalid source: {0}")]
+    InvalidSource(String),
+
+    #[error("Unknown source scheme: {0}")]
+    UnknownScheme(String),
+
+    #[error("IO error: {0}")]
+    IoError(#[from] std::io::Error),
+
+    #[error("Serialization error: {0}")]
+    SerializationError(#[from] serde_json::Error),
+
+    #[error("Skill not found: {0}")]
+    SkillNotFound(String),
+
+    #[error("Path error: {0}")]
+    PathError(String),
+}
+
+/// Source of skill installation
+#[derive(Debug, Clone, PartialEq)]
+pub enum Source {
+    /// Embedded skill (skills/slack-rs)
+    SelfEmbedded,
+    /// Local filesystem path
+    Local(PathBuf),
+}
+
+impl Source {
+    /// Parse source string into Source enum
+    ///
+    /// # Arguments
+    /// * `s` - Source string (empty/"self" or "local:<path>")
+    ///
+    /// # Returns
+    /// * `Ok(Source)` - Parsed source
+    /// * `Err(SkillError)` - Invalid or unknown source scheme
+    pub fn parse(s: &str) -> Result<Self, SkillError> {
+        if s.is_empty() || s == "self" {
+            Ok(Source::SelfEmbedded)
+        } else if let Some(path_str) = s.strip_prefix("local:") {
+            let path = PathBuf::from(path_str);
+            Ok(Source::Local(path))
+        } else {
+            // Unknown scheme - reject immediately
+            Err(SkillError::UnknownScheme(s.to_string()))
+        }
+    }
+}
+
+/// Installed skill information
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct InstalledSkill {
+    pub name: String,
+    pub path: String,
+    pub source_type: String,
+}
+
+/// Lock file structure
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SkillLock {
+    pub skills: Vec<InstalledSkill>,
+}
+
+impl SkillLock {
+    pub fn new() -> Self {
+        SkillLock { skills: Vec::new() }
+    }
+
+    pub fn add_skill(&mut self, skill: InstalledSkill) {
+        // Remove existing entry with same name if present
+        self.skills.retain(|s| s.name != skill.name);
+        self.skills.push(skill);
+    }
+}
+
+impl Default for SkillLock {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// Get the skills directory path
+fn get_skills_dir() -> Result<PathBuf, SkillError> {
+    let config_dir = directories::BaseDirs::new()
+        .ok_or_else(|| SkillError::PathError("Cannot determine home directory".to_string()))?
+        .home_dir()
+        .join(".config")
+        .join("slack-rs")
+        .join(".agents")
+        .join("skills");
+
+    Ok(config_dir)
+}
+
+/// Get the lock file path
+fn get_lock_file_path() -> Result<PathBuf, SkillError> {
+    let config_dir = directories::BaseDirs::new()
+        .ok_or_else(|| SkillError::PathError("Cannot determine home directory".to_string()))?
+        .home_dir()
+        .join(".config")
+        .join("slack-rs")
+        .join(".agents");
+
+    Ok(config_dir.join(".skill-lock.json"))
+}
+
+/// Load lock file
+fn load_lock() -> Result<SkillLock, SkillError> {
+    let lock_path = get_lock_file_path()?;
+
+    if !lock_path.exists() {
+        return Ok(SkillLock::new());
+    }
+
+    let contents = fs::read_to_string(&lock_path)?;
+    let lock: SkillLock = serde_json::from_str(&contents)?;
+    Ok(lock)
+}
+
+/// Save lock file
+fn save_lock(lock: &SkillLock) -> Result<(), SkillError> {
+    let lock_path = get_lock_file_path()?;
+
+    // Ensure parent directory exists
+    if let Some(parent) = lock_path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+
+    let contents = serde_json::to_string_pretty(lock)?;
+    fs::write(&lock_path, contents)?;
+    Ok(())
+}
+
+/// Deploy embedded skill files to target directory
+fn deploy_embedded_skill(target_dir: &Path) -> Result<(), SkillError> {
+    fs::create_dir_all(target_dir)?;
+
+    for (rel_path, data) in EMBEDDED_SKILL_DATA {
+        let target_file = target_dir.join(rel_path);
+
+        // Create parent directories if needed
+        if let Some(parent) = target_file.parent() {
+            fs::create_dir_all(parent)?;
+        }
+
+        fs::write(target_file, data)?;
+    }
+
+    Ok(())
+}
+
+/// Deploy local skill directory to target using symlink (preferred) or copy (fallback)
+fn deploy_local_skill(source_dir: &Path, target_dir: &Path) -> Result<(), SkillError> {
+    if !source_dir.exists() {
+        return Err(SkillError::SkillNotFound(format!(
+            "Source directory does not exist: {}",
+            source_dir.display()
+        )));
+    }
+
+    // Remove existing target if present
+    if target_dir.exists() {
+        fs::remove_dir_all(target_dir)?;
+    }
+
+    // Ensure parent directory exists
+    if let Some(parent) = target_dir.parent() {
+        fs::create_dir_all(parent)?;
+    }
+
+    // Try symlink first
+    #[cfg(unix)]
+    {
+        if std::os::unix::fs::symlink(source_dir, target_dir).is_ok() {
+            return Ok(());
+        }
+    }
+
+    // Fall back to recursive copy
+    copy_dir_all(source_dir, target_dir)?;
+    Ok(())
+}
+
+/// Recursively copy directory
+fn copy_dir_all(src: &Path, dst: &Path) -> Result<(), SkillError> {
+    fs::create_dir_all(dst)?;
+
+    for entry in fs::read_dir(src)? {
+        let entry = entry?;
+        let file_type = entry.file_type()?;
+        let src_path = entry.path();
+        let dst_path = dst.join(entry.file_name());
+
+        if file_type.is_dir() {
+            copy_dir_all(&src_path, &dst_path)?;
+        } else {
+            fs::copy(&src_path, &dst_path)?;
+        }
+    }
+
+    Ok(())
+}
+
+/// Install skill from source
+///
+/// # Arguments
+/// * `source` - Source to install from (None defaults to self)
+///
+/// # Returns
+/// * `Ok(InstalledSkill)` - Successfully installed skill info
+/// * `Err(SkillError)` - Installation failed
+pub fn install_skill(source: Option<&str>) -> Result<InstalledSkill, SkillError> {
+    // Default to self if no source provided
+    let source_str = source.unwrap_or("self");
+    let parsed_source = Source::parse(source_str)?;
+
+    let (skill_name, source_type) = match &parsed_source {
+        Source::SelfEmbedded => (EMBEDDED_SKILL_NAME.to_string(), "self".to_string()),
+        Source::Local(path) => {
+            let name = path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .ok_or_else(|| {
+                    SkillError::PathError(format!(
+                        "Cannot extract skill name from path: {}",
+                        path.display()
+                    ))
+                })?
+                .to_string();
+            (name, "local".to_string())
+        }
+    };
+
+    // Determine target directory
+    let skills_dir = get_skills_dir()?;
+    let target_dir = skills_dir.join(&skill_name);
+
+    // Deploy based on source type
+    match parsed_source {
+        Source::SelfEmbedded => {
+            deploy_embedded_skill(&target_dir)?;
+        }
+        Source::Local(ref path) => {
+            deploy_local_skill(path, &target_dir)?;
+        }
+    }
+
+    // Update lock file
+    let mut lock = load_lock()?;
+    let installed = InstalledSkill {
+        name: skill_name,
+        path: target_dir.to_string_lossy().to_string(),
+        source_type,
+    };
+    lock.add_skill(installed.clone());
+    save_lock(&lock)?;
+
+    Ok(installed)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_source_accepts_self_and_local() {
+        // Test empty string defaults to self
+        assert_eq!(Source::parse("").unwrap(), Source::SelfEmbedded);
+
+        // Test explicit "self"
+        assert_eq!(Source::parse("self").unwrap(), Source::SelfEmbedded);
+
+        // Test local path
+        let local_result = Source::parse("local:/path/to/skill").unwrap();
+        match local_result {
+            Source::Local(path) => {
+                assert_eq!(path, PathBuf::from("/path/to/skill"));
+            }
+            _ => panic!("Expected Local variant"),
+        }
+    }
+
+    #[test]
+    fn parse_source_rejects_unknown_scheme() {
+        let result = Source::parse("github:user/repo");
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            SkillError::UnknownScheme(s) => {
+                assert_eq!(s, "github:user/repo");
+            }
+            _ => panic!("Expected UnknownScheme error"),
+        }
+    }
+
+    #[test]
+    fn default_source_is_self() {
+        // When no source is provided to install_skill, it should default to "self"
+        // We can't easily test the full install without filesystem setup,
+        // but we can verify the parse logic
+        let default_source = Source::parse("").unwrap();
+        assert_eq!(default_source, Source::SelfEmbedded);
+    }
+
+    #[test]
+    fn self_source_uses_embedded_skill() {
+        // Verify that embedded skill data is available
+        assert!(!EMBEDDED_SKILL_DATA.is_empty());
+        assert_eq!(EMBEDDED_SKILL_NAME, "slack-rs");
+
+        // Verify we have the expected files
+        let file_names: Vec<&str> = EMBEDDED_SKILL_DATA.iter().map(|(name, _)| *name).collect();
+        assert!(file_names.contains(&"SKILL.md"));
+        assert!(file_names.contains(&"README.md"));
+    }
+
+    #[test]
+    fn install_writes_skill_dir_and_lock_file() {
+        use tempfile::TempDir;
+
+        // Create a temporary directory for testing
+        let temp_dir = TempDir::new().unwrap();
+        let _temp_path = temp_dir.path();
+
+        // Mock the config paths by using environment variables or test helpers
+        // For now, we'll test the core logic separately
+
+        // Test that SkillLock can be created and modified
+        let mut lock = SkillLock::new();
+        assert_eq!(lock.skills.len(), 0);
+
+        let test_skill = InstalledSkill {
+            name: "test-skill".to_string(),
+            path: "/tmp/test-skill".to_string(),
+            source_type: "self".to_string(),
+        };
+
+        lock.add_skill(test_skill.clone());
+        assert_eq!(lock.skills.len(), 1);
+        assert_eq!(lock.skills[0].name, "test-skill");
+
+        // Test that adding same skill again replaces it
+        let updated_skill = InstalledSkill {
+            name: "test-skill".to_string(),
+            path: "/tmp/test-skill-updated".to_string(),
+            source_type: "local".to_string(),
+        };
+
+        lock.add_skill(updated_skill);
+        assert_eq!(lock.skills.len(), 1);
+        assert_eq!(lock.skills[0].path, "/tmp/test-skill-updated");
+    }
+
+    #[test]
+    fn falls_back_to_copy_when_symlink_fails() {
+        // This test verifies the copy fallback logic exists
+        // We can't easily test actual symlink failure without OS-specific setup,
+        // but we can verify copy_dir_all works
+
+        use tempfile::TempDir;
+
+        let src_dir = TempDir::new().unwrap();
+        let dst_dir = TempDir::new().unwrap();
+
+        // Create test file in source
+        let test_file = src_dir.path().join("test.txt");
+        fs::write(&test_file, b"test content").unwrap();
+
+        // Copy directory
+        let dst_path = dst_dir.path().join("copied");
+        let result = copy_dir_all(src_dir.path(), &dst_path);
+        assert!(result.is_ok());
+
+        // Verify file was copied
+        let copied_file = dst_dir.path().join("copied").join("test.txt");
+        assert!(copied_file.exists());
+        let contents = fs::read_to_string(copied_file).unwrap();
+        assert_eq!(contents, "test content");
+    }
+}

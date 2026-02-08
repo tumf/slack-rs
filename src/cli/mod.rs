@@ -6,7 +6,9 @@ mod help;
 pub mod introspection;
 
 pub use context::CliContext;
-pub use handlers::{handle_export_command, handle_import_command, run_api_call, run_auth_login};
+pub use handlers::{
+    handle_export_command, handle_import_command, run_api_call, run_auth_login, run_install_skill,
+};
 pub use introspection::{
     generate_commands_list, generate_help, generate_schema, CommandDef, CommandsListResponse,
     HelpResponse, SchemaResponse,

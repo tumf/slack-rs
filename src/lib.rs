@@ -14,3 +14,4 @@ pub mod debug;
 pub mod idempotency;
 pub mod oauth;
 pub mod profile;
+pub mod skills;
