@@ -884,6 +884,7 @@ mod tests {
     use crate::api::call::ApiCallMeta;
     use crate::profile::{InMemoryTokenStore, TokenStore};
     use serde_json::json;
+    use serial_test::serial;
     use std::collections::HashMap;
 
     #[test]
@@ -1256,6 +1257,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_resolve_token_with_bot_token_in_store() {
         // Ensure no SLACK_TOKEN env var is set (cleanup from other tests)
         std::env::remove_var("SLACK_TOKEN");
@@ -1279,6 +1281,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_resolve_token_with_user_token_in_store() {
         // Ensure no SLACK_TOKEN env var is set (cleanup from other tests)
         std::env::remove_var("SLACK_TOKEN");
@@ -1305,6 +1308,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_resolve_token_with_slack_token_env() {
         let token_store = InMemoryTokenStore::new();
         let team_id = "T123";
@@ -1326,6 +1330,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_resolve_token_explicit_bot_request_fails_without_bot_token() {
         // Ensure no SLACK_TOKEN env var is set (cleanup from other tests)
         std::env::remove_var("SLACK_TOKEN");
@@ -1359,6 +1364,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_resolve_token_explicit_user_request_fails_without_user_token() {
         // Ensure no SLACK_TOKEN env var is set (cleanup from other tests)
         std::env::remove_var("SLACK_TOKEN");
@@ -1389,6 +1395,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_resolve_token_fallback_from_user_to_bot() {
         // Ensure no SLACK_TOKEN env var is set (cleanup from other tests)
         std::env::remove_var("SLACK_TOKEN");
@@ -1433,6 +1440,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_resolve_token_no_fallback_when_profile_default_set() {
         // Ensure no SLACK_TOKEN env var is set (cleanup from other tests)
         std::env::remove_var("SLACK_TOKEN");
@@ -1463,6 +1471,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_resolve_token_cli_overrides_profile_default() {
         // Ensure no SLACK_TOKEN env var is set (cleanup from other tests)
         std::env::remove_var("SLACK_TOKEN");
@@ -1499,6 +1508,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_resolve_token_slack_token_prioritized_over_store() {
         let token_store = InMemoryTokenStore::new();
         let team_id = "T123";
@@ -1525,6 +1535,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_resolve_token_with_both_tokens_prefers_user() {
         // Ensure no SLACK_TOKEN env var is set (cleanup from other tests)
         std::env::remove_var("SLACK_TOKEN");
