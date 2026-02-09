@@ -276,9 +276,15 @@ fn install_skill_global_uses_home_agents_dir() {
     let skill = &json["skills"].as_array().unwrap()[0];
     let path = skill["path"].as_str().unwrap();
     let expected_prefix = temp_home.path().join(".agents").join("skills");
+
+    // Normalize paths for comparison (handle both Unix and Windows separators)
+    let normalized_path = std::path::Path::new(path);
+    let normalized_expected = expected_prefix.as_path();
+
     assert!(
-        path.starts_with(&expected_prefix.to_string_lossy().to_string()),
-        "Global install should use ~/.agents path, got: {}",
-        path
+        normalized_path.starts_with(normalized_expected),
+        "Global install should use ~/.agents/skills path, got: {} (expected prefix: {})",
+        path,
+        expected_prefix.display()
     );
 }
