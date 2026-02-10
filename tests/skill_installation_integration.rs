@@ -26,10 +26,16 @@ fn install_skill_outputs_required_json_fields() {
     let temp_dir = TempDir::new().unwrap();
     let temp_home = temp_dir.path();
 
-    let (exit_code, stdout, stderr) = Command::new(env!("CARGO_BIN_EXE_slack-rs"))
-        .args(["install-skills"])
+    let mut cmd = Command::new(env!("CARGO_BIN_EXE_slack-rs"));
+    cmd.args(["install-skills"])
         .env("HOME", temp_home)
-        .current_dir(temp_home)
+        .current_dir(temp_home);
+
+    // On Windows, also set USERPROFILE
+    #[cfg(target_os = "windows")]
+    cmd.env("USERPROFILE", temp_home);
+
+    let (exit_code, stdout, stderr) = cmd
         .output()
         .map(|output| {
             (
@@ -223,10 +229,16 @@ fn install_skill_with_local_source() {
     let temp_home = TempDir::new().unwrap();
 
     let source_arg = format!("local:{}", skill_path.display());
-    let (exit_code, stdout, stderr) = Command::new(env!("CARGO_BIN_EXE_slack-rs"))
-        .args(["install-skills", &source_arg])
+    let mut cmd = Command::new(env!("CARGO_BIN_EXE_slack-rs"));
+    cmd.args(["install-skills", &source_arg])
         .env("HOME", temp_home.path())
-        .current_dir(temp_home.path())
+        .current_dir(temp_home.path());
+
+    // On Windows, also set USERPROFILE
+    #[cfg(target_os = "windows")]
+    cmd.env("USERPROFILE", temp_home.path());
+
+    let (exit_code, stdout, stderr) = cmd
         .output()
         .map(|output| {
             (
@@ -256,10 +268,16 @@ fn install_skill_with_local_source() {
 fn install_skill_global_uses_home_agents_dir() {
     let temp_home = TempDir::new().unwrap();
 
-    let (exit_code, stdout, stderr) = Command::new(env!("CARGO_BIN_EXE_slack-rs"))
-        .args(["install-skills", "--global"])
+    let mut cmd = Command::new(env!("CARGO_BIN_EXE_slack-rs"));
+    cmd.args(["install-skills", "--global"])
         .env("HOME", temp_home.path())
-        .current_dir(temp_home.path())
+        .current_dir(temp_home.path());
+
+    // On Windows, also set USERPROFILE
+    #[cfg(target_os = "windows")]
+    cmd.env("USERPROFILE", temp_home.path());
+
+    let (exit_code, stdout, stderr) = cmd
         .output()
         .map(|output| {
             (
