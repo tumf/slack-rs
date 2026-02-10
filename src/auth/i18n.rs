@@ -41,6 +41,14 @@ impl Messages {
             ),
         );
 
+        messages.insert(
+            "warn.export_skipped",
+            (
+                "Warning: The following profiles were skipped due to missing tokens:",
+                "警告: 以下のプロファイルはトークンが見つからないためスキップされました:",
+            ),
+        );
+
         // Prompt messages
         messages.insert(
             "prompt.passphrase",
@@ -124,6 +132,14 @@ impl Messages {
             (
                 "Importing {count} profile(s)",
                 "{count} 件のプロファイルをインポート中",
+            ),
+        );
+
+        messages.insert(
+            "info.export_summary",
+            (
+                "Export summary: {exported} profile(s) exported, {skipped} profile(s) skipped",
+                "エクスポート概要: {exported} 件のプロファイルをエクスポート、{skipped} 件をスキップ"
             ),
         );
 

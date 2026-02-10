@@ -108,8 +108,18 @@ pub struct ImportSummary {
     pub total: usize,
 }
 
+/// Result of export operation with skip information
+#[derive(Debug, Clone)]
+pub struct ExportResult {
+    pub exported_count: usize,
+    pub skipped_profiles: Vec<String>,
+}
+
 /// Export profiles to encrypted file
-pub fn export_profiles(token_store: &dyn TokenStore, options: &ExportOptions) -> Result<()> {
+pub fn export_profiles(
+    token_store: &dyn TokenStore,
+    options: &ExportOptions,
+) -> Result<ExportResult> {
     // Require --yes confirmation
     if !options.yes {
         return Err(ExportImportError::ConfirmationRequired);
@@ -150,30 +160,49 @@ pub fn export_profiles(token_store: &dyn TokenStore, options: &ExportOptions) ->
         return Err(ExportImportError::NoProfiles);
     }
 
-    // Build export payload
+    // Build export payload and track skipped profiles
     let mut payload = ExportPayload::new();
+    let mut skipped_profiles = Vec::new();
+
     for (name, profile) in profiles_to_export {
         let token_key = make_token_key(&profile.team_id, &profile.user_id);
-        let token = token_store
-            .get(&token_key)
-            .map_err(|_| ExportImportError::TokenNotFound(name.clone()))?;
 
-        // Try to get OAuth credentials (non-fatal if not found)
-        let client_id = profile.client_id.clone();
-        let client_secret = get_oauth_client_secret(token_store, &name).ok();
+        // Try to get token
+        match token_store.get(&token_key) {
+            Ok(token) => {
+                // Try to get OAuth credentials (non-fatal if not found)
+                let client_id = profile.client_id.clone();
+                let client_secret = get_oauth_client_secret(token_store, &name).ok();
 
-        payload.profiles.insert(
-            name,
-            ExportProfile {
-                team_id: profile.team_id.clone(),
-                user_id: profile.user_id.clone(),
-                team_name: profile.team_name.clone(),
-                user_name: profile.user_name.clone(),
-                token,
-                client_id,
-                client_secret,
-            },
-        );
+                payload.profiles.insert(
+                    name,
+                    ExportProfile {
+                        team_id: profile.team_id.clone(),
+                        user_id: profile.user_id.clone(),
+                        team_name: profile.team_name.clone(),
+                        user_name: profile.user_name.clone(),
+                        token,
+                        client_id,
+                        client_secret,
+                    },
+                );
+            }
+            Err(_) => {
+                // Token not found
+                if options.all {
+                    // For --all, skip this profile and continue
+                    skipped_profiles.push(name);
+                } else {
+                    // For single profile export, fail immediately
+                    return Err(ExportImportError::TokenNotFound(name));
+                }
+            }
+        }
+    }
+
+    // Check if we have any profiles to export after skipping
+    if payload.profiles.is_empty() {
+        return Err(ExportImportError::NoProfiles);
     }
 
     // Encrypt payload
@@ -199,7 +228,10 @@ pub fn export_profiles(token_store: &dyn TokenStore, options: &ExportOptions) ->
     // Write to file with 0600 permissions
     write_secure_file(output_path, &encoded)?;
 
-    Ok(())
+    Ok(ExportResult {
+        exported_count: payload.profiles.len(),
+        skipped_profiles,
+    })
 }
 
 /// Import profiles from encrypted file
@@ -675,4 +707,214 @@ mod tests {
     // The test_import_dry_run_no_changes test provides basic coverage that
     // dry-run prevents file writes. Manual testing is recommended for
     // full validation of update/conflict scenarios.
+
+    #[test]
+    #[serial_test::serial]
+    fn test_export_all_with_partial_skip() {
+        use tempfile::TempDir;
+
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("profiles.json");
+        let export_path = temp_dir.path().join("export.dat");
+        let tokens_path = temp_dir.path().join("tokens.json");
+
+        // Set SLACK_RS_TOKENS_PATH for file-based token store
+        std::env::set_var("SLACK_RS_TOKENS_PATH", tokens_path.to_str().unwrap());
+        std::env::set_var("SLACK_RS_CONFIG_PATH", config_path.to_str().unwrap());
+
+        // Create multiple profiles
+        let mut config = ProfilesConfig::new();
+        config.set(
+            "profile1".to_string(),
+            Profile {
+                team_id: "T123".to_string(),
+                user_id: "U456".to_string(),
+                team_name: Some("Team 1".to_string()),
+                user_name: Some("User 1".to_string()),
+                client_id: None,
+                redirect_uri: None,
+                scopes: None,
+                bot_scopes: None,
+                user_scopes: None,
+                default_token_type: None,
+            },
+        );
+        config.set(
+            "profile2".to_string(),
+            Profile {
+                team_id: "T789".to_string(),
+                user_id: "U101".to_string(),
+                team_name: Some("Team 2".to_string()),
+                user_name: Some("User 2".to_string()),
+                client_id: None,
+                redirect_uri: None,
+                scopes: None,
+                bot_scopes: None,
+                user_scopes: None,
+                default_token_type: None,
+            },
+        );
+        save_config(&config_path, &config).unwrap();
+
+        // Set up token store with only one token (profile1)
+        let token_store = crate::profile::FileTokenStore::with_path(tokens_path.clone()).unwrap();
+        let token_key1 = make_token_key("T123", "U456");
+        token_store.set(&token_key1, "xoxb-token-1").unwrap();
+        // Note: No token for profile2
+
+        // Export with --all
+        let options = ExportOptions {
+            profile_name: None,
+            all: true,
+            output_path: export_path.to_str().unwrap().to_string(),
+            passphrase: "test-password".to_string(),
+            yes: true,
+        };
+
+        let result = export_profiles(&token_store, &options).unwrap();
+
+        // Verify result
+        assert_eq!(result.exported_count, 1);
+        assert_eq!(result.skipped_profiles.len(), 1);
+        assert!(result.skipped_profiles.contains(&"profile2".to_string()));
+
+        // Verify export file was created
+        assert!(export_path.exists());
+
+        // Clean up
+        std::env::remove_var("SLACK_RS_TOKENS_PATH");
+        std::env::remove_var("SLACK_RS_CONFIG_PATH");
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_export_all_with_all_skipped() {
+        use tempfile::TempDir;
+
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("profiles.json");
+        let export_path = temp_dir.path().join("export.dat");
+        let tokens_path = temp_dir.path().join("tokens.json");
+
+        // Set SLACK_RS_TOKENS_PATH for file-based token store
+        std::env::set_var("SLACK_RS_TOKENS_PATH", tokens_path.to_str().unwrap());
+        std::env::set_var("SLACK_RS_CONFIG_PATH", config_path.to_str().unwrap());
+
+        // Create multiple profiles
+        let mut config = ProfilesConfig::new();
+        config.set(
+            "profile1".to_string(),
+            Profile {
+                team_id: "T123".to_string(),
+                user_id: "U456".to_string(),
+                team_name: Some("Team 1".to_string()),
+                user_name: Some("User 1".to_string()),
+                client_id: None,
+                redirect_uri: None,
+                scopes: None,
+                bot_scopes: None,
+                user_scopes: None,
+                default_token_type: None,
+            },
+        );
+        config.set(
+            "profile2".to_string(),
+            Profile {
+                team_id: "T789".to_string(),
+                user_id: "U101".to_string(),
+                team_name: Some("Team 2".to_string()),
+                user_name: Some("User 2".to_string()),
+                client_id: None,
+                redirect_uri: None,
+                scopes: None,
+                bot_scopes: None,
+                user_scopes: None,
+                default_token_type: None,
+            },
+        );
+        save_config(&config_path, &config).unwrap();
+
+        // Set up token store with NO tokens
+        let token_store = crate::profile::FileTokenStore::with_path(tokens_path.clone()).unwrap();
+
+        // Export with --all
+        let options = ExportOptions {
+            profile_name: None,
+            all: true,
+            output_path: export_path.to_str().unwrap().to_string(),
+            passphrase: "test-password".to_string(),
+            yes: true,
+        };
+
+        let result = export_profiles(&token_store, &options);
+
+        // Verify error when all profiles are skipped
+        assert!(result.is_err());
+        assert!(matches!(result.unwrap_err(), ExportImportError::NoProfiles));
+
+        // Clean up
+        std::env::remove_var("SLACK_RS_TOKENS_PATH");
+        std::env::remove_var("SLACK_RS_CONFIG_PATH");
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_export_single_profile_with_missing_token_fails() {
+        use tempfile::TempDir;
+
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("profiles.json");
+        let export_path = temp_dir.path().join("export.dat");
+        let tokens_path = temp_dir.path().join("tokens.json");
+
+        // Set SLACK_RS_TOKENS_PATH for file-based token store
+        std::env::set_var("SLACK_RS_TOKENS_PATH", tokens_path.to_str().unwrap());
+        std::env::set_var("SLACK_RS_CONFIG_PATH", config_path.to_str().unwrap());
+
+        // Create a profile
+        let mut config = ProfilesConfig::new();
+        config.set(
+            "profile1".to_string(),
+            Profile {
+                team_id: "T123".to_string(),
+                user_id: "U456".to_string(),
+                team_name: Some("Team 1".to_string()),
+                user_name: Some("User 1".to_string()),
+                client_id: None,
+                redirect_uri: None,
+                scopes: None,
+                bot_scopes: None,
+                user_scopes: None,
+                default_token_type: None,
+            },
+        );
+        save_config(&config_path, &config).unwrap();
+
+        // Set up token store with NO token
+        let token_store = crate::profile::FileTokenStore::with_path(tokens_path.clone()).unwrap();
+
+        // Export single profile (not --all)
+        let options = ExportOptions {
+            profile_name: Some("profile1".to_string()),
+            all: false,
+            output_path: export_path.to_str().unwrap().to_string(),
+            passphrase: "test-password".to_string(),
+            yes: true,
+        };
+
+        let result = export_profiles(&token_store, &options);
+
+        // Verify error for single profile export with missing token
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            ExportImportError::TokenNotFound(name) => {
+                assert_eq!(name, "profile1");
+            }
+            _ => panic!("Expected TokenNotFound error"),
+        }
+
+        // Clean up
+        std::env::remove_var("SLACK_RS_TOKENS_PATH");
+        std::env::remove_var("SLACK_RS_CONFIG_PATH");
+    }
 }

@@ -696,7 +696,23 @@ pub async fn handle_export_command(args: &[String]) {
 
     let token_store = create_token_store().expect("Failed to create token store");
     match auth::export_profiles(&*token_store, &options) {
-        Ok(_) => {
+        Ok(result) => {
+            // Show warnings for skipped profiles
+            if !result.skipped_profiles.is_empty() {
+                eprintln!("{}", messages.get("warn.export_skipped"));
+                for profile_name in &result.skipped_profiles {
+                    eprintln!("  - {}", profile_name);
+                }
+                eprintln!();
+                eprintln!(
+                    "{}",
+                    messages
+                        .get("info.export_summary")
+                        .replace("{exported}", &result.exported_count.to_string())
+                        .replace("{skipped}", &result.skipped_profiles.len().to_string())
+                );
+                eprintln!();
+            }
             println!("{}", messages.get("success.export"));
         }
         Err(e) => {
