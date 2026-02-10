@@ -25,8 +25,8 @@ pub use commands::{
     prompt_for_client_secret, rename, status, ExtendedLoginOptions,
 };
 pub use export_import::{
-    export_profiles, import_profiles, ExportOptions, ImportAction, ImportOptions, ImportResult,
-    ImportSummary, ProfileImportResult,
+    export_profiles, import_profiles, ExportOptions, ExportResult, ImportAction, ImportOptions,
+    ImportResult, ImportSummary, ProfileImportResult,
 };
 pub use i18n::{Language, Messages};
 pub use manifest::generate_manifest;

@@ -25,6 +25,11 @@ fn legacy_config_path() -> Result<PathBuf> {
 
 /// Get the default config file path using the OS config directory
 pub fn default_config_path() -> Result<PathBuf> {
+    // Check for environment variable override (used in testing)
+    if let Ok(config_path) = std::env::var("SLACK_RS_CONFIG_PATH") {
+        return Ok(PathBuf::from(config_path));
+    }
+
     let dirs = directories::ProjectDirs::from("", "", "slack-rs")
         .ok_or(StorageError::ConfigDirNotFound)?;
     let config_dir = dirs.config_dir();
