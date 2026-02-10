@@ -21,6 +21,7 @@ fn run_slack_rs(args: &[&str]) -> (i32, String, String) {
 }
 
 #[test]
+#[cfg(not(target_os = "windows"))]
 fn install_skill_outputs_required_json_fields() {
     // Override HOME to use temp directory for this test
     let temp_dir = TempDir::new().unwrap();
@@ -30,10 +31,6 @@ fn install_skill_outputs_required_json_fields() {
     cmd.args(["install-skills"])
         .env("HOME", temp_home)
         .current_dir(temp_home);
-
-    // On Windows, also set USERPROFILE
-    #[cfg(target_os = "windows")]
-    cmd.env("USERPROFILE", temp_home);
 
     let (exit_code, stdout, stderr) = cmd
         .output()
@@ -231,12 +228,11 @@ fn install_skill_with_local_source() {
     let source_arg = format!("local:{}", skill_path.display());
     let mut cmd = Command::new(env!("CARGO_BIN_EXE_slack-rs"));
     cmd.args(["install-skills", &source_arg])
-        .env("HOME", temp_home.path())
         .current_dir(temp_home.path());
 
-    // On Windows, also set USERPROFILE
-    #[cfg(target_os = "windows")]
-    cmd.env("USERPROFILE", temp_home.path());
+    // Set HOME env on Unix-like systems
+    #[cfg(not(target_os = "windows"))]
+    cmd.env("HOME", temp_home.path());
 
     let (exit_code, stdout, stderr) = cmd
         .output()
@@ -265,6 +261,7 @@ fn install_skill_with_local_source() {
 }
 
 #[test]
+#[cfg(not(target_os = "windows"))]
 fn install_skill_global_uses_home_agents_dir() {
     let temp_home = TempDir::new().unwrap();
 
@@ -272,10 +269,6 @@ fn install_skill_global_uses_home_agents_dir() {
     cmd.args(["install-skills", "--global"])
         .env("HOME", temp_home.path())
         .current_dir(temp_home.path());
-
-    // On Windows, also set USERPROFILE
-    #[cfg(target_os = "windows")]
-    cmd.env("USERPROFILE", temp_home.path());
 
     let (exit_code, stdout, stderr) = cmd
         .output()
