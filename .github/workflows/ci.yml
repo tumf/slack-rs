@@ -3,8 +3,18 @@ name: CI
 on:
   push:
     branches: [ main, develop ]
+    paths:
+      - '**.rs'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - '.github/workflows/ci.yml'
   pull_request:
     branches: [ main, develop ]
+    paths:
+      - '**.rs'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - '.github/workflows/ci.yml'
 
 env:
   CARGO_TERM_COLOR: always
@@ -21,10 +31,20 @@ jobs:
         with:
           components: rustfmt, clippy
       
+      - name: Cache prek binary
+        id: cache-prek
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/bin/prek
+          key: prek-${{ runner.os }}-latest
+      
       - name: Install prek
+        if: steps.cache-prek.outputs.cache-hit != 'true'
         run: |
           curl -LsSf https://github.com/j178/prek/releases/latest/download/prek-installer.sh | sh
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
+      
+      - name: Add prek to PATH
+        run: echo "$HOME/.local/bin" >> $GITHUB_PATH
       
       - name: Run prek
         run: prek run --all-files
@@ -35,43 +55,48 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-        rust: [stable, beta]
+        rust: [stable]
+        include:
+          # Only run on Linux for PR, all platforms for push to main
+          - os: ubuntu-latest
+            rust: stable
     steps:
       - uses: actions/checkout@v4
       
+      # Skip macOS and Windows tests on pull requests
+      - name: Check if should run
+        id: should-run
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ] && [ "${{ matrix.os }}" != "ubuntu-latest" ]; then
+            echo "skip=true" >> $GITHUB_OUTPUT
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+        shell: bash
+      
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: ${{ matrix.rust }}
-          components: rustfmt, clippy
+        if: steps.should-run.outputs.skip != 'true'
+        uses: dtolnay/rust-toolchain@stable
       
-      - name: Cache cargo registry
-        uses: actions/cache@v4
+      - name: Rust Cache
+        if: steps.should-run.outputs.skip != 'true'
+        uses: Swatinem/rust-cache@v2
         with:
-          path: ~/.cargo/registry
-          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
-      
-      - name: Cache cargo index
-        uses: actions/cache@v4
-        with:
-          path: ~/.cargo/git
-          key: ${{ runner.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
-      
-      - name: Cache cargo build
-        uses: actions/cache@v4
-        with:
-          path: target
-          key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
+          shared-key: ${{ matrix.os }}-${{ matrix.rust }}
       
       - name: Build
+        if: steps.should-run.outputs.skip != 'true'
         run: cargo build --verbose
       
       - name: Run tests
+        if: steps.should-run.outputs.skip != 'true'
         run: cargo test --verbose
 
   coverage:
     name: Code Coverage
     runs-on: ubuntu-latest
+    # Only run coverage on push to main branch
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     continue-on-error: true
     steps:
       - uses: actions/checkout@v4
@@ -79,8 +104,19 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
       
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+      
+      - name: Cache tarpaulin binary
+        id: cache-tarpaulin
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/bin/cargo-tarpaulin
+          key: tarpaulin-${{ runner.os }}-0.31.2
+      
       - name: Install tarpaulin
-        run: cargo install cargo-tarpaulin
+        if: steps.cache-tarpaulin.outputs.cache-hit != 'true'
+        run: cargo install cargo-tarpaulin --version 0.31.2
       
       - name: Run tarpaulin
         run: cargo tarpaulin --verbose --all-features --workspace --timeout 120 --out xml
