@@ -31,6 +31,9 @@ jobs:
         with:
           components: rustfmt, clippy
       
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+      
       - name: Cache prek binary
         id: cache-prek
         uses: actions/cache@v4
