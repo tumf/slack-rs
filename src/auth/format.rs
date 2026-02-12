@@ -49,6 +49,9 @@ pub struct ExportProfile {
     /// OAuth client secret (optional for backward compatibility)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub client_secret: Option<String>,
+    /// User token (optional for backward compatibility)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub user_token: Option<String>,
 }
 
 /// Export payload structure
@@ -265,6 +268,7 @@ mod tests {
                 token: "xoxb-test-token".to_string(),
                 client_id: None,
                 client_secret: None,
+                user_token: None,
             },
         );
 

@@ -250,6 +250,7 @@ fn test_import_result_tracking_new_profile() {
             token: "xoxb-test-token".to_string(),
             client_id: None,
             client_secret: None,
+            user_token: None,
         },
     );
 
@@ -403,6 +404,7 @@ fn test_import_team_id_conflict_without_force_disabled() {
             token: "xoxb-new-token".to_string(),
             client_id: None,
             client_secret: None,
+            user_token: None,
         },
     );
 
@@ -511,6 +513,7 @@ fn test_import_team_id_conflict_with_force() {
             token: "xoxb-new-token".to_string(),
             client_id: None,
             client_secret: None,
+            user_token: None,
         },
     );
 
@@ -619,6 +622,7 @@ fn test_import_same_name_different_team_id_without_force() {
             token: "xoxb-new-token".to_string(),
             client_id: None,
             client_secret: None,
+            user_token: None,
         },
     );
 
@@ -726,6 +730,7 @@ fn test_import_same_name_different_team_id_with_force() {
             token: "xoxb-new-token".to_string(),
             client_id: None,
             client_secret: None,
+            user_token: None,
         },
     );
 

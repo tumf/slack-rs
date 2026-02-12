@@ -1,6 +1,6 @@
 # auth-export-import-user-token Specification (Delta)
 
-## MODIFIED Requirements
+## ADDED Requirements
 
 ### Requirement: Export/import は bot/user トークンを両方扱う
 `auth export` は bot token だけでなく user token も暗号化ペイロードに含めなければならない。(MUST)
