@@ -968,7 +968,7 @@ mod tests {
         // Set up token store with both bot and user tokens
         let token_store = crate::profile::FileTokenStore::with_path(tokens_path.clone()).unwrap();
         let bot_token_key = make_token_key("T123", "U456");
-        let user_token_key = format!("T123:U456:user");
+        let user_token_key = "T123:U456:user".to_string();
         token_store.set(&bot_token_key, "xoxb-bot-token").unwrap();
         token_store.set(&user_token_key, "xoxp-user-token").unwrap();
 
@@ -1047,7 +1047,7 @@ mod tests {
 
         // Set up token store with only user token (no bot token)
         let token_store = crate::profile::FileTokenStore::with_path(tokens_path.clone()).unwrap();
-        let user_token_key = format!("T123:U456:user");
+        let user_token_key = "T123:U456:user".to_string();
         token_store.set(&user_token_key, "xoxp-user-token").unwrap();
 
         // Export should succeed
