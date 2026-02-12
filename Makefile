@@ -1,6 +1,6 @@
 # Makefile for slack-rs
 
-.PHONY: build help install release test clean fmt lint check setup pre-commit-hooks bump-patch bump-minor bump-major index publish publish-tag
+.PHONY: build help install release test clean fmt lint check setup pre-commit pre-commit-hooks bump-patch bump-minor bump-major index publish publish-tag
 
 # Default target - build debug version
 build:
@@ -21,6 +21,7 @@ help:
 	@echo "  make check             - Run fmt, lint, and test"
 	@echo "  make index             - Build Serena symbol index (.serena/cache)"
 	@echo "  make setup             - Setup development environment"
+	@echo "  make pre-commit         - Run prek on all files"
 	@echo "  make pre-commit-hooks  - Install git pre-commit hooks"
 	@echo "  make bump-patch        - Bump patch version (0.1.0 -> 0.1.1) without publish"
 	@echo "  make bump-minor        - Bump minor version (0.1.0 -> 0.2.0) without publish"
@@ -79,41 +80,31 @@ setup: pre-commit-hooks
 	@command -v cargo-release >/dev/null 2>&1 || cargo install cargo-release
 	@echo "Development environment setup complete!"
 
+# Run prek checks locally (matches CI lint job)
+pre-commit:
+	@set -e; \
+	if command -v prek >/dev/null 2>&1; then PREK=prek; \
+	elif [ -x "$$HOME/.local/bin/prek" ]; then PREK="$$HOME/.local/bin/prek"; \
+	else \
+		echo "prek not found. Run 'make pre-commit-hooks' to install it."; \
+		exit 1; \
+	fi; \
+	"$$PREK" run --all-files
+
 # Install pre-commit hooks
 pre-commit-hooks:
-	@echo "Installing pre-commit hooks..."
-	@mkdir -p .git/hooks
-	@printf '%s\n' \
-		'#!/bin/bash' \
-		'set -e' \
-		'' \
-		'echo "Running pre-commit checks..."' \
-		'' \
-		'# Check formatting' \
-		'echo "Checking code formatting..."' \
-		'if ! cargo fmt -- --check; then' \
-		'    echo "❌ Code formatting check failed. Run '\''cargo fmt'\'' to fix."' \
-		'    exit 1' \
-		'fi' \
-		'' \
-		'# Run clippy' \
-		'echo "Running clippy..."' \
-		'if ! cargo clippy -- -D warnings; then' \
-		'    echo "❌ Clippy check failed. Fix the warnings above."' \
-		'    exit 1' \
-		'fi' \
-		'' \
-		'# Run tests' \
-		'echo "Running tests..."' \
-		'if ! cargo test --quiet; then' \
-		'    echo "❌ Tests failed. Fix the failing tests."' \
-		'    exit 1' \
-		'fi' \
-		'' \
-		'echo "✅ All pre-commit checks passed!"' \
-		> .git/hooks/pre-commit
-	@chmod +x .git/hooks/pre-commit
-	@echo "Pre-commit hooks installed successfully!"
+	@set -e; \
+	echo "Installing pre-commit hooks (prek)..."; \
+	if command -v prek >/dev/null 2>&1; then PREK=prek; \
+	elif [ -x "$$HOME/.local/bin/prek" ]; then PREK="$$HOME/.local/bin/prek"; \
+	else \
+		echo "prek not found. Installing to $$HOME/.local/bin..."; \
+		mkdir -p "$$HOME/.local/bin"; \
+		curl -LsSf https://github.com/j178/prek/releases/latest/download/prek-installer.sh | sh; \
+		PREK="$$HOME/.local/bin/prek"; \
+	fi; \
+	"$$PREK" install --overwrite --hook-type pre-commit; \
+	echo "Pre-commit hook installed. Run 'make pre-commit' to verify."
 
 # Bump patch version (0.1.0 -> 0.1.1) and create git tag (no publish)
 bump-patch:
