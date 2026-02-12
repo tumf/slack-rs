@@ -165,39 +165,43 @@ pub fn export_profiles(
     let mut skipped_profiles = Vec::new();
 
     for (name, profile) in profiles_to_export {
-        let token_key = make_token_key(&profile.team_id, &profile.user_id);
+        let bot_token_key = make_token_key(&profile.team_id, &profile.user_id);
+        let user_token_key = format!("{}:{}:user", &profile.team_id, &profile.user_id);
 
-        // Try to get token
-        match token_store.get(&token_key) {
-            Ok(token) => {
-                // Try to get OAuth credentials (non-fatal if not found)
-                let client_id = profile.client_id.clone();
-                let client_secret = get_oauth_client_secret(token_store, &name).ok();
+        // Try to get bot token and user token
+        let bot_token = token_store.get(&bot_token_key).ok();
+        let user_token = token_store.get(&user_token_key).ok();
 
-                payload.profiles.insert(
-                    name,
-                    ExportProfile {
-                        team_id: profile.team_id.clone(),
-                        user_id: profile.user_id.clone(),
-                        team_name: profile.team_name.clone(),
-                        user_name: profile.user_name.clone(),
-                        token,
-                        client_id,
-                        client_secret,
-                    },
-                );
+        // Check if we have at least one token
+        if bot_token.is_none() && user_token.is_none() {
+            // No tokens found
+            if options.all {
+                // For --all, skip this profile and continue
+                skipped_profiles.push(name);
+            } else {
+                // For single profile export, fail immediately
+                return Err(ExportImportError::TokenNotFound(name));
             }
-            Err(_) => {
-                // Token not found
-                if options.all {
-                    // For --all, skip this profile and continue
-                    skipped_profiles.push(name);
-                } else {
-                    // For single profile export, fail immediately
-                    return Err(ExportImportError::TokenNotFound(name));
-                }
-            }
+            continue;
         }
+
+        // Try to get OAuth credentials (non-fatal if not found)
+        let client_id = profile.client_id.clone();
+        let client_secret = get_oauth_client_secret(token_store, &name).ok();
+
+        payload.profiles.insert(
+            name,
+            ExportProfile {
+                team_id: profile.team_id.clone(),
+                user_id: profile.user_id.clone(),
+                team_name: profile.team_name.clone(),
+                user_name: profile.user_name.clone(),
+                token: bot_token.unwrap_or_default(),
+                client_id,
+                client_secret,
+                user_token,
+            },
+        );
     }
 
     // Check if we have any profiles to export after skipping
@@ -382,9 +386,18 @@ pub fn import_profiles(
 
             config.set(name.clone(), profile);
 
-            // Store token
-            let token_key = make_token_key(&export_profile.team_id, &export_profile.user_id);
-            token_store.set(&token_key, &export_profile.token)?;
+            // Store bot token
+            let bot_token_key = make_token_key(&export_profile.team_id, &export_profile.user_id);
+            token_store.set(&bot_token_key, &export_profile.token)?;
+
+            // Store user token if present
+            if let Some(user_token) = &export_profile.user_token {
+                let user_token_key = format!(
+                    "{}:{}:user",
+                    &export_profile.team_id, &export_profile.user_id
+                );
+                token_store.set(&user_token_key, user_token)?;
+            }
 
             // Store OAuth client secret if present
             if let Some(client_secret) = export_profile.client_secret {
@@ -645,6 +658,7 @@ mod tests {
                 token: "xoxb-new-token".to_string(),
                 client_id: None,
                 client_secret: None,
+                user_token: None,
             },
         );
 
@@ -912,6 +926,160 @@ mod tests {
             }
             _ => panic!("Expected TokenNotFound error"),
         }
+
+        // Clean up
+        std::env::remove_var("SLACK_RS_TOKENS_PATH");
+        std::env::remove_var("SLACK_RS_CONFIG_PATH");
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_export_import_with_user_token() {
+        use tempfile::TempDir;
+
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("profiles.json");
+        let export_path = temp_dir.path().join("export.dat");
+        let tokens_path = temp_dir.path().join("tokens.json");
+
+        // Set environment variables
+        std::env::set_var("SLACK_RS_TOKENS_PATH", tokens_path.to_str().unwrap());
+        std::env::set_var("SLACK_RS_CONFIG_PATH", config_path.to_str().unwrap());
+
+        // Create a profile
+        let mut config = ProfilesConfig::new();
+        config.set(
+            "test".to_string(),
+            Profile {
+                team_id: "T123".to_string(),
+                user_id: "U456".to_string(),
+                team_name: Some("Test Team".to_string()),
+                user_name: Some("Test User".to_string()),
+                client_id: None,
+                redirect_uri: None,
+                scopes: None,
+                bot_scopes: None,
+                user_scopes: None,
+                default_token_type: None,
+            },
+        );
+        save_config(&config_path, &config).unwrap();
+
+        // Set up token store with both bot and user tokens
+        let token_store = crate::profile::FileTokenStore::with_path(tokens_path.clone()).unwrap();
+        let bot_token_key = make_token_key("T123", "U456");
+        let user_token_key = format!("T123:U456:user");
+        token_store.set(&bot_token_key, "xoxb-bot-token").unwrap();
+        token_store.set(&user_token_key, "xoxp-user-token").unwrap();
+
+        // Export
+        let export_options = ExportOptions {
+            profile_name: Some("test".to_string()),
+            all: false,
+            output_path: export_path.to_str().unwrap().to_string(),
+            passphrase: "test-password".to_string(),
+            yes: true,
+        };
+        let export_result = export_profiles(&token_store, &export_options).unwrap();
+        assert_eq!(export_result.exported_count, 1);
+        assert_eq!(export_result.skipped_profiles.len(), 0);
+
+        // Clear tokens to simulate fresh import
+        token_store.delete(&bot_token_key).ok();
+        token_store.delete(&user_token_key).ok();
+
+        // Import
+        let import_options = ImportOptions {
+            input_path: export_path.to_str().unwrap().to_string(),
+            passphrase: "test-password".to_string(),
+            yes: true,
+            force: false,
+            dry_run: false,
+            json: false,
+        };
+        let import_result = import_profiles(&token_store, &import_options).unwrap();
+        assert_eq!(import_result.summary.updated, 1);
+        assert_eq!(import_result.summary.skipped, 0);
+
+        // Verify both tokens were restored
+        let bot_token = token_store.get(&bot_token_key).unwrap();
+        assert_eq!(bot_token, "xoxb-bot-token");
+        let user_token = token_store.get(&user_token_key).unwrap();
+        assert_eq!(user_token, "xoxp-user-token");
+
+        // Clean up
+        std::env::remove_var("SLACK_RS_TOKENS_PATH");
+        std::env::remove_var("SLACK_RS_CONFIG_PATH");
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_export_user_token_only() {
+        use tempfile::TempDir;
+
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("profiles.json");
+        let export_path = temp_dir.path().join("export.dat");
+        let tokens_path = temp_dir.path().join("tokens.json");
+
+        // Set environment variables
+        std::env::set_var("SLACK_RS_TOKENS_PATH", tokens_path.to_str().unwrap());
+        std::env::set_var("SLACK_RS_CONFIG_PATH", config_path.to_str().unwrap());
+
+        // Create a profile
+        let mut config = ProfilesConfig::new();
+        config.set(
+            "test".to_string(),
+            Profile {
+                team_id: "T123".to_string(),
+                user_id: "U456".to_string(),
+                team_name: Some("Test Team".to_string()),
+                user_name: Some("Test User".to_string()),
+                client_id: None,
+                redirect_uri: None,
+                scopes: None,
+                bot_scopes: None,
+                user_scopes: None,
+                default_token_type: None,
+            },
+        );
+        save_config(&config_path, &config).unwrap();
+
+        // Set up token store with only user token (no bot token)
+        let token_store = crate::profile::FileTokenStore::with_path(tokens_path.clone()).unwrap();
+        let user_token_key = format!("T123:U456:user");
+        token_store.set(&user_token_key, "xoxp-user-token").unwrap();
+
+        // Export should succeed
+        let export_options = ExportOptions {
+            profile_name: Some("test".to_string()),
+            all: false,
+            output_path: export_path.to_str().unwrap().to_string(),
+            passphrase: "test-password".to_string(),
+            yes: true,
+        };
+        let export_result = export_profiles(&token_store, &export_options).unwrap();
+        assert_eq!(export_result.exported_count, 1);
+        assert_eq!(export_result.skipped_profiles.len(), 0);
+
+        // Clear tokens to simulate fresh import
+        token_store.delete(&user_token_key).ok();
+
+        // Import
+        let import_options = ImportOptions {
+            input_path: export_path.to_str().unwrap().to_string(),
+            passphrase: "test-password".to_string(),
+            yes: true,
+            force: false,
+            dry_run: false,
+            json: false,
+        };
+        let import_result = import_profiles(&token_store, &import_options).unwrap();
+        assert_eq!(import_result.summary.updated, 1);
+
+        // Verify user token was restored
+        let user_token = token_store.get(&user_token_key).unwrap();
+        assert_eq!(user_token, "xoxp-user-token");
 
         // Clean up
         std::env::remove_var("SLACK_RS_TOKENS_PATH");
