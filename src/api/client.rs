@@ -335,6 +335,10 @@ mod tests {
             ApiMethod::ConversationsHistory.as_str(),
             "conversations.history"
         );
+        assert_eq!(
+            ApiMethod::ConversationsReplies.as_str(),
+            "conversations.replies"
+        );
         assert_eq!(ApiMethod::UsersInfo.as_str(), "users.info");
         assert_eq!(ApiMethod::ChatPostMessage.as_str(), "chat.postMessage");
         assert_eq!(ApiMethod::ChatUpdate.as_str(), "chat.update");
@@ -375,6 +379,7 @@ mod tests {
         assert!(ApiMethod::SearchMessages.uses_get_method());
         assert!(ApiMethod::ConversationsList.uses_get_method());
         assert!(ApiMethod::ConversationsHistory.uses_get_method());
+        assert!(ApiMethod::ConversationsReplies.uses_get_method());
         assert!(ApiMethod::UsersInfo.uses_get_method());
         assert!(ApiMethod::UsersList.uses_get_method());
 

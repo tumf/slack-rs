@@ -65,7 +65,7 @@ async fn test_thread_get_single_page() {
     .unwrap();
 
     // Verify response
-    assert_eq!(response.ok, true);
+    assert!(response.ok);
     let messages = response.data.get("messages").unwrap().as_array().unwrap();
     assert_eq!(messages.len(), 2);
     assert_eq!(messages[0]["text"], "Parent message");
@@ -80,25 +80,41 @@ async fn test_thread_get_with_pagination() {
     // Start a mock server
     let server = MockServer::start();
 
-    // Simplified test: just verify that pagination parameters are sent correctly
-    // Use a single-page response for simplicity
-    let _mock = server.mock(|when, then| {
+    // First page returns a cursor for the second page
+    let mock_page_1 = server.mock(|when, then| {
         when.method(GET)
             .path("/conversations.replies")
             .query_param("channel", "C123456")
             .query_param("ts", "1234567890.123456")
-            .query_param("limit", "100");  // Changed to default limit
-        then.status(200)
-            .json_body(json!({
-                "ok": true,
-                "messages": [
-                    {"type": "message", "user": "U123", "text": "Message 1", "ts": "1234567890.123456"},
-                    {"type": "message", "user": "U456", "text": "Message 2", "ts": "1234567891.123456"},
-                    {"type": "message", "user": "U789", "text": "Message 3", "ts": "1234567892.123456"}
-                ],
-                "has_more": false,
-                "response_metadata": {"next_cursor": ""}
-            }));
+            .query_param("limit", "2")
+            .query_param_missing("cursor");
+        then.status(200).json_body(json!({
+            "ok": true,
+            "messages": [
+                {"type": "message", "user": "U123", "text": "Message 1", "ts": "1234567890.123456"},
+                {"type": "message", "user": "U456", "text": "Message 2", "ts": "1234567891.123456"},
+            ],
+            "has_more": true,
+            "response_metadata": {"next_cursor": "cursor-1"}
+        }));
+    });
+
+    // Second page (with cursor) returns the remaining message and no next cursor
+    let mock_page_2 = server.mock(|when, then| {
+        when.method(GET)
+            .path("/conversations.replies")
+            .query_param("channel", "C123456")
+            .query_param("ts", "1234567890.123456")
+            .query_param("limit", "2")
+            .query_param("cursor", "cursor-1");
+        then.status(200).json_body(json!({
+            "ok": true,
+            "messages": [
+                {"type": "message", "user": "U789", "text": "Message 3", "ts": "1234567892.123456"}
+            ],
+            "has_more": false,
+            "response_metadata": {"next_cursor": ""}
+        }));
     });
 
     // Create API client with mock server URL
@@ -109,14 +125,18 @@ async fn test_thread_get_with_pagination() {
         &client,
         "C123456".to_string(),
         "1234567890.123456".to_string(),
-        None,  // Use default limit
+        Some(2),
         None,
     )
     .await
     .unwrap();
 
-    // Verify response contains all messages
-    assert_eq!(response.ok, true);
+    // Verify both pages were fetched
+    assert_eq!(mock_page_1.calls(), 1);
+    assert_eq!(mock_page_2.calls(), 1);
+
+    // Verify response contains all messages from both pages
+    assert!(response.ok);
     let messages = response.data.get("messages").unwrap().as_array().unwrap();
     assert_eq!(messages.len(), 3);
     assert_eq!(messages[0]["text"], "Message 1");
@@ -175,7 +195,7 @@ async fn test_thread_get_with_inclusive_param() {
     .unwrap();
 
     // Verify response
-    assert_eq!(response.ok, true);
+    assert!(response.ok);
     let messages = response.data.get("messages").unwrap().as_array().unwrap();
     assert_eq!(messages.len(), 1);
 

@@ -13,3 +13,7 @@
 ## 3. イントロスペクション更新
 
 - [x] 3.1 `commands --json`/`--help --json` に `thread get` を追加する（検証: `src/cli/introspection.rs` に `thread get` の `CommandDef` が存在する）
+
+## 4. 受け入れ前フォローアップ
+
+- [ ] 4.1 `git status --porcelain` をクリーンにする（現時点: `M src/api/client.rs`, `M src/main.rs`, `M tests/thread_integration_tests.rs` がインデックス付きの変更として残っている）
