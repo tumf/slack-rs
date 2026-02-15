@@ -131,6 +131,18 @@ Raw API equivalent:
 slack-rs api call conversations.history channel=C123456 limit=50
 ```
 
+Fetch a full thread (replies) by (channel, thread_ts):
+
+```bash
+slack-rs thread get C123456 1234567890.123456
+```
+
+Raw API equivalent:
+
+```bash
+slack-rs api call conversations.replies channel=C123456 ts=1234567890.123456
+```
+
 ## Post a Message
 
 Recommended: set the write guard explicitly in shells where you might run commands accidentally.

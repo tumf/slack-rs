@@ -168,6 +168,7 @@ Use the convenience commands instead of `api call` for common tasks:
 slack-rs conv list
 slack-rs conv search <pattern>
 slack-rs conv history <channel_id>
+slack-rs thread get <channel_id> <thread_ts>
 ```
 
 Notes:

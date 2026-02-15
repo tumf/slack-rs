@@ -56,6 +56,7 @@ Prefer convenience commands when possible:
 slack-rs conv list
 slack-rs conv search <pattern>
 slack-rs conv history <channel_id>
+slack-rs thread get <channel_id> <thread_ts>
 
 slack-rs msg post <channel_id> "Hello"
 ```
