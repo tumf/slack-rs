@@ -564,6 +564,9 @@ fn print_help() {
     println!(
         "    conv history <channel>           Get conversation history (supports --interactive)"
     );
+    println!(
+        "    thread get <channel> <thread_ts> Get thread messages (supports --limit, --inclusive)"
+    );
     println!("    users info <user_id>             Get user information");
     println!("    users cache-update               Update user cache for mention resolution");
     println!("    users resolve-mentions <text>    Resolve user mentions in text");
