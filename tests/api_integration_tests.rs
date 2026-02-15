@@ -143,11 +143,12 @@ async fn test_api_call_with_get_method() {
     // Start a mock server
     let server = MockServer::start();
 
-    // Create a mock endpoint
+    // Create a mock endpoint that verifies query param is sent
     let mock = server.mock(|when, then| {
         when.method(GET)
             .path("/users.info")
-            .header("Authorization", "Bearer test-token");
+            .header("Authorization", "Bearer test-token")
+            .query_param("user", "U123456");
         then.status(200)
             .header("content-type", "application/json")
             .json_body(json!({
@@ -308,4 +309,79 @@ async fn test_output_json_with_meta() {
     assert_eq!(json["meta"]["team_id"], "T999XYZ");
     assert_eq!(json["meta"]["user_id"], "U888ABC");
     assert_eq!(json["meta"]["method"], "test.method");
+}
+
+#[tokio::test]
+async fn test_api_call_conversations_replies_with_get() {
+    // Start a mock server
+    let server = MockServer::start();
+
+    // Create a mock endpoint that verifies both channel and ts query params are sent
+    let mock = server.mock(|when, then| {
+        when.method(GET)
+            .path("/conversations.replies")
+            .header("Authorization", "Bearer test-token")
+            .query_param("channel", "C1234567890")
+            .query_param("ts", "1234567890.123456");
+        then.status(200)
+            .header("content-type", "application/json")
+            .json_body(json!({
+                "ok": true,
+                "messages": [
+                    {
+                        "type": "message",
+                        "user": "U061F7AUR",
+                        "text": "island",
+                        "thread_ts": "1234567890.123456",
+                        "reply_count": 3,
+                        "replies": [
+                            {
+                                "user": "U061F7AUR",
+                                "ts": "1234567890.123456"
+                            }
+                        ],
+                        "ts": "1234567890.123456"
+                    }
+                ],
+                "has_more": false
+            }));
+    });
+
+    // Create API client with mock server URL
+    let config = ApiClientConfig {
+        base_url: server.base_url(),
+        max_retries: 3,
+        initial_backoff_ms: 100,
+        max_backoff_ms: 1000,
+    };
+    let client = ApiClient::with_config(config);
+
+    // Parse arguments with --get flag and channel/ts params
+    let args_vec = vec![
+        "conversations.replies".to_string(),
+        "--get".to_string(),
+        "channel=C1234567890".to_string(),
+        "ts=1234567890.123456".to_string(),
+    ];
+    let args = ApiCallArgs::parse(&args_vec).unwrap();
+
+    // Create context
+    let context = ApiCallContext {
+        profile_name: Some("default".to_string()),
+        team_id: "T123ABC".to_string(),
+        user_id: "U456DEF".to_string(),
+    };
+
+    // Execute API call
+    let response = execute_api_call(&client, &args, "test-token", &context, "bot", "api call")
+        .await
+        .unwrap();
+
+    // Verify response
+    assert_eq!(response.response["ok"], true);
+    assert!(response.response["messages"].is_array());
+    assert_eq!(response.meta.method, "conversations.replies");
+
+    // Verify mock was called (this ensures query params were sent correctly)
+    mock.assert();
 }
