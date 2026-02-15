@@ -855,6 +855,103 @@ pub async fn run_conv_history(args: &[String]) -> Result<(), String> {
     Ok(())
 }
 
+pub async fn run_thread_get(args: &[String]) -> Result<(), String> {
+    // Check for --help flag before API call
+    if has_flag(args, "--help") || has_flag(args, "-h") {
+        print_thread_usage(&args[0]);
+        return Ok(());
+    }
+
+    // Parse required arguments: channel and thread_ts
+    if args.len() < 5 {
+        return Err("Usage: slack-rs thread get <channel> <thread_ts> [--limit=N] [--inclusive] [--raw] [--profile=NAME] [--token-type=bot|user]".to_string());
+    }
+
+    let channel = args[3].clone();
+    let thread_ts = args[4].clone();
+    let limit = get_option(args, "--limit=").and_then(|s| s.parse().ok());
+    let inclusive = has_flag(args, "--inclusive");
+    let profile_name = resolve_profile_name(args);
+    let token_type = parse_token_type(args)?;
+    let raw = should_output_raw(args);
+
+    // Get debug level from args
+    let debug_level = debug::get_debug_level(args);
+
+    // Log debug information if --debug or --trace flag is present
+    let token_store_backend = if std::env::var("SLACK_TOKEN").is_ok() {
+        "environment"
+    } else {
+        "file"
+    };
+
+    // Resolve actual token type for debug output
+    let resolved_token_type = if let Some(explicit) = token_type {
+        explicit
+    } else {
+        let config_path = default_config_path().map_err(|e| e.to_string())?;
+        let profile = resolve_profile_full(&config_path, &profile_name)
+            .map_err(|e| format!("Failed to resolve profile '{}': {}", profile_name, e))?;
+
+        if let Some(default_type) = profile.default_token_type {
+            default_type
+        } else {
+            let token_store = create_token_store().map_err(|e| e.to_string())?;
+            let user_token_key = format!("{}:{}:user", profile.team_id, profile.user_id);
+            if token_store.get(&user_token_key).is_ok() {
+                TokenType::User
+            } else {
+                TokenType::Bot
+            }
+        }
+    };
+
+    let endpoint = "https://slack.com/api/conversations.replies";
+
+    debug::log_api_context(
+        debug_level,
+        Some(&profile_name),
+        token_store_backend,
+        resolved_token_type.as_str(),
+        "conversations.replies",
+        endpoint,
+    );
+
+    let client = get_api_client_with_token_type(Some(profile_name.clone()), token_type).await?;
+    let inclusive_opt = if inclusive { Some(true) } else { None };
+    let response = commands::thread_get(&client, channel, thread_ts, limit, inclusive_opt)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    // Log error code if present
+    debug::log_error_code(
+        debug_level,
+        &serde_json::to_value(&response).unwrap_or_default(),
+    );
+
+    // Display error guidance if response contains a known error
+    crate::api::display_wrapper_error_guidance(&response);
+
+    // Output with or without envelope
+    let output = if raw {
+        serde_json::to_string_pretty(&response).unwrap()
+    } else {
+        let response_value = serde_json::to_value(&response).map_err(|e| e.to_string())?;
+        let wrapped = wrap_with_envelope_and_token_type(
+            response_value,
+            "conversations.replies",
+            "thread get",
+            Some(profile_name),
+            token_type,
+        )
+        .await?;
+        serde_json::to_string_pretty(&wrapped).unwrap()
+    };
+
+    println!("{}", output);
+    Ok(())
+}
+
 pub async fn run_users_info(args: &[String]) -> Result<(), String> {
     let user = args[3].clone();
     let profile_name = resolve_profile_name(args);
@@ -1802,6 +1899,25 @@ pub fn print_conv_usage(prog: &str) {
     println!("    Select channel interactively before fetching history");
     println!("    Default: Includes public and private channels (limit=1000, auto-paginated)");
     println!("    Options accept both --option=value and --option value formats");
+}
+
+pub fn print_thread_usage(prog: &str) {
+    println!("Thread command usage:");
+    println!(
+        "  {} thread get <channel> <thread_ts> [--limit=N] [--inclusive] [--raw] [--profile=NAME] [--token-type=bot|user]",
+        prog
+    );
+    println!("    Get thread messages (conversation replies) for a specific thread");
+    println!("    Arguments:");
+    println!("      <channel>    - Channel ID containing the thread");
+    println!("      <thread_ts>  - Timestamp of the parent message (thread identifier)");
+    println!("    Options:");
+    println!("      --limit=N           - Number of messages per page (default: 100)");
+    println!("      --inclusive         - Include the parent message in results");
+    println!("      --raw               - Output raw Slack API response without envelope");
+    println!("      --profile=NAME      - Profile to use (default: 'default')");
+    println!("      --token-type=TYPE   - Token type to use (bot or user)");
+    println!("    Note: Automatically follows pagination to retrieve all thread messages");
 }
 
 pub fn print_users_usage(prog: &str) {

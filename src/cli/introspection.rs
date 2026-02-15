@@ -381,6 +381,69 @@ pub fn get_command_definitions() -> Vec<CommandDef> {
                 },
             ],
         },
+        // thread get
+        CommandDef {
+            name: "thread get".to_string(),
+            description: "Get thread messages (conversation replies)".to_string(),
+            usage: "slack-rs thread get <channel> <thread_ts> [flags]".to_string(),
+            flags: vec![
+                FlagDef {
+                    name: "--limit".to_string(),
+                    flag_type: "integer".to_string(),
+                    required: false,
+                    description: "Number of messages per page".to_string(),
+                    default: Some("100".to_string()),
+                },
+                FlagDef {
+                    name: "--inclusive".to_string(),
+                    flag_type: "boolean".to_string(),
+                    required: false,
+                    description: "Include parent message in results".to_string(),
+                    default: None,
+                },
+                FlagDef {
+                    name: "--raw".to_string(),
+                    flag_type: "boolean".to_string(),
+                    required: false,
+                    description: "Output raw Slack API response".to_string(),
+                    default: None,
+                },
+                FlagDef {
+                    name: "--profile".to_string(),
+                    flag_type: "string".to_string(),
+                    required: false,
+                    description: "Profile name".to_string(),
+                    default: Some("default".to_string()),
+                },
+                FlagDef {
+                    name: "--token-type".to_string(),
+                    flag_type: "string".to_string(),
+                    required: false,
+                    description: "Token type (bot or user)".to_string(),
+                    default: None,
+                },
+            ],
+            examples: vec![
+                ExampleDef {
+                    description: "Get thread messages".to_string(),
+                    command: "slack-rs thread get C123456 1234567890.123456".to_string(),
+                },
+                ExampleDef {
+                    description: "Get thread with parent message".to_string(),
+                    command: "slack-rs thread get C123456 1234567890.123456 --inclusive".to_string(),
+                },
+            ],
+            exit_codes: vec![
+                ExitCodeDef {
+                    code: 0,
+                    description: "Success".to_string(),
+                },
+                ExitCodeDef {
+                    code: 1,
+                    description: "Command failed".to_string(),
+                },
+            ],
+        },
         // msg post
         CommandDef {
             name: "msg post".to_string(),
