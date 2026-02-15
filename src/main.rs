@@ -85,6 +85,9 @@ async fn main() {
         "conv" => {
             handle_conv_command(&args).await;
         }
+        "thread" => {
+            handle_thread_command(&args).await;
+        }
         "users" => {
             handle_users_command(&args).await;
         }
@@ -401,6 +404,31 @@ async fn handle_conv_command(args: &[String]) {
     }
 }
 
+/// Handle thread subcommand dispatch
+async fn handle_thread_command(args: &[String]) {
+    if args.len() < 3 {
+        cli::print_thread_usage(&args[0]);
+        std::process::exit(1);
+    }
+    match args[2].as_str() {
+        "get" => {
+            if args.len() < 5 && !cli::has_flag(args, "--help") && !cli::has_flag(args, "-h") {
+                eprintln!(
+                    "Usage: {} thread get <channel> <thread_ts> [--limit=N] [--inclusive] [--raw] [--profile=NAME] [--token-type=bot|user]",
+                    args[0]
+                );
+                std::process::exit(1);
+            }
+            if let Err(e) = cli::run_thread_get(args).await {
+                handle_command_error(&e.to_string(), "Thread get failed");
+            }
+        }
+        _ => {
+            cli::print_thread_usage(&args[0]);
+        }
+    }
+}
+
 /// Handle users subcommand dispatch
 async fn handle_users_command(args: &[String]) {
     if args.len() < 3 {
@@ -608,6 +636,9 @@ fn print_usage() {
     println!("  conv select                    - Interactively select a conversation");
     println!(
         "  conv history <channel>         - Get conversation history (supports --interactive)"
+    );
+    println!(
+        "  thread get <channel> <thread_ts> - Get thread messages (supports --limit, --inclusive)"
     );
     println!("  users info <user_id>           - Get user information");
     println!("  users cache-update             - Update user cache for mention resolution (supports --profile, --force)");
