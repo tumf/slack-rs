@@ -70,17 +70,22 @@ pub async fn execute_api_call(
         Method::POST
     };
 
-    // Prepare request body
-    let body = if args.use_json {
-        RequestBody::Json(args.to_json())
-    } else if method == Method::POST {
-        RequestBody::Form(args.to_form())
+    // Prepare request body and query params
+    let (body, query_params) = if method == Method::GET {
+        // For GET requests, use query params and no body
+        (RequestBody::None, args.to_form())
+    } else if args.use_json {
+        // For POST with JSON, use JSON body and no query params
+        (RequestBody::Json(args.to_json()), vec![])
     } else {
-        RequestBody::None
+        // For POST with form data, use form body and no query params
+        (RequestBody::Form(args.to_form()), vec![])
     };
 
     // Make the API call
-    let response = client.call(method, &args.method, token, body).await?;
+    let response = client
+        .call(method, &args.method, token, body, query_params)
+        .await?;
 
     // Parse response body
     let response_text = response

@@ -213,12 +213,15 @@ impl ApiClient {
         endpoint: &str,
         token: &str,
         body: RequestBody,
+        query_params: Vec<(String, String)>,
     ) -> Result<Response> {
         let url = format!("{}/{}", self.config.base_url, endpoint);
         let mut attempt = 0;
 
         loop {
-            let response = self.execute_request(&url, &method, token, &body).await?;
+            let response = self
+                .execute_request(&url, &method, token, &body, &query_params)
+                .await?;
 
             // Check for rate limiting
             if response.status() == StatusCode::TOO_MANY_REQUESTS {
@@ -254,11 +257,17 @@ impl ApiClient {
         method: &Method,
         token: &str,
         body: &RequestBody,
+        query_params: &[(String, String)],
     ) -> Result<Response> {
         let mut request = self.client.request(method.clone(), url);
 
         // Add authorization header
         request = request.header("Authorization", format!("Bearer {}", token));
+
+        // Add query parameters
+        if !query_params.is_empty() {
+            request = request.query(query_params);
+        }
 
         // Add body based on type
         match body {
