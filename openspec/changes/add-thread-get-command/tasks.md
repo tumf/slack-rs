@@ -16,4 +16,4 @@
 
 ## 4. 受け入れ前フォローアップ
 
-- [ ] 4.1 `git status --porcelain` をクリーンにする（現時点: `M src/api/client.rs`, `M src/main.rs`, `M tests/thread_integration_tests.rs` がインデックス付きの変更として残っている）
+- [x] 4.1 `git status --porcelain` をクリーンにする（検証: `git status --porcelain` が空を返す）
