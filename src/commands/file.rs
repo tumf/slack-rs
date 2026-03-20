@@ -82,9 +82,11 @@ pub async fn file_upload(
     let file_length = file_bytes.len();
 
     // Step 2: Get upload URL
-    let mut params = HashMap::new();
-    params.insert("filename".to_string(), json!(file_name));
-    params.insert("length".to_string(), json!(file_length));
+    let file_length_str = file_length.to_string();
+    let form_params = vec![
+        ("filename", file_name.as_str()),
+        ("length", file_length_str.as_str()),
+    ];
 
     // Call files.getUploadURLExternal using the base_url from ApiClient
     let url = format!("{}/files.getUploadURLExternal", client.base_url());
@@ -97,7 +99,7 @@ pub async fn file_upload(
     let get_url_response = http_client
         .post(&url)
         .bearer_auth(token)
-        .json(&params)
+        .form(&form_params)
         .send()
         .await
         .map_err(|e| ApiError::SlackError(format!("Failed to get upload URL: {}", e)))?;

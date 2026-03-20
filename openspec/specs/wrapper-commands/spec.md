@@ -120,16 +120,27 @@ The `--allow-write` flag MUST NOT be required, and if specified MUST NOT affect 
 - Then confirmation is requested
 
 ### Requirement: file upload で外部アップロード方式を実行できる
-`file upload` は `files.getUploadURLExternal` を呼び出し、取得した `upload_url` へファイルの生バイトを送信し、`files.completeUploadExternal` を呼び出して共有を完了しなければならない。(MUST)
-`files.completeUploadExternal` には `files`（`id` と任意 `title`）を含め、`--channel`/`--channels`/`--comment` が指定されている場合は対応するパラメータを送信しなければならない。(MUST)
-旧方式の `files.upload` を呼び出してはならない。(MUST NOT)
 
-#### Scenario: channel を指定して file upload を実行する
-- Given 有効な profile と token が存在する
-- When `file upload ./report.pdf --allow-write --channel=C123 --comment="Weekly report"` を実行する
-- Then `files.getUploadURLExternal` が `filename` と `length` 付きで呼ばれる
-- And 返却された `upload_url` にファイルの生バイトが送信される
-- And `files.completeUploadExternal` に `files` と `channel_id` と `initial_comment` が送信される
+`file upload` MUST call `files.getUploadURLExternal` using Slack-compatible parameter encoding for `filename` and `length`.
+`file upload` MUST POST the file's raw bytes to the returned `upload_url`.
+`file upload` MUST call `files.completeUploadExternal` to finish the upload and include `files` plus any requested sharing parameters.
+`file upload` MUST NOT call the deprecated `files.upload` method.
+
+#### Scenario: file upload sends Slack-compatible parameters before uploading bytes
+
+- Given a valid profile and token exist
+- And a local file path resolves to readable bytes
+- When `file upload ./report.pdf --yes --channel=C123 --comment="Weekly report"` is executed
+- Then `files.getUploadURLExternal` is called with `filename=report.pdf` and the file byte length using Slack-compatible request encoding
+- And the returned `upload_url` receives the raw file bytes
+- And `files.completeUploadExternal` receives `files`, `channel_id`, and `initial_comment`
+
+#### Scenario: wrapper regression test prevents JSON request bodies for upload URL creation
+
+- Given the integration test suite runs against the file upload command
+- When the request to `files.getUploadURLExternal` is inspected
+- Then the test asserts the encoded `filename` and `length` parameters are present
+- And the test fails if the wrapper sends the upload URL request as the previously broken JSON body
 
 ### Requirement: Wrapper commands accept `--token-type`
 Wrapper commands MUST accept `--token-type user|bot` and use the specified token. (MUST)
