@@ -23,6 +23,7 @@ This tool is designed following the [Agentic CLI Design](https://dev.to/tumf/age
 - 📡 **Generic API Access** - call any Slack Web API method
 - 🛠️ **Wrapper Commands** for common operations
 - 🔁 **Smart Retry Logic** with exponential backoff and rate limit handling
+- 🧩 **Agent Skill Installation** - install embedded OpenCode/agent skills via `install-skills`
 
 ## TL;DR
 
@@ -52,6 +53,26 @@ cargo install slack-rs
 
 The binary will be installed to `~/.cargo/bin/slack-rs` (ensure `~/.cargo/bin` is in your PATH).
 
+### Install with Homebrew
+
+Homebrew cannot install this as `brew install slack_rs` unless you publish a tap (or it lands in `homebrew/core`).
+
+Recommended setup (tap):
+
+```bash
+brew tap tumf/tap
+brew install slack_rs
+
+# Binary name is still slack-rs
+slack-rs --version
+```
+
+If you don't want a tap, you can also install directly from a formula file:
+
+```bash
+brew install --formula https://raw.githubusercontent.com/tumf/slack-rs/main/Formula/slack_rs.rb
+```
+
 ### Build from Source
 
 ```bash
@@ -69,6 +90,34 @@ git clone https://github.com/tumf/slack-rs.git
 cd slack-rs
 cargo install --path .
 ```
+
+## Agent Skills
+
+`slack-rs` can install an **agent skill** (documentation + references) into an `.agents/` directory so tools like OpenCode / agent runtimes can discover and load it.
+
+### install-skills
+
+```bash
+# Install the embedded skill into ./.agents/skills/slack-rs (default)
+slack-rs install-skills
+
+# Install globally into ~/.agents/skills/slack-rs
+slack-rs install-skills --global
+
+# Install from a local skill directory (symlink preferred; copy fallback)
+slack-rs install-skills local:/path/to/skill
+```
+
+**What it does:**
+
+- Installs skill files to `.agents/skills/<skill-name>/` (or `~/.agents/skills/<skill-name>/` with `--global`)
+- Writes/updates a lock file at `.agents/.skill-lock.json` (or `~/.agents/.skill-lock.json`) so installers and agents can track what is installed
+- For the embedded skill, installs `skills/slack-rs/{SKILL.md,README.md,references/...}` packaged in the binary
+
+**Notes:**
+
+- The `source` argument supports `self` (embedded; default) and `local:<path>`.
+- The command prints a machine-readable JSON result to stdout.
 
 ## Quick Start
 
