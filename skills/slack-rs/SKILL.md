@@ -145,6 +145,39 @@ slack-rs auth status my-workspace
 
 For more copy/pasteable recipes, see `slack-rs/references/recipes.md`.
 
+## Fixed Rules for Slack Posting
+
+When posting or updating Slack messages (`chat.postMessage`, `chat.update`), follow these rules to avoid broken newlines such as literal `\\n` appearing in the final message.
+
+1. Do not write long message bodies directly in the shell
+   - Avoid relying on shell quoting or escaped `\n`
+   - Generate the body with `python3 - <<'PY'` using triple-quoted strings, then assign it to a variable
+2. Always verify the rendered message after posting
+   - Do not treat the `chat.postMessage` / `chat.update` response alone as success
+   - Re-fetch the message with `conversations.history` or `conversations.replies` and inspect the actual rendered text
+3. Do not report success until verification is complete
+   - This is an operational rule
+
+Recommended flow:
+
+```bash
+TEXT="$({ python3 - <<'PY'
+text = """line 1
+line 2
+line 3"""
+print(text, end="")
+PY
+} )"
+
+slack-rs api call chat.postMessage channel=C123456 text="$TEXT"
+
+slack-rs api call conversations.history channel=C123456 limit=1
+# or, for a threaded reply
+slack-rs api call conversations.replies channel=C123456 ts=<thread_ts>
+```
+
+During verification, inspect the fetched `text` as-is and confirm that no unintended literal `\\n` or `\\n\\n` sequences appear before treating the operation as successful.
+
 ## Introspection (Commands / Help / Schemas)
 
 Use these commands to discover what the CLI can do and how to call it (machine-readable):

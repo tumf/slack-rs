@@ -179,3 +179,10 @@ tests/                # Integration tests
 5. **Write integration tests**: Test end-to-end workflows
 6. **Keep dependencies minimal**: Only add when necessary
 7. **Follow CI checks**: Match the standards in `.github/workflows/ci.yml`
+
+## Skill Source of Truth
+
+- The source of truth for skill definitions in this repository is `./skills/`
+- Do not edit `~/.agents/skills/` or any other distributed/synced copy directly
+- When a skill needs to be changed, first find and edit `./skills/<skill-name>/SKILL.md`
+- Before making claims about skill behavior or operations, verify the source-side definition rather than a distributed copy
