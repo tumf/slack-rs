@@ -3,6 +3,7 @@
 ## Purpose
 Defines the OAuth 2.0 PKCE authentication flow for slack-rs, enabling secure login to Slack workspaces without exposing client secrets.
 ## Requirements
+
 ### Requirement: Generate authentication URL with PKCE and state
 
 OAuth 認可 URL には `client_id`、`redirect_uri`、`state`、`code_challenge`、`code_challenge_method=S256` を含めなければならない (MUST)。
@@ -132,14 +133,25 @@ OAuth configuration MUST be resolved from CLI arguments or profile configuration
 
 ### Requirement: Prompt manifest installation before OAuth authentication
 
-`auth login` は OAuth 認証を開始する前に、生成済みの Slack App Manifest をユーザーにインストールさせるための案内を表示し、Slack App 管理ページをブラウザで開いた上で、ユーザーの確認入力を待たなければならない (MUST)。
+`auth login --cloudflared` および `auth login --ngrok` は、OAuth 認証を開始する前に redirect URI を確定して Slack App Manifest を生成・保存し、Slack App 管理ページで app 作成を行うための案内を表示し、ユーザーの確認入力を待たなければならない (MUST)。
 
-#### Scenario: OAuth 認証前に案内と確認待ちが行われる
-- Given `auth login` を実行する
-- When マニフェストが生成され保存される
-- Then `https://api.slack.com/apps` を開く試行が行われる
-- And マニフェストの保存先が表示される
-- And ユーザーの確認入力を待ってから OAuth 認証フローを開始する
+これらの manifest-first 経路では、Manifest 生成前に `Client ID` または `Client Secret` の入力を要求してはならない (MUST NOT)。
+
+#### Scenario: cloudflared 経路では manifest 案内が credentials 入力より先に行われる
+- Given `auth login --cloudflared` を実行する
+- When cloudflared tunnel が起動して redirect URI が確定する
+- Then Slack App Manifest が生成・保存される
+- And Slack App 作成の案内と確認入力が表示される
+- And その時点では `Client ID` と `Client Secret` の入力は要求されない
+- And ユーザー確認後に credentials 解決へ進む
+
+#### Scenario: ngrok 経路では manifest 案内が credentials 入力より先に行われる
+- Given `auth login --ngrok` を実行する
+- When ngrok tunnel が起動して redirect URI が確定する
+- Then Slack App Manifest が生成・保存される
+- And Slack App 作成の案内と確認入力が表示される
+- And その時点では `Client ID` と `Client Secret` の入力は要求されない
+- And ユーザー確認後に credentials 解決へ進む
 
 ### Requirement: auth status displays token information
 `auth status` は `default_token_type` がプロフィールに設定されている場合はその値を表示し、未設定の場合のみ従来の推測ロジック（User Token があれば User、なければ Bot）を使用しなければならない。(MUST)
@@ -183,4 +195,3 @@ When a Bot Token is saved, `auth status` MUST display the Bot ID. (MUST)
 - When OAuth フローが開始される
 - Then 認証コード取得からトークン交換までの処理は同一の内部コアを通る
 - And 既存と同じ条件で profile と token が保存される
-

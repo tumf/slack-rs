@@ -7,19 +7,9 @@ fn test_manifest_generation_with_cloudflared() {
     let bot_scopes = vec!["chat:write".to_string(), "channels:read".to_string()];
     let user_scopes = vec!["search:read".to_string()];
     let redirect_uri = "http://localhost:8765/callback";
-    let use_cloudflared = true;
-    let use_ngrok = false;
     let profile_name = "test-profile";
 
-    let result = generate_manifest(
-        "test-client-id",
-        &bot_scopes,
-        &user_scopes,
-        redirect_uri,
-        use_cloudflared,
-        use_ngrok,
-        profile_name,
-    );
+    let result = generate_manifest(&bot_scopes, &user_scopes, redirect_uri, profile_name);
 
     assert!(result.is_ok());
     let yaml = result.unwrap();
@@ -46,19 +36,9 @@ fn test_manifest_generation_without_cloudflared() {
     let bot_scopes = vec!["chat:write".to_string()];
     let user_scopes = vec![];
     let redirect_uri = "https://example.com/callback";
-    let use_cloudflared = false;
-    let use_ngrok = false;
     let profile_name = "default";
 
-    let result = generate_manifest(
-        "test-client-id",
-        &bot_scopes,
-        &user_scopes,
-        redirect_uri,
-        use_cloudflared,
-        use_ngrok,
-        profile_name,
-    );
+    let result = generate_manifest(&bot_scopes, &user_scopes, redirect_uri, profile_name);
 
     assert!(result.is_ok());
     let yaml = result.unwrap();
@@ -82,19 +62,9 @@ fn test_manifest_generation_bot_and_user_scopes() {
     ];
     let user_scopes = vec!["search:read".to_string(), "files:read".to_string()];
     let redirect_uri = "http://localhost:8765/callback";
-    let use_cloudflared = false;
-    let use_ngrok = false;
     let profile_name = "work";
 
-    let result = generate_manifest(
-        "test-client-id",
-        &bot_scopes,
-        &user_scopes,
-        redirect_uri,
-        use_cloudflared,
-        use_ngrok,
-        profile_name,
-    );
+    let result = generate_manifest(&bot_scopes, &user_scopes, redirect_uri, profile_name);
 
     assert!(result.is_ok());
     let yaml = result.unwrap();
@@ -127,19 +97,9 @@ fn test_manifest_generation_with_ngrok() {
     let bot_scopes = vec!["chat:write".to_string(), "channels:read".to_string()];
     let user_scopes = vec!["search:read".to_string()];
     let redirect_uri = "http://localhost:8765/callback";
-    let use_cloudflared = false;
-    let use_ngrok = true;
     let profile_name = "ngrok-test";
 
-    let result = generate_manifest(
-        "test-client-id",
-        &bot_scopes,
-        &user_scopes,
-        redirect_uri,
-        use_cloudflared,
-        use_ngrok,
-        profile_name,
-    );
+    let result = generate_manifest(&bot_scopes, &user_scopes, redirect_uri, profile_name);
 
     assert!(result.is_ok());
     let yaml = result.unwrap();

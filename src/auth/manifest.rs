@@ -68,23 +68,17 @@ pub struct Settings {
 /// Generate Slack App Manifest YAML from OAuth configuration
 ///
 /// # Arguments
-/// * `_client_id` - OAuth client ID (not currently used in manifest generation)
 /// * `bot_scopes` - Bot OAuth scopes
 /// * `user_scopes` - User OAuth scopes
 /// * `redirect_uri` - OAuth redirect URI
-/// * `use_cloudflared` - Whether cloudflared tunnel is used (affects redirect_urls)
-/// * `use_ngrok` - Whether ngrok tunnel is used (affects redirect_urls)
 /// * `profile_name` - Profile name (used for bot display name)
 ///
 /// # Returns
 /// YAML string representation of the Slack App Manifest
 pub fn generate_manifest(
-    _client_id: &str,
     bot_scopes: &[String],
     user_scopes: &[String],
     redirect_uri: &str,
-    _use_cloudflared: bool,
-    _use_ngrok: bool,
     profile_name: &str,
 ) -> Result<String, String> {
     // Determine redirect URLs based on whether cloudflared or ngrok is used
@@ -156,12 +150,9 @@ mod tests {
         let bot_scopes = vec!["chat:write".to_string(), "users:read".to_string()];
         let user_scopes = vec![];
         let result = generate_manifest(
-            "test-client-id",
             &bot_scopes,
             &user_scopes,
             "http://localhost:8765/callback",
-            false,
-            false,
             "default",
         );
 
@@ -201,12 +192,9 @@ mod tests {
         let bot_scopes = vec!["chat:write".to_string()];
         let user_scopes = vec!["search:read".to_string()];
         let result = generate_manifest(
-            "test-client-id",
             &bot_scopes,
             &user_scopes,
             "http://localhost:8765/callback",
-            true,
-            false,
             "work",
         );
 
@@ -223,12 +211,9 @@ mod tests {
         let bot_scopes = vec!["chat:write".to_string()];
         let user_scopes = vec!["users:read".to_string(), "search:read".to_string()];
         let result = generate_manifest(
-            "test-client-id",
             &bot_scopes,
             &user_scopes,
             "http://localhost:8765/callback",
-            false,
-            false,
             "personal",
         );
 
@@ -246,12 +231,9 @@ mod tests {
         let bot_scopes = vec![];
         let user_scopes = vec![];
         let result = generate_manifest(
-            "test-client-id",
             &bot_scopes,
             &user_scopes,
             "http://localhost:8765/callback",
-            false,
-            false,
             "empty",
         );
 
@@ -264,12 +246,9 @@ mod tests {
         let bot_scopes = vec!["chat:write".to_string()];
         let user_scopes = vec!["search:read".to_string()];
         let result = generate_manifest(
-            "test-client-id",
             &bot_scopes,
             &user_scopes,
             "http://localhost:8765/callback",
-            false,
-            true,
             "ngrok-test",
         );
 
