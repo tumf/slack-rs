@@ -3,14 +3,17 @@
 ## Purpose
 TBD - created by archiving change generate-manifest-from-profile. Update Purpose after archive.
 ## Requirements
+
 ### Requirement: Generate Slack App Manifest automatically during auth login execution
 
-`auth login` 実行時に、ユーザーが入力した `client_id`、`bot_scopes`、`user_scopes`、および解決された `redirect_uri`（cloudflared、ngrok、またはプロンプト入力）を使用して、Slack App Manifest の YAML を自動的に生成しなければならない (MUST)。
+`auth login` における manifest 生成は、ローカルに解決済みの `redirect_uri`、`bot_scopes`、`user_scopes`、および profile 情報のみで成立しなければならない (MUST)。manifest-first 経路では、Manifest 生成のために `client_id` 入力を前提としてはならない (MUST NOT)。
 
-#### ADDED Scenario: ngrok 使用時は ngrok のワイルドカード URL が含まれる
-- Given `auth login --ngrok` を実行する
-- When Manifest が生成される
-- Then `oauth_config.redirect_urls` に `https://*.ngrok-free.app/callback` が含まれる
+#### Scenario: tunnel ベースの manifest 生成は client_id 未入力でも成立する
+- Given `auth login --cloudflared` または `auth login --ngrok` を実行する
+- And tunnel により redirect URI が確定している
+- When Manifest を生成する
+- Then redirect URI と scopes と profile 情報だけで YAML を生成できる
+- And `client_id` の入力が未完了でも Manifest 生成は失敗しない
 
 ### Requirement: Manifest generation does not depend on external APIs
 
@@ -50,4 +53,3 @@ If the clipboard operation fails, a warning MUST be displayed with brief context
 - Given executing `auth login` in an environment where clipboard operations fail
 - When attempting to copy to clipboard after saving the manifest
 - Then a warning is displayed and the login process continues
-
