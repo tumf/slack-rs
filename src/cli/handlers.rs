@@ -826,32 +826,34 @@ pub fn run_install_skill(args: &[String]) -> Result<(), String> {
     use serde_json::json;
 
     let global = args.iter().any(|arg| arg == "--global");
+    let json_output = crate::cli::has_flag(args, "--json");
 
-    // Extract source argument (first non-flag argument, or None for default)
     let source = args
         .iter()
         .find(|arg| !arg.starts_with("--"))
         .map(|s| s.as_str());
 
-    // Install skill
     let installed = skills::install_skill(source, global).map_err(|e| e.to_string())?;
 
-    // Build JSON response
-    let response = json!({
-        "schemaVersion": "1.0",
-        "type": "skill-installation",
-        "ok": true,
-        "skills": [
-            {
-                "name": installed.name,
-                "path": installed.path,
-                "source_type": installed.source_type,
-            }
-        ]
-    });
+    if json_output {
+        let response = json!({
+            "schemaVersion": "1.0",
+            "type": "skill-installation",
+            "ok": true,
+            "skills": [
+                {
+                    "name": installed.name,
+                    "path": installed.path,
+                    "source_type": installed.source_type,
+                }
+            ]
+        });
 
-    // Output JSON to stdout
-    println!("{}", serde_json::to_string_pretty(&response).unwrap());
+        println!("{}", serde_json::to_string_pretty(&response).unwrap());
+    } else {
+        println!("Installed 1 {}skill:", if global { "global " } else { "" });
+        println!("- {} -> {}", installed.name, installed.path);
+    }
 
     Ok(())
 }

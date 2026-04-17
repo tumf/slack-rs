@@ -22,8 +22,7 @@ fn run_slack_rs(args: &[&str]) -> (i32, String, String) {
 
 #[test]
 #[cfg(not(target_os = "windows"))]
-fn install_skill_outputs_required_json_fields() {
-    // Override HOME to use temp directory for this test
+fn install_skill_outputs_human_readable_success_message() {
     let temp_dir = TempDir::new().unwrap();
     let temp_home = temp_dir.path();
 
@@ -43,13 +42,43 @@ fn install_skill_outputs_required_json_fields() {
         })
         .unwrap();
 
-    // Should succeed
+    assert_eq!(exit_code, 0, "Command failed: {}", stderr);
+    assert!(
+        stdout.contains("Installed 1 skill:"),
+        "stdout should show success summary, got: {stdout}"
+    );
+    assert!(
+        stdout.contains("slack-rs ->"),
+        "stdout should show installed skill path, got: {stdout}"
+    );
+}
+
+#[test]
+#[cfg(not(target_os = "windows"))]
+fn install_skill_json_outputs_required_fields() {
+    let temp_dir = TempDir::new().unwrap();
+    let temp_home = temp_dir.path();
+
+    let mut cmd = Command::new(env!("CARGO_BIN_EXE_slack-rs"));
+    cmd.args(["install-skills", "--json"])
+        .env("HOME", temp_home)
+        .current_dir(temp_home);
+
+    let (exit_code, stdout, stderr) = cmd
+        .output()
+        .map(|output| {
+            (
+                output.status.code().unwrap_or(-1),
+                String::from_utf8_lossy(&output.stdout).to_string(),
+                String::from_utf8_lossy(&output.stderr).to_string(),
+            )
+        })
+        .unwrap();
+
     assert_eq!(exit_code, 0, "Command failed: {}", stderr);
 
-    // Parse JSON output
     let json: Value = serde_json::from_str(&stdout).expect("Invalid JSON output");
 
-    // Verify required fields
     assert_eq!(
         json["schemaVersion"].as_str(),
         Some("1.0"),
@@ -62,7 +91,6 @@ fn install_skill_outputs_required_json_fields() {
     );
     assert_eq!(json["ok"].as_bool(), Some(true), "Missing or incorrect ok");
 
-    // Verify skills array
     let skills = json["skills"]
         .as_array()
         .expect("skills should be an array");
@@ -76,7 +104,6 @@ fn install_skill_outputs_required_json_fields() {
         "skill.source_type should be a string"
     );
 
-    // Verify defaults for self source
     assert_eq!(
         skill["name"].as_str(),
         Some("slack-rs"),
@@ -252,12 +279,14 @@ fn install_skill_with_local_source() {
     );
 
     // Parse JSON
-    let json: Value = serde_json::from_str(&stdout).expect("Invalid JSON output");
-    assert_eq!(json["ok"].as_bool(), Some(true));
-
-    let skills = json["skills"].as_array().unwrap();
-    assert_eq!(skills.len(), 1);
-    assert_eq!(skills[0]["source_type"].as_str(), Some("local"));
+    assert!(
+        stdout.contains("Installed 1 skill:"),
+        "stdout should show success summary, got: {stdout}"
+    );
+    assert!(
+        stdout.contains("test skill") || stdout.contains(" -> "),
+        "stdout should include installed item, got: {stdout}"
+    );
 }
 
 #[test]
@@ -283,19 +312,15 @@ fn install_skill_global_uses_home_agents_dir() {
 
     assert_eq!(exit_code, 0, "Global install should succeed: {}", stderr);
 
-    let json: Value = serde_json::from_str(&stdout).expect("Invalid JSON output");
-    let skill = &json["skills"].as_array().unwrap()[0];
-    let path = skill["path"].as_str().unwrap();
     let expected_prefix = temp_home.path().join(".agents").join("skills");
-
-    // Normalize paths for comparison (handle both Unix and Windows separators)
-    let normalized_path = std::path::Path::new(path);
-    let normalized_expected = expected_prefix.as_path();
+    let expected_prefix_str = expected_prefix.display().to_string();
 
     assert!(
-        normalized_path.starts_with(normalized_expected),
-        "Global install should use ~/.agents/skills path, got: {} (expected prefix: {})",
-        path,
-        expected_prefix.display()
+        stdout.contains("Installed 1 global skill:"),
+        "stdout should indicate global install, got: {stdout}"
+    );
+    assert!(
+        stdout.contains(&expected_prefix_str),
+        "stdout should include global install path, got: {stdout}"
     );
 }

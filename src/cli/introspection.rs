@@ -1292,6 +1292,13 @@ pub fn get_command_definitions() -> Vec<CommandDef> {
                     description: "Install to ~/.agents instead of ./.agents".to_string(),
                     default: Some("false".to_string()),
                 },
+                FlagDef {
+                    name: "--json".to_string(),
+                    flag_type: "boolean".to_string(),
+                    required: false,
+                    description: "Output installation result as JSON".to_string(),
+                    default: Some("false".to_string()),
+                },
             ],
             examples: vec![
                 ExampleDef {
@@ -1305,6 +1312,10 @@ pub fn get_command_definitions() -> Vec<CommandDef> {
                 ExampleDef {
                     description: "Install globally to ~/.agents".to_string(),
                     command: "slack-rs install-skills --global".to_string(),
+                },
+                ExampleDef {
+                    description: "Output installation result as JSON".to_string(),
+                    command: "slack-rs install-skills --json".to_string(),
                 },
             ],
             exit_codes: vec![
