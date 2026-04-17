@@ -320,7 +320,7 @@ fn prompt_for_client_id_with_mode(non_interactive: bool) -> Result<String, OAuth
 }
 
 /// Prompt user for OAuth client secret (hidden input)
-pub fn prompt_for_client_secret() -> Result<String, OAuthError> {
+fn prompt_for_client_secret() -> Result<String, OAuthError> {
     loop {
         let input = rpassword::prompt_password("Enter OAuth client secret: ")
             .map_err(|e| OAuthError::ConfigError(format!("Failed to read password: {}", e)))?;
@@ -1025,7 +1025,6 @@ fn find_cloudflared() -> Option<String> {
 
 /// Generate and save manifest file for Slack app creation
 fn generate_and_save_manifest(
-    client_id: &str,
     redirect_uri: &str,
     bot_scopes: &[String],
     user_scopes: &[String],
@@ -1034,17 +1033,9 @@ fn generate_and_save_manifest(
     use crate::auth::manifest::generate_manifest;
     use std::fs;
 
-    // Generate manifest YAML
-    let manifest_yaml = generate_manifest(
-        client_id,
-        bot_scopes,
-        user_scopes,
-        redirect_uri,
-        false, // use_cloudflared - not needed for manifest
-        false, // use_ngrok - not needed for manifest
-        profile_name,
-    )
-    .map_err(|e| OAuthError::ConfigError(format!("Failed to generate manifest: {}", e)))?;
+    // Generate manifest YAML (no client_id needed - manifest uses only redirect URI, scopes, and profile)
+    let manifest_yaml = generate_manifest(bot_scopes, user_scopes, redirect_uri, profile_name)
+        .map_err(|e| OAuthError::ConfigError(format!("Failed to generate manifest: {}", e)))?;
 
     // Determine save path using unified config directory
     // Use directories::BaseDirs for cross-platform home directory detection
@@ -1096,12 +1087,13 @@ pub struct ExtendedLoginOptions {
     pub base_url: Option<String>,
 }
 
-/// Extended login with cloudflared tunnel support
+/// Extended login with cloudflared/ngrok tunnel support (manifest-first flow)
 ///
-/// This function handles OAuth flow with cloudflared tunnel for public redirect URIs.
+/// This function handles OAuth flow with tunnel support for public redirect URIs.
+/// The flow is manifest-first: tunnel is started, manifest is generated and shown
+/// to the user, and only after the user creates the Slack App are credentials
+/// (Client ID / Client Secret) collected.
 pub async fn login_with_credentials_extended(
-    client_id: String,
-    client_secret: String,
     bot_scopes: Vec<String>,
     user_scopes: Vec<String>,
     profile_name: Option<String>,
@@ -1179,9 +1171,8 @@ pub async fn login_with_credentials_extended(
         final_redirect_uri = format!("http://localhost:{}/callback", port);
     }
 
-    // Generate and save manifest
+    // Generate and save manifest BEFORE collecting credentials
     let manifest_path = generate_and_save_manifest(
-        &client_id,
         &final_redirect_uri,
         &bot_scopes,
         &user_scopes,
@@ -1196,9 +1187,9 @@ pub async fn login_with_credentials_extended(
     println!("   3. Select your workspace");
     println!("   4. Copy and paste the manifest from the file above");
     println!("   5. Click 'Create'");
-    println!("   6. ⚠️  IMPORTANT: Do NOT click 'Install to Workspace' yet!");
-    println!("      The OAuth flow will start automatically after you press Enter.");
-    println!("\n⏸️  Press Enter when you've created the app (but NOT installed it yet)...");
+    println!("   6. Go to 'Basic Information' → 'App Credentials'");
+    println!("      You will need the Client ID and Client Secret below.");
+    println!("\n⏸️  Press Enter when you've created the app...");
 
     let mut input = String::new();
     std::io::stdin()
@@ -1215,6 +1206,38 @@ pub async fn login_with_credentials_extended(
         println!("✓ Tunnel is running");
     }
 
+    // NOW collect credentials (after app creation)
+    // Try to reuse saved credentials from token store, otherwise prompt
+    let token_store = create_token_store()
+        .map_err(|e| OAuthError::ConfigError(format!("Failed to create token store: {}", e)))?;
+
+    println!("\n🔑 Enter credentials from 'Basic Information' → 'App Credentials':");
+
+    let client_id = {
+        // Check for saved client_id in existing profile
+        let config_path = default_config_path()
+            .map_err(|e| OAuthError::ConfigError(format!("Failed to get config path: {}", e)))?;
+        let existing_config = load_config(&config_path).ok();
+        let existing_profile = existing_config.as_ref().and_then(|c| c.get(&profile_name));
+
+        if let Some(saved_id) = existing_profile.and_then(|p| p.client_id.as_ref()) {
+            println!("Using saved Client ID: {}", saved_id);
+            saved_id.clone()
+        } else {
+            print!("Enter Slack Client ID: ");
+            io::stdout()
+                .flush()
+                .map_err(|e| OAuthError::ConfigError(format!("Failed to flush stdout: {}", e)))?;
+            let mut id_input = String::new();
+            io::stdin()
+                .read_line(&mut id_input)
+                .map_err(|e| OAuthError::ConfigError(format!("Failed to read input: {}", e)))?;
+            id_input.trim().to_string()
+        }
+    };
+
+    let client_secret = resolve_client_secret(&*token_store, &profile_name, false)?;
+
     // Build OAuth config
     let config = OAuthConfig {
         client_id: client_id.clone(),
@@ -1225,7 +1248,9 @@ pub async fn login_with_credentials_extended(
     };
 
     // Perform OAuth flow (handles browser opening, callback server, token exchange)
-    println!("🔄 Starting OAuth flow...");
+    println!("\n🔄 Starting OAuth flow...");
+    println!("⚠️  IMPORTANT: Do NOT click 'Install to Workspace' manually!");
+    println!("   The OAuth flow will handle installation automatically.\n");
     let (team_id, team_name, user_id, bot_token, user_token) =
         perform_oauth_flow(&config, None).await?;
 

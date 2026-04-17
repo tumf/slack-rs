@@ -710,28 +710,14 @@ fn print_auth_usage() {
         "                                        (path optional, defaults to 'ngrok' in PATH)"
     );
     println!();
-    println!("Cloudflared tunnel usage:");
-    println!(
-        "  When --cloudflared is specified, a temporary tunnel is created for OAuth callback."
-    );
-    println!("  The generated manifest will include https://*.trycloudflare.com/callback in redirect_urls.");
-    println!("  Make sure your Slack App is configured with this wildcard URL.");
-    println!();
-    println!("Ngrok tunnel usage:");
-    println!("  When --ngrok is specified, a temporary tunnel is created for OAuth callback.");
-    println!(
-        "  The generated manifest will include https://*.ngrok-free.app/callback in redirect_urls."
-    );
-    println!("  Make sure your Slack App is configured with this wildcard URL.");
+    println!("Manifest-first tunnel login flow:");
+    println!("  When --cloudflared or --ngrok is specified:");
+    println!("    1. A temporary tunnel is created for OAuth callback");
+    println!("    2. A Slack App Manifest is generated and saved to ~/.config/slack-rs/<profile>_manifest.yml");
+    println!("    3. You create the Slack App using the manifest");
+    println!("    4. You enter the Client ID and Client Secret from the new app");
+    println!("    5. The OAuth flow starts automatically");
     println!("  Note: --cloudflared and --ngrok cannot be used at the same time.");
-    println!("  Note: Custom ngrok domains are not supported in this implementation.");
-    println!();
-    println!("Manifest generation:");
-    println!("  After successful authentication, a Slack App Manifest is automatically generated");
-    println!("  and saved to ~/.config/slack-rs/<profile>_manifest.yml");
-    println!(
-        "  This manifest can be uploaded to https://api.slack.com/apps for easy app configuration."
-    );
     println!();
     println!("Export options:");
     println!(

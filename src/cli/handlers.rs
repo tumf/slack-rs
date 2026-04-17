@@ -171,45 +171,17 @@ pub async fn run_auth_login(args: &[String], non_interactive: bool) -> Result<()
     // Keep base_url from environment for testing purposes only
     let base_url = std::env::var("SLACK_OAUTH_BASE_URL").ok();
 
-    // If cloudflared or ngrok is specified, use extended login flow
+    // If cloudflared or ngrok is specified, use extended login flow (manifest-first)
     if parsed_args.tunnel_mode.is_enabled() {
-        // Collect missing parameters in non-interactive mode
+        // Tunnel mode requires interactive mode for credential input after manifest generation
         if non_interactive {
-            let mut missing = Vec::new();
-            if parsed_args.client_id.is_none() {
-                missing.push("--client-id");
-            }
-            if parsed_args.bot_scopes.is_none() {
-                missing.push("--bot-scopes");
-            }
-            if parsed_args.user_scopes.is_none() {
-                missing.push("--user-scopes");
-            }
-            if !missing.is_empty() {
-                return Err(format!(
-                    "Missing required parameters in non-interactive mode: {}\n\
-                    Provide them via CLI flags:\n\
-                    Example: slack-rs auth login --cloudflared --client-id <id> --bot-scopes <scopes> --user-scopes <scopes>",
-                    missing.join(", ")
-                ));
-            }
-        }
-
-        // Prompt for client_id if not provided (only in interactive mode)
-        let client_id = if let Some(id) = parsed_args.client_id {
-            id
-        } else if non_interactive {
             return Err(
-                "Client ID is required in non-interactive mode. Use --client-id flag.".to_string(),
+                "Tunnel login (--cloudflared/--ngrok) requires interactive mode.\n\
+                 The manifest-first flow needs user interaction to create the Slack App\n\
+                 and then enter credentials. Use the standard login flow for non-interactive mode."
+                    .to_string(),
             );
-        } else {
-            use std::io::{self, Write};
-            print!("Enter Slack Client ID: ");
-            io::stdout().flush().unwrap();
-            let mut input = String::new();
-            io::stdin().read_line(&mut input).unwrap();
-            input.trim().to_string()
-        };
+        }
 
         // Use default scopes if not provided
         let bot_scopes = parsed_args.bot_scopes.unwrap_or_else(oauth::bot_all_scopes);
@@ -223,18 +195,8 @@ pub async fn run_auth_login(args: &[String], non_interactive: bool) -> Result<()
             debug::log(format!("user_scopes_count={}", user_scopes.len()));
         }
 
-        // Prompt for client_secret (only in interactive mode)
-        let client_secret = if non_interactive {
-            return Err("Client secret cannot be provided in non-interactive mode with --cloudflared/--ngrok. Use the standard login flow (without --cloudflared/--ngrok) to save credentials first.".to_string());
-        } else {
-            auth::prompt_for_client_secret()
-                .map_err(|e| format!("Failed to read client secret: {}", e))?
-        };
-
-        // Call extended login with cloudflared support
+        // Call extended login - credentials are collected AFTER manifest generation
         auth::login_with_credentials_extended(
-            client_id,
-            client_secret,
             bot_scopes,
             user_scopes,
             parsed_args.profile_name,

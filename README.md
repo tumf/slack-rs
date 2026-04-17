@@ -126,27 +126,25 @@ slack-rs install-skills local:/path/to/skill
 #### Quick Setup: Using App Manifest (Recommended)
 
 The most recommended login flow is to install **cloudflared** and use `--cloudflared`.
-In this mode, `slack-rs auth login` generates a Slack App Manifest for you (and copies it to your clipboard).
+In this mode, `slack-rs auth login` generates a Slack App Manifest **first** (before asking for credentials), so you can create the Slack App and then enter the Client ID and Secret.
 
 The intended flow is:
 
-1. **Create a Slack app and get credentials**:
-   - Go to https://api.slack.com/apps
-   - Click "Create New App" ("From scratch" is fine)
-   - In "Basic Information" → "App Credentials", copy your **Client ID** and **Client Secret**
-2. **Install cloudflared**:
+1. **Install cloudflared**:
    - Follow Cloudflare docs: https://developers.cloudflare.com/cloudflare-one/connections/connect-apps/install-and-setup/installation/
-3. **Start login with --cloudflared (manifest is generated automatically)**:
+2. **Start login with --cloudflared (manifest is generated automatically)**:
    ```bash
-    slack-rs auth login my-workspace --client-id 123456789012.1234567890123 --cloudflared
-    # You'll be prompted for the client secret (hidden)
-    # A manifest YAML is generated, saved, and copied to clipboard
+    slack-rs auth login my-workspace --cloudflared
+    # A tunnel is started and a manifest YAML is generated, saved, and copied to clipboard
     ```
-4. **Paste the generated YAML into Slack**:
-   - In your Slack app settings, open "App Manifest"
-   - Paste the generated YAML (from clipboard or `~/.config/slack-rs/<profile>_manifest.yml`)
-   - Apply the changes
-5. **Return to the terminal and press Enter**:
+3. **Create the Slack App using the manifest**:
+   - Go to https://api.slack.com/apps
+   - Click "Create New App" → "From an app manifest"
+   - Select your workspace, paste the generated YAML, and click "Create"
+4. **Enter credentials from the newly created app**:
+   - In "Basic Information" → "App Credentials", copy the **Client ID** and **Client Secret**
+   - Enter them in the terminal when prompted
+5. **OAuth flow starts automatically**:
    - The CLI opens your browser
    - Click "Allow"
    - The CLI exchanges the code for tokens and saves them securely
@@ -256,20 +254,22 @@ slack-rs auth login my-workspace
 
 **What happens during login:**
 
+When using `--cloudflared` (manifest-first flow):
+1. **Tunnel started**: `cloudflared` tunnel is started and a public redirect URL is determined
+2. **Manifest generated**: A Slack App Manifest YAML is generated, saved, and copied to clipboard (best effort)
+3. **You create the Slack App**: Use the generated manifest at https://api.slack.com/apps
+4. **Credentials collected**: Client ID and Client Secret are entered from the newly created app (or reused from saved profile)
+5. **OAuth flow starts**: Browser opens, you click "Allow", callback is handled
+
+Standard login (without `--cloudflared`):
 1. **Credentials collected**: Client ID and secret are obtained (from saved profile/file storage, CLI args, or prompts)
+2. **Browser opens**: OAuth authorization page opens automatically
+3. **User authorization**: Click "Allow" to grant permissions to your app
+4. **Callback handled**: Callback server receives OAuth callback with authorization code
 
-When using `--cloudflared`:
-2. **Tunnel started**: `cloudflared` tunnel is started and a public redirect URL is determined
-3. **Manifest generated**: A Slack App Manifest YAML is generated, saved, and copied to clipboard (best effort)
-4. **You paste the manifest in Slack**: Configure your Slack app using the generated manifest
-5. **Press Enter to continue**: The CLI starts the OAuth flow
-
-OAuth flow:
-6. **Browser opens**: OAuth authorization page opens automatically
-7. **User authorization**: Click "Allow" to grant permissions to your app
-8. **Callback handled**: Callback server receives OAuth callback with authorization code
-9. **Token exchange**: Code is exchanged for access token
-10. **Secure storage**: Profile and token are saved securely
+Common steps:
+5. **Token exchange**: Code is exchanged for access token
+6. **Secure storage**: Profile and token are saved securely
    - Profile metadata → `~/.config/slack-rs/profiles.json`
    - Access token → file storage (file storage/Credential Manager)
 
@@ -301,23 +301,15 @@ This avoids manually starting a tunnel or managing redirect URLs.
 
 1. **Install cloudflared**: Download from [Cloudflare](https://developers.cloudflare.com/cloudflare-one/connections/connect-apps/install-and-setup/installation/)
 
-2. **Configure Slack App with cloudflared redirect URL**:
-   - Go to https://api.slack.com/apps → Your App → OAuth & Permissions
-   - Add redirect URL: `https://your-tunnel.trycloudflare.com/callback` (you'll get the exact URL from cloudflared)
-   - Click "Save URLs"
-
-3. **Authenticate with --cloudflared flag**:
+2. **Authenticate with --cloudflared flag**:
     ```bash
-    # The tool will automatically start cloudflared and handle the tunnel
+    # The tool will automatically start cloudflared, generate a manifest, and handle the tunnel
     slack-rs auth login my-workspace --cloudflared
-   
-   # Or with client ID
-    slack-rs auth login my-workspace --client-id 123456789012.1234567890123 --cloudflared
     ```
 
-With `--cloudflared`, you do not need to manually start a tunnel or copy/paste a tunnel URL into your config.
+With `--cloudflared`, you do not need to manually start a tunnel or manage redirect URLs.
 The CLI starts the tunnel, generates a manifest containing the correct redirect URL, and copies it to your clipboard.
-You only need to paste the manifest into Slack and press Enter to continue.
+You create the Slack App using the manifest, enter the credentials, and the OAuth flow starts automatically.
 
 The `--cloudflared` flag automatically:
 - Starts a Cloudflare Tunnel on port 8765
