@@ -8,8 +8,9 @@ This directory contains the skill documentation only (no bundled scripts/binarie
 
 ## What You Get
 
-- `slack-rs/SKILL.md`: agent instructions for using `slack-rs`
-- `slack-rs/references/recipes.md`: copy/paste recipes
+- `slack-rs/SKILL.md`: day-to-day agent instructions for using `slack-rs`
+- `slack-rs/references/setup.md`: one-time setup and onboarding steps
+- `slack-rs/references/recipes.md`: copy/paste operational recipes
 
 ## Install The Skill
 
@@ -49,6 +50,8 @@ slack-rs schema --command msg.post --output json-schema
 ## Using The Skill
 
 Once the skill is loaded, the agent will run `slack-rs` commands directly.
+
+For first-time setup, read `slack-rs/references/setup.md`.
 
 Prefer convenience commands when possible:
 
