@@ -10,7 +10,7 @@
 
 - [x] Task 4: Ensure the enrichment also works when `SLACKRS_OUTPUT=raw`. Verification: `manual` - execute `SLACKRS_OUTPUT=raw slack-rs conv history Cxxxx --limit=1` and confirm `users` appears (intentional manual coverage for the exact CLI flag path).
 
-- [x] Task 5: Run full lint and format checks. Verification: `manual` - `cargo clippy -- -D warnings && cargo fmt -- --check` (required per AGENTS.md).
+- [x] Task 5: Run full lint and format checks. (verification: manual - `cargo clippy -- -D warnings && cargo fmt -- --check` on `src/`, verified against CI pipeline in `.github/workflows/ci.yml`)
 
 ## Future Work
 
