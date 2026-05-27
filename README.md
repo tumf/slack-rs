@@ -1,657 +1,109 @@
 # slack-rs
 
-A Slack CLI tool written in Rust that provides comprehensive access to the Slack Web API using OAuth authentication.
+Slack CLI tool (Rust) — OAuth authentication, multi-profile, full Slack Web API access.
 
 [![CI](https://github.com/tumf/slack-rs/workflows/CI/badge.svg)](https://github.com/tumf/slack-rs/actions)
 [![Crates.io](https://img.shields.io/crates/v/slack-rs.svg)](https://crates.io/crates/slack-rs)
 [![Documentation](https://docs.rs/slack-rs/badge.svg)](https://docs.rs/slack-rs)
-[![Downloads](https://img.shields.io/crates/d/slack-rs.svg)](https://crates.io/crates/slack-rs)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-## Overview
+Designed following [Agentic CLI Design](https://dev.to/tumf/agentic-cli-design-7-principles-for-designing-cli-as-a-protocol-for-ai-agents-2c10) principles — structured JSON output, non-interactive operation, safe-by-default.
 
-`slack-rs` is a command-line tool designed for interacting with Slack workspaces using your personal OAuth credentials. It supports multiple workspace profiles, secure token storage, and provides both generic API access and convenient wrapper commands for common operations.
-
-This tool is designed following the [Agentic CLI Design](https://dev.to/tumf/agentic-cli-design-7-principles-for-designing-cli-as-a-protocol-for-ai-agents-2c10) principles, making it optimized for AI agents and automated workflows with structured output, non-interactive operation, idempotent behavior, and safe-by-default design.
-
-### Key Features
-
-- 🔐 **OAuth Authentication** with PKCE flow
-- 🏢 **Multiple Workspace Support** via profiles
-- 🔒 **Secure Token Storage** using file-based storage
-- 🔄 **Profile Import/Export** with encryption
-- 📡 **Generic API Access** - call any Slack Web API method
-- 🛠️ **Wrapper Commands** for common operations
-- 🔁 **Smart Retry Logic** with exponential backoff and rate limit handling
-- 🧩 **Agent Skill Installation** - install embedded OpenCode/agent skills via `install-skills`
-
-## TL;DR
-
-```bash
-# Install from crates.io
-cargo install slack-rs
-
-# Or build from source
-git clone https://github.com/tumf/slack-rs.git
-cd slack-rs
-make build
-make test
-```
+Key features:
+- OAuth PKCE authentication with Cloudflare Tunnel support
+- Multiple workspace profiles with independent credentials
+- Generic API access + convenience wrapper commands
+- Smart retry with exponential backoff and rate limit handling
+- Encrypted profile export/import (AES-256-GCM + Argon2id)
 
 ## Installation
 
-### Prerequisites
-
-- Rust 1.70+ (tested with 1.92.0)
-- A Slack app with OAuth credentials ([create one here](https://api.slack.com/apps))
-
-### Install from crates.io (Recommended)
-
 ```bash
-cargo install slack-rs
+cargo install slack-rs        # From crates.io (recommended)
+brew install tumf/tap/slack_rs     # Homebrew (tap)
 ```
 
-The binary will be installed to `~/.cargo/bin/slack-rs` (ensure `~/.cargo/bin` is in your PATH).
-
-### Install with Homebrew
-
-Homebrew cannot install this as `brew install slack_rs` unless you publish a tap (or it lands in `homebrew/core`).
-
-Recommended setup (tap):
-
-```bash
-brew tap tumf/tap
-brew install slack_rs
-
-# Binary name is still slack-rs
-slack-rs --version
-```
-
-If you don't want a tap, you can also install directly from a formula file:
-
-```bash
-brew install --formula https://raw.githubusercontent.com/tumf/slack-rs/main/Formula/slack_rs.rb
-```
-
-### Build from Source
-
-```bash
-git clone https://github.com/tumf/slack-rs.git
-cd slack-rs
-cargo build --release
-```
-
-The binary will be available at `target/release/slack-rs`.
-
-### Install from Local Source
-
-```bash
-git clone https://github.com/tumf/slack-rs.git
-cd slack-rs
-cargo install --path .
-```
+Or build from source: `git clone`, `cargo build --release`. See [docs/authentication.md](docs/authentication.md) for prerequisites (Rust 1.70+, Slack App credentials).
 
 ## Agent Skills
 
-`slack-rs` can install an **agent skill** (documentation + references) into an `.agents/` directory so tools like OpenCode / agent runtimes can discover and load it.
-
-### install-skills
+Install embedded agent skill documentation for OpenCode/agent runtimes:
 
 ```bash
-# Install the embedded skill into ./.agents/skills/slack-rs (default)
-slack-rs install-skills
-
-# Install globally into ~/.agents/skills/slack-rs
-slack-rs install-skills --global
-
-# Install from a local skill directory (symlink preferred; copy fallback)
-slack-rs install-skills local:/path/to/skill
+slack-rs install-skills           # → ./.agents/skills/slack-rs/
+slack-rs install-skills --global  # → ~/.agents/skills/slack-rs/
 ```
-
-**What it does:**
-
-- Installs skill files to `.agents/skills/<skill-name>/` (or `~/.agents/skills/<skill-name>/` with `--global`)
-- Writes/updates a lock file at `.agents/.skill-lock.json` (or `~/.agents/.skill-lock.json`) so installers and agents can track what is installed
-- For the embedded skill, installs `skills/slack-rs/{SKILL.md,README.md,references/...}` packaged in the binary
-
-**Notes:**
-
-- The `source` argument supports `self` (embedded; default) and `local:<path>`.
-- The command prints a machine-readable JSON result to stdout.
 
 ## Quick Start
 
-### 1. Set Up OAuth Credentials
-
-#### Quick Setup: Using App Manifest (Recommended)
-
-The most recommended login flow is to install **cloudflared** and use `--cloudflared`.
-In this mode, `slack-rs auth login` generates a Slack App Manifest **first** (before asking for credentials), so you can create the Slack App and then enter the Client ID and Secret.
-
-The intended flow is:
-
-1. **Install cloudflared**:
-   - Follow Cloudflare docs: https://developers.cloudflare.com/cloudflare-one/connections/connect-apps/install-and-setup/installation/
-2. **Start login with --cloudflared (manifest is generated automatically)**:
-   ```bash
-    slack-rs auth login my-workspace --cloudflared
-    # A tunnel is started and a manifest YAML is generated, saved, and copied to clipboard
-    ```
-3. **Create the Slack App using the manifest**:
-   - Go to https://api.slack.com/apps
-   - Click "Create New App" → "From an app manifest"
-   - Select your workspace, paste the generated YAML, and click "Create"
-4. **Enter credentials from the newly created app**:
-   - In "Basic Information" → "App Credentials", copy the **Client ID** and **Client Secret**
-   - Enter them in the terminal when prompted
-5. **OAuth flow starts automatically**:
-   - The CLI opens your browser
-   - Click "Allow"
-   - The CLI exchanges the code for tokens and saves them securely
-
-**💡 Manifest Benefits:**
-- ✅ Redirect URL and scopes are configured for you
-- ✅ Less manual Slack UI configuration
-- ✅ Manifest is saved to `~/.config/slack-rs/<profile>_manifest.yml` and copied to clipboard (best effort)
-- ✅ Easy to reproduce and share
-
-**Customizing Scopes:**
-
-If you need different scopes, change the scopes you pass to `auth login` (or edit the manifest YAML before pasting it into Slack).
-
-Flags:
-- `--bot-scopes <scopes>`: comma-separated list or `all`
-- `--user-scopes <scopes>`: comma-separated list or `all`
-
-Common scopes:
-- `chat:write` - Post messages
-- `users:read` - View users
-- `channels:read` - List public channels
-- `files:read` - Access files
-- `search:read` - Search workspace content
-- `reactions:write` - Add/remove reactions
-- See full list: https://api.slack.com/scopes
-
-#### Manual Setup (Alternative)
-
-If you prefer manual configuration:
-
-1. **Navigate to Slack API**: Go to https://api.slack.com/apps
-2. **Create an app**:
-   - Click "Create New App"
-   - Choose "From scratch"
-   - Name your app (e.g., "My Slack CLI")
-   - Select a development workspace
-3. **Configure OAuth & Permissions**:
-   - In the left sidebar, click "OAuth & Permissions"
-   - Scroll to "Redirect URLs" section
-   - Add redirect URL: `http://127.0.0.1:8765/callback`
-   - Click "Save URLs"
-4. **Add OAuth Scopes**:
-   - Scroll to "Scopes" section under "User Token Scopes"
-   - Add required scopes for your use case:
-     - `chat:write` - Post messages
-     - `users:read` - View users
-     - `channels:read` - List public channels
-     - `search:read` - Search workspace content
-     - Add more as needed based on API methods you'll use
-5. **Get your credentials**:
-   - Go to "Basic Information" → "App Credentials"
-   - Copy your **Client ID** (looks like `123456789012.1234567890123`)
-   - Click "Show" and copy your **Client Secret** (looks like `abcdef1234567890abcdef1234567890`)
-
-#### Providing Credentials
-
-**Option A: Save credentials to profile (recommended for most users):**
-
 ```bash
-# Save OAuth config to profile (will be prompted for client secret)
-slack-rs config oauth set my-workspace \
-  --client-id 123456789012.1234567890123 \
-  --redirect-uri http://127.0.0.1:8765/callback \
-  --scopes "chat:write,users:read,channels:read"
+# 1. Authenticate (Cloudflare Tunnel — simplest)
+slack-rs auth login my-workspace --cloudflared
 
-# Then authenticate using saved config
-slack-rs auth login my-workspace
+# 2. Call any Slack API method
+slack-rs api call chat.postMessage channel=C123 text="Hello!"
+
+# 3. Use wrapper commands
+slack-rs msg post C123 "Hello!"
+slack-rs conv list
+slack-rs search "quarterly report" count=10
 ```
 
-**Option B: Provide during login (quick one-time use):**
-
-```bash
-# Provide client ID as argument, secret will be prompted securely
-slack-rs auth login my-workspace --client-id 123456789012.1234567890123
-```
-
-**Option C: Interactive prompts:**
-
-```bash
-# Tool will prompt for both client ID and secret
-slack-rs auth login my-workspace
-# Enter OAuth client ID: [type your client ID]
-# Enter OAuth client secret: [type your secret - hidden]
-```
-
-**💡 Pro Tip**: Use Option A for persistent configuration.
-
-### 2. Authenticate
-
-**Login to your Slack workspace:**
-
-```bash
-# Method 1: Using saved OAuth config (recommended)
-slack-rs config oauth set my-workspace \
-  --client-id 123456789012.1234567890123 \
-  --redirect-uri http://127.0.0.1:8765/callback \
-  --scopes "chat:write,users:read,channels:read"
-slack-rs auth login my-workspace
-
-# Method 2: Provide client ID during login
-slack-rs auth login my-workspace --client-id 123456789012.1234567890123
-
-# Method 3: Interactive prompts
-slack-rs auth login my-workspace
-```
-
-**What happens during login:**
-
-When using `--cloudflared` (manifest-first flow):
-1. **Tunnel started**: `cloudflared` tunnel is started and a public redirect URL is determined
-2. **Manifest generated**: A Slack App Manifest YAML is generated, saved, and copied to clipboard (best effort)
-3. **You create the Slack App**: Use the generated manifest at https://api.slack.com/apps
-4. **Credentials collected**: Client ID and Client Secret are entered from the newly created app (or reused from saved profile)
-5. **OAuth flow starts**: Browser opens, you click "Allow", callback is handled
-
-Standard login (without `--cloudflared`):
-1. **Credentials collected**: Client ID and secret are obtained (from saved profile/file storage, CLI args, or prompts)
-2. **Browser opens**: OAuth authorization page opens automatically
-3. **User authorization**: Click "Allow" to grant permissions to your app
-4. **Callback handled**: Callback server receives OAuth callback with authorization code
-
-Common steps:
-5. **Token exchange**: Code is exchanged for access token
-6. **Secure storage**: Profile and token are saved securely
-   - Profile metadata → `~/.config/slack-rs/profiles.json`
-   - Access token → file storage (file storage/Credential Manager)
-
-**After successful authentication:**
-
-```
-✓ Authentication successful!
-Profile 'my-workspace' saved.
-```
-
-**Per-Profile OAuth Settings:**
-- ✅ Each profile can store its own OAuth client ID, redirect URI, and scopes
-- 💾 OAuth config saved in `~/.config/slack-rs/profiles.json`
-- 🔒 Client secret saved securely in file storage (prompted only if missing)
-- 🔄 Subsequent logins reuse saved configuration automatically
-
-#### Using Tunneling Services for Remote Authentication
-
-When authenticating from a remote server or environment where `localhost` is not accessible (e.g., SSH, Docker, cloud instances), the most recommended flow is:
-
-1. Install **cloudflared**
-2. Run `slack-rs auth login ... --cloudflared`
-
-This avoids manually starting a tunnel or managing redirect URLs.
-
-**Method A: Built-in Cloudflare Tunnel Support (Easiest)**
-
-`slack-rs` also supports Cloudflare Tunnel with automatic management:
-
-1. **Install cloudflared**: Download from [Cloudflare](https://developers.cloudflare.com/cloudflare-one/connections/connect-apps/install-and-setup/installation/)
-
-2. **Authenticate with --cloudflared flag**:
-    ```bash
-    # The tool will automatically start cloudflared, generate a manifest, and handle the tunnel
-    slack-rs auth login my-workspace --cloudflared
-    ```
-
-With `--cloudflared`, you do not need to manually start a tunnel or manage redirect URLs.
-The CLI starts the tunnel, generates a manifest containing the correct redirect URL, and copies it to your clipboard.
-You create the Slack App using the manifest, enter the credentials, and the OAuth flow starts automatically.
-
-The `--cloudflared` flag automatically:
-- Starts a Cloudflare Tunnel on port 8765
-- Displays the public URL for your redirect URI
-- Handles the OAuth callback through the tunnel
-- Closes the tunnel after authentication
-
-**Method B: Manual Tunnel Setup (Advanced)**
-
-If you prefer to manage the tunnel yourself:
-
-1. **Start cloudflared manually**:
-   ```bash
-   # cloudflared
-   cloudflared tunnel --url http://localhost:8765
-   ```
-
-2. **Configure Slack App with the tunnel URL**:
-   - Add the tunnel URL as redirect URI (e.g., `https://xyz-def-ghi.trycloudflare.com/callback`)
-
-3. **Authenticate with custom redirect URI**:
-    ```bash
-     slack-rs config oauth set my-workspace \
-       --client-id 123456789012.1234567890123 \
-       --redirect-uri https://xyz-def-ghi.trycloudflare.com/callback \
-       --scopes "chat:write,users:read"
-     slack-rs auth login my-workspace
-    ```
-
-If you are using the manifest-based flow described above, the manual `config oauth set --redirect-uri ...` step is usually unnecessary.
-Using `--cloudflared` avoids having to manually manage the tunnel URL.
-
-**Security Notes:**
-- ⚠️ Tunnel URLs are temporary and change each time you restart the service
-- ⚠️ Anyone with the tunnel URL can access your callback endpoint during authentication
-- ✅ The built-in tunnel support automatically closes the tunnel after authentication
-- ✅ Tunnels are only active during the authentication process
-
-#### ngrok status
-
-The `--ngrok` flag exists in the CLI help, but ngrok tunnel automation is not implemented in this version.
-
-### 3. Make API Calls
-
-**Generic API call:**
-
-```bash
-slack-rs api call chat.postMessage channel=C123456 text="Hello from slack-rs!"
-```
-
-**Check authentication status:**
-
-```bash
-slack-rs auth status my-workspace
-```
-
-**View saved OAuth configuration:**
-
-```bash
-slack-rs config oauth show my-workspace
-```
-
-**List all profiles:**
-
-```bash
-slack-rs auth list
-```
+For detailed setup (manual OAuth, remote auth, credential export/import), see [docs/authentication.md](docs/authentication.md).
 
 ## Usage
 
-### Authentication Commands
-
-#### Login
-
-Authenticate with a Slack workspace and save credentials.
-
-```bash
-# Basic login (uses saved profile or prompts)
-slack-rs auth login [profile-name]
-
-# Login with specific client ID
-slack-rs auth login [profile-name] --client-id <client-id>
-
-# Login with Cloudflare Tunnel (for remote/SSH environments)
-slack-rs auth login [profile-name] --cloudflared
-
-# Examples:
-slack-rs auth login                           # Profile named "default"
-slack-rs auth login my-team                   # Profile named "my-team"
-slack-rs auth login dev --client-id 12345.67  # With explicit client ID
-slack-rs auth login server --cloudflared      # Using Cloudflare Tunnel
-```
-
-**Flags:**
-- `--client-id <id>`: Specify OAuth client ID
-- `--cloudflared`: Automatically start Cloudflare Tunnel for remote authentication
-
-Note: `--ngrok` exists in the CLI help, but ngrok tunnel automation is not implemented in v0.1.6.
-
-#### Status
-
-Check authentication status and profile information.
-
-```bash
-# Check specific profile
-slack-rs auth status <profile-name>
-
-# Check default profile
-slack-rs auth status
-
-# Example output:
-# Profile: my-workspace
-# Team: My Team (T123456)
-# User: John Doe (U789012)
-# Client ID: 123456789012.123456789012
-# Status: ✓ Authenticated
-```
-
-#### List
-
-Display all saved profiles.
-
-```bash
-slack-rs auth list
-
-# Example output:
-# Profiles:
-#   • default (My Team / john.doe)
-#   • dev-workspace (Dev Team / jane.smith)
-#   • prod-workspace (Prod Team / jane.smith)
-```
-
-#### Rename
-
-Rename an existing profile.
-
-```bash
-slack-rs auth rename <old-name> <new-name>
-
-# Example:
-slack-rs auth rename default my-main-workspace
-```
-
-#### Logout
-
-Remove profile and delete all associated credentials.
-
-```bash
-slack-rs auth logout <profile-name>
-
-# Example:
-slack-rs auth logout old-workspace
-# ✓ Profile 'old-workspace' removed
-# ✓ Credentials deleted from file storage
-```
-
-#### Export
-
-Create encrypted backup of profiles.
-
-```bash
-# Export single profile
-slack-rs auth export --profile <name> --out <file> [--passphrase-prompt]
-slack-rs auth export --profile <name> --out <file> [--yes]
-
-# Export all profiles
-slack-rs auth export --all --out <file> [--passphrase-prompt]
-slack-rs auth export --all --out <file> [--yes]
-
-# Examples:
-slack-rs auth export --profile prod --out prod-backup.enc --passphrase-prompt
-slack-rs auth export --all --out all-profiles-$(date +%Y%m%d).enc --passphrase-prompt
-
-# With environment variable (for automation)
-slack-rs auth export --profile prod --out backup.enc --yes
-```
-
-**Flags:**
-- `--profile <name>`: Export specific profile
-- `--all`: Export all profiles
-- `--out <file>`: Output file path
-- `--passphrase-prompt`: Prompt for passphrase securely (recommended)
-
-#### Import
-
-Restore profiles from encrypted backup.
-
-```bash
-# Import single profile
-slack-rs auth import --profile <name> --in <file> [--passphrase-prompt]
-
-# Import all profiles
-slack-rs auth import --all --in <file> [--passphrase-prompt]
-
-# Examples:
-slack-rs auth import --profile prod --in backup.enc --passphrase-prompt
-slack-rs auth import --all --in all-profiles.enc --passphrase-prompt
-
-# With environment variable
-slack-rs auth import --all --in backup.enc
-```
-
-**Flags:**
-- `--profile <name>`: Import specific profile
-- `--all`: Import all profiles from file
-- `--in <file>`: Input file path
-- `--passphrase-prompt`: Prompt for passphrase securely (recommended)
-
-### Configuration Commands
-
-#### OAuth Configuration Management
-
-Manage OAuth settings for each profile independently.
-
-**Set OAuth configuration:**
-
-```bash
-slack-rs config oauth set <profile> \
-  --client-id <client-id> \
-  --redirect-uri <redirect-uri> \
-  --scopes <scopes>
-
-# Examples:
-slack-rs config oauth set my-workspace \
-  --client-id 123456789012.1234567890123 \
-  --redirect-uri http://127.0.0.1:8765/callback \
-  --scopes "chat:write,users:read,channels:read"
-
-# Use comprehensive scope preset
-slack-rs config oauth set my-workspace \
-  --client-id 123456789012.1234567890123 \
-  --redirect-uri http://127.0.0.1:8765/callback \
-  --scopes "all"
-```
-
-**Show OAuth configuration:**
-
-```bash
-slack-rs config oauth show <profile>
-
-# Example output:
-# OAuth configuration for profile 'my-workspace':
-#   Client ID: 123456789012.1234567890123
-#   Redirect URI: http://127.0.0.1:8765/callback
-#   Scopes: chat:write, users:read, channels:read
-#   Client secret: (saved in file storage)
-```
-
-**Delete OAuth configuration:**
-
-```bash
-slack-rs config oauth delete <profile>
-
-# Example:
-slack-rs config oauth delete old-workspace
-# ✓ OAuth configuration deleted for profile 'old-workspace'
-```
-
-#### Per-Profile OAuth Settings
-
-Each profile can store its own OAuth configuration, enabling flexible multi-workspace and multi-app workflows.
-
-**Benefits:**
-- ✅ **Different Slack apps per workspace**: Use separate apps for different teams
-- ✅ **Development/Production separation**: Test with dev app, deploy with prod app
-- ✅ **Granular permission control**: Different scopes for different profiles
-- ✅ **Persistent configuration**: Save OAuth settings once, reuse forever
-- ✅ **Team collaboration**: Each team member can use their own Slack app
-- ✅ **Easy switching**: No need to re-enter credentials when switching profiles
-
-**How it works:**
-
-| Step | Action | Storage Location |
-|------|--------|------------------|
-| 1️⃣ | Set OAuth config via `config oauth set` | `~/.config/slack-rs/profiles.json` + file storage |
-| 2️⃣ | Authenticate via `auth login` | Browser OAuth flow |
-| 3️⃣ | Access token saved securely | file storage |
-| 4️⃣ | On re-login, saved config is reused | Auto-loaded from profile |
-
-**Examples:**
-
-```bash
-# Scenario 1: Development workspace with dev app
-slack-rs config oauth set dev-workspace \
-  --client-id 111111111111.222222222222 \
-  --redirect-uri http://127.0.0.1:8765/callback \
-  --scopes "chat:write,users:read"
-slack-rs auth login dev-workspace
-
-# Scenario 2: Production workspace with prod app and comprehensive scopes
-slack-rs config oauth set prod-workspace \
-  --client-id 333333333333.444444444444 \
-  --redirect-uri http://127.0.0.1:8765/callback \
-  --scopes "all"
-slack-rs auth login prod-workspace
-
-# Scenario 3: Re-authenticate dev-workspace (reuses saved config)
-slack-rs auth login dev-workspace
-# ℹ Using saved OAuth configuration
-# [Browser opens automatically]
-
-# Scenario 4: Check current OAuth configuration
-slack-rs config oauth show dev-workspace
-```
-
-**Security Notes:**
-- **Client IDs**: Saved in profile JSON (not sensitive per OAuth 2.0 spec)
-- **Client Secrets**: Saved securely in file storage (file storage/Credential Manager)
-- **Access Tokens**: Always saved securely in file storage
-- **Configuration Files**: Profile metadata stored in `~/.config/slack-rs/profiles.json` with 0600 permissions
-
 ### API Calls
 
-**Generic API access:**
-
 ```bash
+# Generic — call any Slack Web API method
 slack-rs api call <method> [key=value...]
-
-# Examples:
 slack-rs api call users.info user=U123456
 slack-rs api call conversations.history channel=C123456 limit=50
-slack-rs api call search.messages query="important" count=20
-```
 
-**Form-encoded arguments:**
-```bash
+# Form-encoded arguments
 slack-rs api call chat.postMessage channel=C123 text="Hello" thread_ts=1234567.123
 ```
 
+### Wrapper Commands
+
+| Command | Description |
+|---------|-------------|
+| `msg post <channel> <text>` | Post a message |
+| `msg update <channel> <ts> <text>` | Update a message |
+| `msg delete <channel> <ts>` | Delete a message |
+| `conv list` | List conversations |
+| `conv history <channel>` | Get conversation history |
+| `conv search <query>` | Search conversations |
+| `conv select <query>` | Interactive search with zoxide |
+| `search <query>` | Search messages and files |
+| `users info <user>` | Get user info |
+| `thread get <channel> <ts>` | Get thread replies |
+| `react add <channel> <ts> :emoji:` | Add reaction |
+| `react remove <channel> <ts> :emoji:` | Remove reaction |
+| `file upload <channel> <path>` | Upload a file |
+| `file download <url>` | Download a file |
+
+### Auth Commands (Quick Reference)
+
+```bash
+slack-rs auth login [profile] --cloudflared   # Login with tunnel
+slack-rs auth status [profile]                # Check auth status
+slack-rs auth list                            # List all profiles
+slack-rs auth rename <old> <new>              # Rename profile
+slack-rs auth logout <profile>                # Remove profile
+slack-rs config oauth set/show/delete <profile>  # Manage OAuth config
+```
+
+Full auth guide: [docs/authentication.md](docs/authentication.md)
+
 ### Output Format
 
-All commands output JSON with a unified envelope structure that includes both the Slack API response and execution metadata.
+All commands output JSON with a unified envelope. Use `--raw` for raw Slack API response only.
 
-**Default output (with envelope):**
 ```json
 {
-  "response": {
-    "ok": true,
-    "channels": [
-      {"id": "C123", "name": "general"}
-    ]
-  },
+  "response": { "ok": true, "channels": [...] },
   "meta": {
     "profile_name": "default",
     "team_id": "T123ABC",
@@ -662,294 +114,66 @@ All commands output JSON with a unified envelope structure that includes both th
 }
 ```
 
-The `meta` object provides useful context:
-- `profile_name`: Profile used for the request (null if not specified)
-- `team_id`: Slack team/workspace ID
-- `user_id`: User ID from the profile
-- `method`: Slack API method called
-- `command`: CLI command executed (e.g., "api call", "conv list", "msg post")
-
-**Raw output (Slack API response only):**
-
-Use the `--raw` flag to get the Slack API response without the envelope wrapper. This is useful for:
-- Compatibility with existing scripts that expect raw Slack responses
-- Piping output directly to `jq` or other tools
-- Simpler output when metadata is not needed
-
 ```bash
-# With envelope (default)
-slack-rs conv list
-# Output includes both "response" and "meta"
-
-# Raw Slack API response only
-slack-rs conv list --raw
-# Output is the Slack API response without envelope
-
-# Works with all commands
-slack-rs api call conversations.list --raw
-slack-rs msg post C123 "Hello" --raw
-slack-rs search "query" --raw
-```
-
-**Accessing data with jq:**
-
-```bash
-# With envelope (default) - access response data
-slack-rs conv list | jq '.response.channels[].name'
-
-# With envelope - access metadata
-slack-rs conv list | jq '.meta.command'
-
-# Raw output - direct access (for backward compatibility)
-slack-rs conv list --raw | jq '.channels[].name'
-```
-
-**Migration guide for existing scripts:**
-
-If you have existing scripts that parse the output, you can:
-1. Add `--raw` flag to maintain current behavior
-2. Update scripts to extract from `.response` field
-3. Optionally use `.meta` for additional context
-
-```bash
-# Old script (worked before, but now needs update)
-CHANNEL=$(slack-rs conv list | jq -r '.channels[0].id')
-
-# Option 1: Use --raw flag (quick fix)
-CHANNEL=$(slack-rs conv list --raw | jq -r '.channels[0].id')
-
-# Option 2: Extract from .response (recommended)
-CHANNEL=$(slack-rs conv list | jq -r '.response.channels[0].id')
-
-# Option 3: Use metadata too
-RESULT=$(slack-rs conv list | jq -r '{channel: .response.channels[0].id, team: .meta.team_id}')
+slack-rs conv list --raw | jq '.channels[].name'      # Raw mode
+slack-rs conv list | jq '.response.channels[].name'   # Default
 ```
 
 ## Configuration
 
 ### Environment Variables
 
-Only the following environment variables are supported by the current implementation. OAuth client credentials are configured via `slack-rs config oauth set` (not environment variables).
-
-| Variable | Description | Default | Use Case |
-|----------|-------------|---------|----------|
-| `SLACKCLI_ALLOW_WRITE` | Control write operations (post/update/delete messages). Values: `true`, `1`, `yes` (allow) or `false`, `0`, `no` (deny) | `true` | Safety in production environments |
-| `SLACK_OAUTH_BASE_URL` | Custom OAuth base URL for testing or private Slack installations. Example: `https://custom-slack.example.com` | `https://slack.com` | Testing, enterprise Slack instances |
-
-**Setting environment variables:**
-
-```bash
-# Example: Prevent accidental write operations
-export SLACKCLI_ALLOW_WRITE=false
-
-# Example: Non-interactive export/import passphrase
-
-# Example: Use custom OAuth base URL (testing)
-export SLACK_OAUTH_BASE_URL="https://slack.com"
-```
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `SLACKCLI_ALLOW_WRITE` | Control write ops (`true`/`false`) | `true` |
+| `SLACK_OAUTH_BASE_URL` | Custom OAuth base URL (enterprise) | `https://slack.com` |
 
 ### Profile Storage
 
-- **Profile metadata**: `~/.config/slack-rs/profiles.json` (Linux/macOS) or `%APPDATA%\slack-rs\profiles.json` (Windows)
-- **Sensitive credentials**: file storage (~/.config/slack-rs/tokens.json with 0600 permissions)
+- `~/.config/slack-rs/profiles.json` — profile metadata (team, user, scopes)
+- `~/.config/slack-rs/tokens.json` — access tokens + secrets (0600 permissions)
 
-Each profile stores:
-- **In JSON file**: `team_id`, `user_id`, `team_name`, `user_name`, `client_id`, `redirect_uri`, `scopes`
-- **In file storage**: Access token and client secret (when saved via `config oauth set` or export/import)
-
-### Write Operation Protection
-
-Write operations (posting, updating, deleting messages, and managing reactions) are controlled by the `SLACKCLI_ALLOW_WRITE` environment variable:
-
-- **Default behavior** (variable not set): Write operations are **allowed**
-- **Deny write operations**: Set `SLACKCLI_ALLOW_WRITE=false` or `SLACKCLI_ALLOW_WRITE=0`
-- **Explicitly allow**: Set `SLACKCLI_ALLOW_WRITE=true` or `SLACKCLI_ALLOW_WRITE=1`
-
-**Example: Preventing accidental write operations**
-
-```bash
-# Deny all write operations
-export SLACKCLI_ALLOW_WRITE=false
-
-# This will fail with an error
-slack-rs msg post C123456 "Hello"
-# Error: Write operation denied. Set SLACKCLI_ALLOW_WRITE=true to enable write operations
-
-# Re-enable write operations
-export SLACKCLI_ALLOW_WRITE=true
-slack-rs msg post C123456 "Hello"  # Now succeeds
-```
+Each profile stores independent OAuth config. See [docs/config-and-storage.md](docs/config-and-storage.md) for schema details.
 
 ## Security
 
-### Credential Storage
+- **Write protection**: Set `SLACKCLI_ALLOW_WRITE=false` to prevent accidental writes
+- **Tokens**: Stored in file-based storage (`~/.config/slack-rs/tokens.json`, 0600), never logged
+- **Export/Import**: AES-256-GCM encryption with Argon2id key derivation
+- **Rate limiting**: Automatic retry with exponential backoff + jitter
 
-**Access Tokens:**
-All access tokens are stored securely in your operating system's credential manager:
-- **Token storage**: ~/.config/slack-rs/tokens.json
-- **Windows**: Credential Manager
-
-Tokens are never stored in plain text files or logged to the console.
-
-**Client Keys:**
-- **Client IDs**: Stored in profile metadata file (`~/.config/slack-rs/profiles.json`). These are not considered sensitive as they're part of OAuth public flow.
-- **Client Secrets**: Stored securely in file storage when provided (via `config oauth set` or during `auth login`). If not present in file storage, the CLI prompts for it.
-
-### Profile Export/Import
-
-Profile export/import enables secure backup and migration of your authentication profiles between machines or for disaster recovery.
-
-#### What Gets Exported
-
-When you export a profile, the following data is included in the encrypted file:
-- **Profile metadata**: team ID, user ID, team name, user name, client ID
-- **Access token**: OAuth access token for API calls
-- **Client secret**: (Optional) OAuth client secret if you want to save it for convenience
-
-#### Export Profiles
-
-**Export a single profile:**
-
-```bash
-# With passphrase prompt (recommended)
-slack-rs auth export --profile my-workspace --out backup.enc --passphrase-prompt
-
-# With environment variable
-slack-rs auth export --profile my-workspace --out backup.enc --yes
-```
-
-**Export all profiles:**
-
-```bash
-# Export all profiles at once
-slack-rs auth export --all --out all-profiles.enc --passphrase-prompt
-
-# Without confirmation prompt
-slack-rs auth export --all --out all-profiles.enc --yes
-```
-
-#### Import Profiles
-
-**Import a single profile:**
-
-```bash
-# Import with new profile name
-slack-rs auth import --profile my-workspace --in backup.enc --passphrase-prompt
-
-# Import all profiles from file (will prompt for each)
-slack-rs auth import --all --in all-profiles.enc --passphrase-prompt
-```
-
-**Using environment variable for automation:**
-
-```bash
-slack-rs auth import --profile my-workspace --in backup.enc
-slack-rs auth import --all --in all-profiles.enc
-```
-
-#### Security Details
-
-- **Encryption**: AES-256-GCM (industry-standard authenticated encryption)
-- **Key Derivation**: Argon2id with random salt (memory-hard, resistant to GPU attacks)
-- **File Permissions**: Automatically set to `0600` (owner read/write only)
-
-#### Use Cases
-
-1. **Backup**: Create encrypted backups of your profiles before system changes
-2. **Migration**: Transfer profiles to a new machine or OS
-3. **Team Sharing**: Share access credentials with team members (ensure secure passphrase exchange)
-4. **Disaster Recovery**: Restore profiles after system failure or reinstallation
-
-#### Best Practices
-
-✅ **Do:**
-- Use strong, unique passphrases (16+ characters with mixed case, numbers, symbols)
-- Store exported files in secure locations (encrypted drives, password managers)
-- Use `--passphrase-prompt` in scripts to avoid password in shell history
-- Delete old export files after successful import
-
-❌ **Don't:**
-- Commit export files to version control (add `*.enc` to `.gitignore`)
-- Share export files over unencrypted channels (use secure file transfer)
-- Reuse passphrases across different export files
-- Store passphrases in plain text files
-
-**⚠️ Warning**: Exported files contain sensitive credentials including access tokens and potentially client secrets. Treat them like passwords and store securely.
+For full security specification, see [docs/security.md](docs/security.md).
 
 ## Development
 
-### Git Hooks
-
-This project uses [prek](https://prek.j178.dev/) for managing git hooks. Prek is a Rust-based implementation of pre-commit that requires no Python runtime.
-
-**Install prek:**
+This project uses [prek](https://prek.j178.dev/) for git hooks:
 
 ```bash
-# macOS/Linux
-curl -LsSf https://github.com/j178/prek/releases/latest/download/prek-installer.sh | sh
-
-# Homebrew
-brew install prek
-
-# cargo
-cargo install prek
+prek install          # Enable hooks
+prek run --all-files  # Run all hooks manually
 ```
 
-**Enable hooks:**
-
-```bash
-prek install
-```
-
-**Run hooks manually:**
-
-```bash
-# Run all hooks on all files
-prek run --all-files
-
-# Run specific hooks
-prek run cargo-fmt cargo-clippy
-
-# List available hooks
-prek list
-```
-
-The hooks will automatically run before each commit and include:
-- `cargo fmt` - Format Rust code
-- `cargo clippy` - Lint with clippy
-- Trailing whitespace checks
-- File endings checks
-- YAML/TOML syntax validation
+Hooks: `cargo fmt`, `cargo clippy`, trailing whitespace, file endings, YAML/TOML validation.
 
 ## Contributing
 
-Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, coding guidelines, and submission process.
+Contributions welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and guidelines.
 
 ## Roadmap
 
-- [ ] Enhanced wrapper commands for common operations
-- [ ] Support for slash commands
-- [ ] Interactive mode for profile management
-- [ ] Improved error messages with suggestions
-- [ ] Internationalization (i18n) for English and Japanese
+- Enhanced wrapper commands
+- Slash command support
+- Interactive profile management
+- Internationalization (English / Japanese)
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+MIT — see [LICENSE](LICENSE).
 
 ## Acknowledgments
 
-- Built with [Rust](https://www.rust-lang.org/)
-- Uses [reqwest](https://github.com/seanmonstar/reqwest) for HTTP
-- Secure storage with file-based token storage
-- OAuth implementation inspired by [oauth2-rs](https://github.com/ramosbugs/oauth2-rs)
-
-## Support
-
-- 🐛 [Report Issues](https://github.com/tumf/slack-rs/issues)
-- 💬 [Discussions](https://github.com/tumf/slack-rs/discussions)
-- 📖 [Slack API Documentation](https://api.slack.com/web)
+Built with [Rust](https://www.rust-lang.org/), [reqwest](https://github.com/seanmonstar/reqwest), OAuth inspired by [oauth2-rs](https://github.com/ramosbugs/oauth2-rs).
 
 ---
 
-**Note**: This is an unofficial tool and is not affiliated with or endorsed by Slack Technologies, Inc.
+**Note**: Unofficial tool, not affiliated with Slack Technologies, Inc.
