@@ -292,6 +292,20 @@ pub fn resolve_profile_name(args: &[String]) -> String {
     "default".to_string()
 }
 
+/// Load the workspace users cache for a profile, returning None gracefully on any error.
+///
+/// This is used by history/thread enrichment to resolve user names. If the cache file
+/// doesn't exist, the profile isn't found, or any other error occurs, `None` is returned
+/// and enrichment still populates user IDs (without names).
+fn resolve_workspace_cache(profile_name: &str) -> Option<commands::users_cache::WorkspaceCache> {
+    let config_path = default_config_path().ok()?;
+    let config = load_config(&config_path).ok()?;
+    let profile = config.get(profile_name)?;
+    let cache_path = commands::users_cache::UsersCacheFile::default_path().ok()?;
+    let cache_file = commands::users_cache::UsersCacheFile::load(&cache_path).ok()?;
+    cache_file.caches.get(&profile.team_id).cloned()
+}
+
 /// Get option value from args
 /// Supports both --key=value and --key value formats
 /// When using space-separated format, value must not start with '-'
@@ -822,7 +836,7 @@ pub async fn run_conv_history(args: &[String]) -> Result<(), String> {
     );
 
     let client = get_api_client_with_token_type(Some(profile_name.clone()), token_type).await?;
-    let response = commands::conv_history(&client, channel, limit, oldest, latest)
+    let mut response = commands::conv_history(&client, channel, limit, oldest, latest)
         .await
         .map_err(|e| e.to_string())?;
 
@@ -834,6 +848,16 @@ pub async fn run_conv_history(args: &[String]) -> Result<(), String> {
 
     // Display error guidance if response contains a known error
     crate::api::display_wrapper_error_guidance(&response);
+
+    // Enrich messages with user info from workspace cache (graceful: no cache → ids only)
+    let workspace_cache = resolve_workspace_cache(&profile_name);
+    if let Some(messages) = response.data.get_mut("messages") {
+        if let Some(msgs) = messages.as_array_mut() {
+            for msg in msgs {
+                commands::conv::enrich_message_with_users(msg, workspace_cache.as_ref());
+            }
+        }
+    }
 
     // Output with or without envelope
     let output = if raw {
@@ -919,7 +943,7 @@ pub async fn run_thread_get(args: &[String]) -> Result<(), String> {
 
     let client = get_api_client_with_token_type(Some(profile_name.clone()), token_type).await?;
     let inclusive_opt = if inclusive { Some(true) } else { None };
-    let response = commands::thread_get(&client, channel, thread_ts, limit, inclusive_opt)
+    let mut response = commands::thread_get(&client, channel, thread_ts, limit, inclusive_opt)
         .await
         .map_err(|e| e.to_string())?;
 
@@ -931,6 +955,16 @@ pub async fn run_thread_get(args: &[String]) -> Result<(), String> {
 
     // Display error guidance if response contains a known error
     crate::api::display_wrapper_error_guidance(&response);
+
+    // Enrich messages with user info from workspace cache (graceful: no cache → ids only)
+    let workspace_cache = resolve_workspace_cache(&profile_name);
+    if let Some(messages) = response.data.get_mut("messages") {
+        if let Some(msgs) = messages.as_array_mut() {
+            for msg in msgs {
+                commands::conv::enrich_message_with_users(msg, workspace_cache.as_ref());
+            }
+        }
+    }
 
     // Output with or without envelope
     let output = if raw {

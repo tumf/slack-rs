@@ -1,6 +1,10 @@
 //! Output formatting functionality for conversations
 
 use crate::api::ApiResponse;
+use crate::commands::users_cache::WorkspaceCache;
+use regex::Regex;
+use serde_json::Value;
+use std::collections::BTreeSet;
 use std::fmt;
 
 /// Output format for conversation list
@@ -194,9 +198,113 @@ fn format_as_tsv(response: &ApiResponse) -> Result<String, String> {
     Ok(output)
 }
 
+/// Recursively collect user IDs from `<@Uxxxx>` mentions in all string values
+/// within a Value (including nested blocks, arrays, and objects).
+fn collect_ids_from_value(value: &Value, ids: &mut BTreeSet<String>, re: &Regex) {
+    match value {
+        Value::String(s) => {
+            for cap in re.captures_iter(s) {
+                ids.insert(cap[1].to_string());
+            }
+        }
+        Value::Array(arr) => {
+            for v in arr {
+                collect_ids_from_value(v, ids, re);
+            }
+        }
+        Value::Object(obj) => {
+            for v in obj.values() {
+                collect_ids_from_value(v, ids, re);
+            }
+        }
+        _ => {}
+    }
+}
+
+/// Collect all user IDs referenced by a Slack message.
+///
+/// Gathers user IDs from:
+/// - The `user` field (the message poster)
+/// - `<@Uxxxx>` mentions in `text`
+/// - `<@Uxxxx>` mentions anywhere within `blocks`
+///
+/// Results are deduplicated and sorted lexicographically.
+pub fn collect_message_user_ids(message: &Value) -> Vec<String> {
+    let mention_re = Regex::new(r"<@(U[A-Z0-9]+)(?:\|[^>]+)?>").unwrap();
+    let mut ids = BTreeSet::new();
+
+    // Poster
+    if let Some(user) = message.get("user").and_then(|v| v.as_str()) {
+        ids.insert(user.to_string());
+    }
+
+    // Mentions in text
+    if let Some(text) = message.get("text").and_then(|v| v.as_str()) {
+        for cap in mention_re.captures_iter(text) {
+            ids.insert(cap[1].to_string());
+        }
+    }
+
+    // Mentions in blocks (recursive)
+    if let Some(blocks) = message.get("blocks") {
+        collect_ids_from_value(blocks, &mut ids, &mention_re);
+    }
+
+    ids.into_iter().collect()
+}
+
+/// Enrich a single Slack message with resolved user information.
+///
+/// Adds a `users` array to the message object containing `id`, `name`,
+/// `display_name`, and `real_name` for every user ID found in the message.
+/// Names are populated from the workspace cache when available; uncached
+/// users appear with only the `id` field (graceful degradation).
+pub fn enrich_message_with_users(message: &mut Value, cache: Option<&WorkspaceCache>) {
+    let ids = collect_message_user_ids(message);
+
+    let users: Vec<Value> = ids
+        .iter()
+        .map(|id| {
+            let mut entry = serde_json::Map::new();
+            entry.insert("id".to_string(), serde_json::Value::String(id.clone()));
+
+            // Populate name fields when cache has this user
+            if let Some(cache) = cache {
+                if let Some(cached) = cache.users.get(id.as_str()) {
+                    entry.insert(
+                        "name".to_string(),
+                        serde_json::Value::String(cached.name.clone()),
+                    );
+                    entry.insert(
+                        "display_name".to_string(),
+                        match &cached.display_name {
+                            Some(dn) => serde_json::Value::String(dn.clone()),
+                            None => serde_json::Value::Null,
+                        },
+                    );
+                    entry.insert(
+                        "real_name".to_string(),
+                        match &cached.real_name {
+                            Some(rn) => serde_json::Value::String(rn.clone()),
+                            None => serde_json::Value::Null,
+                        },
+                    );
+                }
+            }
+
+            serde_json::Value::Object(entry)
+        })
+        .collect();
+
+    if let Value::Object(ref mut map) = message {
+        map.insert("users".to_string(), Value::Array(users));
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::commands::users_cache::CachedUser;
     use serde_json::json;
     use std::collections::HashMap;
 
@@ -274,5 +382,168 @@ mod tests {
         assert!(output.contains("C1"));
         assert!(output.contains("general"));
         assert!(output.contains("42"));
+    }
+
+    // ── Enrichment tests ──
+
+    #[test]
+    fn test_collect_ids_poster_only() {
+        let msg = json!({"user": "U111", "text": "hello world"});
+        let ids = collect_message_user_ids(&msg);
+        assert_eq!(ids, vec!["U111"]);
+    }
+
+    #[test]
+    fn test_collect_ids_text_mentions() {
+        let msg = json!({"user": "U111", "text": "hey <@U222> and <@U333>"});
+        let ids = collect_message_user_ids(&msg);
+        assert_eq!(ids, vec!["U111", "U222", "U333"]);
+    }
+
+    #[test]
+    fn test_collect_ids_blocks_mentions() {
+        let msg = json!({
+            "user": "U111",
+            "text": "hello",
+            "blocks": [
+                {
+                    "type": "section",
+                    "text": {"type": "mrkdwn", "text": "hey <@U444>"}
+                },
+                {
+                    "type": "rich_text",
+                    "elements": [
+                        {
+                            "type": "rich_text_section",
+                            "elements": [
+                                {"type": "text", "text": "and <@U555>"}
+                            ]
+                        }
+                    ]
+                }
+            ]
+        });
+        let ids = collect_message_user_ids(&msg);
+        assert_eq!(ids, vec!["U111", "U444", "U555"]);
+    }
+
+    #[test]
+    fn test_collect_ids_deduplicated() {
+        let msg = json!({"user": "U111", "text": "hey <@U111> <@U111> <@U222>"});
+        let ids = collect_message_user_ids(&msg);
+        assert_eq!(ids, vec!["U111", "U222"]);
+    }
+
+    #[test]
+    fn test_collect_ids_sorted() {
+        let msg = json!({"user": "U999", "text": "<@U111> <@U555> <@U222>"});
+        let ids = collect_message_user_ids(&msg);
+        assert_eq!(ids, vec!["U111", "U222", "U555", "U999"]);
+    }
+
+    #[test]
+    fn test_enrich_with_cache() {
+        let mut msg = json!({"user": "U111", "text": "hello <@U222>"});
+
+        let mut users_map = HashMap::new();
+        users_map.insert(
+            "U111".to_string(),
+            CachedUser {
+                id: "U111".to_string(),
+                name: "alice".to_string(),
+                real_name: Some("Alice Smith".to_string()),
+                display_name: Some("alice.s".to_string()),
+                deleted: false,
+                is_bot: false,
+            },
+        );
+        users_map.insert(
+            "U222".to_string(),
+            CachedUser {
+                id: "U222".to_string(),
+                name: "bob".to_string(),
+                real_name: Some("Bob Jones".to_string()),
+                display_name: None,
+                deleted: false,
+                is_bot: false,
+            },
+        );
+
+        let cache = WorkspaceCache {
+            team_id: "T001".to_string(),
+            updated_at: 1700000000,
+            users: users_map,
+        };
+
+        enrich_message_with_users(&mut msg, Some(&cache));
+
+        let users = msg.get("users").unwrap().as_array().unwrap();
+        assert_eq!(users.len(), 2);
+
+        let u0 = &users[0];
+        assert_eq!(u0["id"], "U111");
+        assert_eq!(u0["name"], "alice");
+        assert_eq!(u0["display_name"], "alice.s");
+        assert_eq!(u0["real_name"], "Alice Smith");
+
+        let u1 = &users[1];
+        assert_eq!(u1["id"], "U222");
+        assert_eq!(u1["name"], "bob");
+        assert_eq!(u1["display_name"], Value::Null);
+        assert_eq!(u1["real_name"], "Bob Jones");
+    }
+
+    #[test]
+    fn test_enrich_uncached_user() {
+        let mut msg = json!({"user": "U999", "text": "hello"});
+
+        let cache = WorkspaceCache {
+            team_id: "T001".to_string(),
+            updated_at: 1700000000,
+            users: HashMap::new(), // empty cache
+        };
+
+        enrich_message_with_users(&mut msg, Some(&cache));
+
+        let users = msg.get("users").unwrap().as_array().unwrap();
+        assert_eq!(users.len(), 1);
+        assert_eq!(users[0]["id"], "U999");
+        // Uncached user: only id, no other fields
+        assert!(users[0].get("name").is_none());
+        assert!(users[0].get("display_name").is_none());
+        assert!(users[0].get("real_name").is_none());
+    }
+
+    #[test]
+    fn test_enrich_no_cache() {
+        let mut msg = json!({"user": "U111", "text": "hello <@U222>"});
+
+        enrich_message_with_users(&mut msg, None);
+
+        let users = msg.get("users").unwrap().as_array().unwrap();
+        assert_eq!(users.len(), 2);
+        // All users have only id when no cache
+        for u in users {
+            assert!(u.get("id").is_some());
+            assert!(u.get("name").is_none());
+        }
+    }
+
+    #[test]
+    fn test_enrich_with_pipe_mentions() {
+        let mut msg = json!({"user": "U111", "text": "hello <@U222|bob> and <@U333>"});
+
+        let cache = WorkspaceCache {
+            team_id: "T001".to_string(),
+            updated_at: 1700000000,
+            users: HashMap::new(),
+        };
+
+        enrich_message_with_users(&mut msg, Some(&cache));
+
+        let users = msg.get("users").unwrap().as_array().unwrap();
+        assert_eq!(users.len(), 3);
+        let ids: Vec<&str> = users.iter().map(|u| u["id"].as_str().unwrap()).collect();
+        assert_eq!(ids, vec!["U111", "U222", "U333"]);
     }
 }
