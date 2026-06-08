@@ -879,6 +879,30 @@ pub async fn run_conv_history(args: &[String]) -> Result<(), String> {
     Ok(())
 }
 
+/// Add default `thread get` response-level user metadata without mutating Slack messages.
+pub async fn add_thread_resolution_metadata(
+    client: &ApiClient,
+    response: &mut crate::api::ApiResponse,
+    messages: &[Value],
+    workspace_cache: Option<&commands::users_cache::WorkspaceCache>,
+) -> Result<(), crate::api::ApiError> {
+    let (resolved_users, unresolved_user_ids) =
+        commands::conv::resolve_thread_users(client, messages, workspace_cache).await?;
+
+    response.data.insert(
+        "resolved_users".to_string(),
+        serde_json::to_value(resolved_users).map_err(crate::api::ApiError::JsonError)?,
+    );
+    if !unresolved_user_ids.is_empty() {
+        response.data.insert(
+            "unresolved_user_ids".to_string(),
+            serde_json::to_value(unresolved_user_ids).map_err(crate::api::ApiError::JsonError)?,
+        );
+    }
+
+    Ok(())
+}
+
 pub async fn run_thread_get(args: &[String]) -> Result<(), String> {
     // Check for --help flag before API call
     if has_flag(args, "--help") || has_flag(args, "-h") {
@@ -967,21 +991,10 @@ pub async fn run_thread_get(args: &[String]) -> Result<(), String> {
             .cloned()
             .unwrap_or_default();
         let workspace_cache = resolve_workspace_cache(&profile_name);
-        let (resolved_users, unresolved_user_ids) =
-            commands::conv::resolve_thread_users(&client, &messages, workspace_cache.as_ref())
-                .await
-                .map_err(|e| e.to_string())?;
 
-        response.data.insert(
-            "resolved_users".to_string(),
-            serde_json::to_value(resolved_users).map_err(|e| e.to_string())?,
-        );
-        if !unresolved_user_ids.is_empty() {
-            response.data.insert(
-                "unresolved_user_ids".to_string(),
-                serde_json::to_value(unresolved_user_ids).map_err(|e| e.to_string())?,
-            );
-        }
+        add_thread_resolution_metadata(&client, &mut response, &messages, workspace_cache.as_ref())
+            .await
+            .map_err(|e| e.to_string())?;
 
         let response_value = serde_json::to_value(&response).map_err(|e| e.to_string())?;
         let wrapped = wrap_with_envelope_and_token_type(
