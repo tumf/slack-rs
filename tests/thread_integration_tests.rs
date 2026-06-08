@@ -9,7 +9,10 @@
 use httpmock::prelude::*;
 use serde_json::json;
 use slack_rs::api::ApiClient;
+use slack_rs::commands::conv::{collect_thread_user_ids, resolve_thread_users};
 use slack_rs::commands::thread_get;
+use slack_rs::commands::users_cache::{CachedUser, WorkspaceCache};
+use std::collections::HashMap;
 
 #[tokio::test]
 async fn test_thread_get_single_page() {
@@ -201,4 +204,184 @@ async fn test_thread_get_with_inclusive_param() {
 
     // Verify mock was called with inclusive parameter
     mock.assert();
+}
+
+#[tokio::test]
+async fn test_thread_user_resolution_uses_response_scope_without_message_users() {
+    let server = MockServer::start();
+    let replies_mock = server.mock(|when, then| {
+        when.method(GET)
+            .path("/conversations.replies")
+            .query_param("channel", "C123456")
+            .query_param("ts", "1234567890.123456")
+            .query_param("limit", "100");
+        then.status(200).json_body(json!({
+            "ok": true,
+            "messages": [
+                {
+                    "type": "message",
+                    "user": "U111",
+                    "text": "hello <@U222>",
+                    "blocks": [{"type": "section", "text": {"type": "mrkdwn", "text": "cc <@U333>"}}],
+                    "reactions": [{"name": "eyes", "users": ["U444", "U222"]}],
+                    "ts": "1234567890.123456"
+                }
+            ],
+            "response_metadata": {"next_cursor": ""}
+        }));
+    });
+
+    let users_info_mock = server.mock(|when, then| {
+        when.method(GET)
+            .path("/users.info")
+            .query_param("user", "U444");
+        then.status(200).json_body(json!({
+            "ok": true,
+            "user": {
+                "id": "U444",
+                "name": "dave",
+                "profile": {"display_name": "Dave", "real_name": "Dave D"},
+                "deleted": false,
+                "is_bot": false
+            }
+        }));
+    });
+
+    let client = ApiClient::new_with_base_url("test-token".to_string(), server.base_url());
+    let mut response = thread_get(
+        &client,
+        "C123456".to_string(),
+        "1234567890.123456".to_string(),
+        None,
+        None,
+    )
+    .await
+    .unwrap();
+
+    let messages = response
+        .data
+        .get("messages")
+        .unwrap()
+        .as_array()
+        .unwrap()
+        .clone();
+    assert!(messages
+        .iter()
+        .all(|message| message.get("users").is_none()));
+
+    let mut users = HashMap::new();
+    users.insert(
+        "U111".to_string(),
+        CachedUser {
+            id: "U111".to_string(),
+            name: "alice".to_string(),
+            real_name: Some("Alice A".to_string()),
+            display_name: Some("Alice".to_string()),
+            deleted: false,
+            is_bot: false,
+        },
+    );
+    users.insert(
+        "U222".to_string(),
+        CachedUser {
+            id: "U222".to_string(),
+            name: "bob".to_string(),
+            real_name: Some("Bob B".to_string()),
+            display_name: Some("Bob".to_string()),
+            deleted: false,
+            is_bot: false,
+        },
+    );
+    users.insert(
+        "U333".to_string(),
+        CachedUser {
+            id: "U333".to_string(),
+            name: "carol".to_string(),
+            real_name: Some("Carol C".to_string()),
+            display_name: Some("Carol".to_string()),
+            deleted: false,
+            is_bot: false,
+        },
+    );
+    let cache = WorkspaceCache {
+        team_id: "T001".to_string(),
+        updated_at: 1700000000,
+        users,
+    };
+
+    let (resolved_users, unresolved_user_ids) =
+        resolve_thread_users(&client, &messages, Some(&cache))
+            .await
+            .unwrap();
+    response.data.insert(
+        "resolved_users".to_string(),
+        serde_json::to_value(resolved_users).unwrap(),
+    );
+    if !unresolved_user_ids.is_empty() {
+        response.data.insert(
+            "unresolved_user_ids".to_string(),
+            serde_json::to_value(unresolved_user_ids).unwrap(),
+        );
+    }
+
+    replies_mock.assert();
+    users_info_mock.assert();
+    assert_eq!(
+        collect_thread_user_ids(&messages),
+        vec!["U111", "U222", "U333", "U444"]
+    );
+    let resolved = response.data.get("resolved_users").unwrap();
+    assert_eq!(resolved["U111"]["name"], "alice");
+    assert_eq!(resolved["U222"]["name"], "bob");
+    assert_eq!(resolved["U333"]["name"], "carol");
+    assert_eq!(resolved["U444"]["name"], "dave");
+    assert!(response.data.get("unresolved_user_ids").is_none());
+    assert!(response
+        .data
+        .get("messages")
+        .unwrap()
+        .as_array()
+        .unwrap()
+        .iter()
+        .all(|message| message.get("users").is_none()));
+}
+
+#[tokio::test]
+async fn test_thread_get_raw_shape_has_no_wrapper_resolution_metadata() {
+    let server = MockServer::start();
+    let mock = server.mock(|when, then| {
+        when.method(GET)
+            .path("/conversations.replies")
+            .query_param("channel", "C123456")
+            .query_param("ts", "1234567890.123456")
+            .query_param("limit", "100");
+        then.status(200).json_body(json!({
+            "ok": true,
+            "messages": [{"type": "message", "user": "U111", "text": "hello <@U222>", "ts": "1234567890.123456"}],
+            "response_metadata": {"next_cursor": ""}
+        }));
+    });
+
+    let client = ApiClient::new_with_base_url("test-token".to_string(), server.base_url());
+    let response = thread_get(
+        &client,
+        "C123456".to_string(),
+        "1234567890.123456".to_string(),
+        None,
+        None,
+    )
+    .await
+    .unwrap();
+
+    mock.assert();
+    assert!(response.data.get("resolved_users").is_none());
+    assert!(response.data.get("unresolved_user_ids").is_none());
+    assert!(response
+        .data
+        .get("messages")
+        .unwrap()
+        .as_array()
+        .unwrap()
+        .iter()
+        .all(|message| message.get("users").is_none()));
 }

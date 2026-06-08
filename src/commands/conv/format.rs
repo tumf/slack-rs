@@ -1,10 +1,10 @@
 //! Output formatting functionality for conversations
 
-use crate::api::ApiResponse;
-use crate::commands::users_cache::WorkspaceCache;
+use crate::api::{ApiClient, ApiError, ApiResponse};
+use crate::commands::users_cache::{CachedUser, WorkspaceCache};
 use regex::Regex;
 use serde_json::Value;
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 
 /// Output format for conversation list
@@ -227,6 +227,7 @@ fn collect_ids_from_value(value: &Value, ids: &mut BTreeSet<String>, re: &Regex)
 /// - The `user` field (the message poster)
 /// - `<@Uxxxx>` mentions in `text`
 /// - `<@Uxxxx>` mentions anywhere within `blocks`
+/// - User IDs in `reactions[].users[]`
 ///
 /// Results are deduplicated and sorted lexicographically.
 pub fn collect_message_user_ids(message: &Value) -> Vec<String> {
@@ -248,6 +249,19 @@ pub fn collect_message_user_ids(message: &Value) -> Vec<String> {
     // Mentions in blocks (recursive)
     if let Some(blocks) = message.get("blocks") {
         collect_ids_from_value(blocks, &mut ids, &mention_re);
+    }
+
+    // Reaction actors from reactions[].users[]
+    if let Some(reactions) = message.get("reactions").and_then(|r| r.as_array()) {
+        for reaction in reactions {
+            if let Some(users) = reaction.get("users").and_then(|u| u.as_array()) {
+                for user in users {
+                    if let Some(user_id) = user.as_str() {
+                        ids.insert(user_id.to_string());
+                    }
+                }
+            }
+        }
     }
 
     ids.into_iter().collect()
@@ -299,6 +313,129 @@ pub fn enrich_message_with_users(message: &mut Value, cache: Option<&WorkspaceCa
     if let Value::Object(ref mut map) = message {
         map.insert("users".to_string(), Value::Array(users));
     }
+}
+
+/// Collect all user IDs referenced across a Slack thread response.
+///
+/// Gathers IDs from each message's author, text mentions, block mentions, and
+/// `reactions[].users[]`. Results are deduplicated and sorted lexicographically
+/// for deterministic resolution and output.
+pub fn collect_thread_user_ids(messages: &[Value]) -> Vec<String> {
+    messages
+        .iter()
+        .flat_map(collect_message_user_ids)
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect()
+}
+
+fn cached_user_to_value(user: &CachedUser) -> Value {
+    let mut entry = serde_json::Map::new();
+    entry.insert("id".to_string(), Value::String(user.id.clone()));
+    entry.insert("name".to_string(), Value::String(user.name.clone()));
+    entry.insert(
+        "display_name".to_string(),
+        user.display_name
+            .as_ref()
+            .map(|value| Value::String(value.clone()))
+            .unwrap_or(Value::Null),
+    );
+    entry.insert(
+        "real_name".to_string(),
+        user.real_name
+            .as_ref()
+            .map(|value| Value::String(value.clone()))
+            .unwrap_or(Value::Null),
+    );
+    entry.insert("deleted".to_string(), Value::Bool(user.deleted));
+    entry.insert("is_bot".to_string(), Value::Bool(user.is_bot));
+    Value::Object(entry)
+}
+
+fn slack_user_to_resolved_value(user: &Value) -> Option<Value> {
+    let id = user.get("id")?.as_str()?;
+    let name = user.get("name")?.as_str()?;
+    let profile = user.get("profile");
+
+    let mut entry = serde_json::Map::new();
+    entry.insert("id".to_string(), Value::String(id.to_string()));
+    entry.insert("name".to_string(), Value::String(name.to_string()));
+    entry.insert(
+        "display_name".to_string(),
+        profile
+            .and_then(|profile| profile.get("display_name"))
+            .and_then(|value| value.as_str())
+            .filter(|value| !value.is_empty())
+            .map(|value| Value::String(value.to_string()))
+            .unwrap_or(Value::Null),
+    );
+    entry.insert(
+        "real_name".to_string(),
+        profile
+            .and_then(|profile| profile.get("real_name"))
+            .and_then(|value| value.as_str())
+            .filter(|value| !value.is_empty())
+            .map(|value| Value::String(value.to_string()))
+            .unwrap_or(Value::Null),
+    );
+    entry.insert(
+        "deleted".to_string(),
+        Value::Bool(
+            user.get("deleted")
+                .and_then(|value| value.as_bool())
+                .unwrap_or(false),
+        ),
+    );
+    entry.insert(
+        "is_bot".to_string(),
+        Value::Bool(
+            user.get("is_bot")
+                .and_then(|value| value.as_bool())
+                .unwrap_or(false),
+        ),
+    );
+
+    Some(Value::Object(entry))
+}
+
+/// Resolve thread-scoped user metadata without mutating Slack message payloads.
+///
+/// Cache hits are used first. Cache misses call `users.info`; only successfully
+/// hydrated user records are returned in `resolved_users`. IDs that cannot be
+/// resolved are returned separately as `unresolved_user_ids`.
+pub async fn resolve_thread_users(
+    client: &ApiClient,
+    messages: &[Value],
+    cache: Option<&WorkspaceCache>,
+) -> Result<(BTreeMap<String, Value>, Vec<String>), ApiError> {
+    let ids = collect_thread_user_ids(messages);
+    let mut resolved_users = BTreeMap::new();
+    let mut unresolved_user_ids = Vec::new();
+
+    for id in ids {
+        if let Some(cached) = cache.and_then(|cache| cache.users.get(&id)) {
+            resolved_users.insert(id, cached_user_to_value(cached));
+            continue;
+        }
+
+        match crate::commands::users_info(client, id.clone()).await {
+            Ok(response) if response.ok => {
+                if let Some(user) = response
+                    .data
+                    .get("user")
+                    .and_then(slack_user_to_resolved_value)
+                {
+                    resolved_users.insert(id, user);
+                } else {
+                    unresolved_user_ids.push(id);
+                }
+            }
+            Ok(_) => unresolved_user_ids.push(id),
+            Err(error) => return Err(error),
+        }
+    }
+
+    Ok((resolved_users, unresolved_user_ids))
 }
 
 #[cfg(test)]
@@ -545,5 +682,31 @@ mod tests {
         assert_eq!(users.len(), 3);
         let ids: Vec<&str> = users.iter().map(|u| u["id"].as_str().unwrap()).collect();
         assert_eq!(ids, vec!["U111", "U222", "U333"]);
+    }
+
+    #[test]
+    fn test_collect_ids_reaction_users() {
+        let msg = json!({
+            "user": "U111",
+            "text": "hello <@U222>",
+            "reactions": [
+                {"name": "thumbsup", "users": ["U333", "U111"]},
+                {"name": "eyes", "users": ["U444"]}
+            ]
+        });
+
+        let ids = collect_message_user_ids(&msg);
+        assert_eq!(ids, vec!["U111", "U222", "U333", "U444"]);
+    }
+
+    #[test]
+    fn test_collect_thread_user_ids_deduplicates_across_messages() {
+        let messages = vec![
+            json!({"user": "U222", "text": "hello <@U111>", "reactions": [{"users": ["U333"]}]}),
+            json!({"user": "U333", "text": "again <@U222>", "reactions": [{"users": ["U444", "U111"]}]}),
+        ];
+
+        let ids = collect_thread_user_ids(&messages);
+        assert_eq!(ids, vec!["U111", "U222", "U333", "U444"]);
     }
 }
