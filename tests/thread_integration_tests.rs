@@ -9,11 +9,14 @@
 use httpmock::prelude::*;
 use serde_json::json;
 use slack_rs::api::ApiClient;
-use slack_rs::cli::add_thread_resolution_metadata;
+use slack_rs::cli::{add_thread_resolution_metadata, build_thread_get_output};
 use slack_rs::commands::conv::{collect_thread_user_ids, resolve_thread_users};
 use slack_rs::commands::thread_get;
 use slack_rs::commands::users_cache::{CachedUser, WorkspaceCache};
+use slack_rs::profile::ProfilesConfig;
 use std::collections::HashMap;
+use std::fs;
+use tempfile::TempDir;
 
 #[tokio::test]
 async fn test_thread_get_single_page() {
@@ -543,6 +546,181 @@ async fn test_thread_get_default_cli_metadata_separates_unresolved_ids() {
         .data
         .get("messages")
         .unwrap()
+        .as_array()
+        .unwrap()
+        .iter()
+        .all(|message| message.get("users").is_none()));
+}
+
+fn write_default_profile_config(temp_dir: &TempDir) -> std::path::PathBuf {
+    let config_path = temp_dir.path().join("profiles.json");
+    let mut config = ProfilesConfig::new();
+    config.set(
+        "default".to_string(),
+        slack_rs::profile::Profile::with_scopes(
+            "T001".to_string(),
+            "UCLI".to_string(),
+            Some("Test Team".to_string()),
+            Some("CLI User".to_string()),
+            None,
+            None,
+            None,
+            None,
+        ),
+    );
+    fs::write(&config_path, serde_json::to_string_pretty(&config).unwrap()).unwrap();
+    config_path
+}
+
+#[tokio::test]
+#[serial_test::serial]
+async fn test_thread_get_cli_output_builder_default_envelope_separates_resolution_metadata() {
+    let temp_dir = TempDir::new().unwrap();
+    let config_path = write_default_profile_config(&temp_dir);
+    std::env::set_var("SLACK_RS_CONFIG_PATH", &config_path);
+
+    let server = MockServer::start();
+    let replies_mock = server.mock(|when, then| {
+        when.method(GET)
+            .path("/conversations.replies")
+            .query_param("channel", "C123456")
+            .query_param("ts", "1234567890.123456")
+            .query_param("limit", "100");
+        then.status(200).json_body(json!({
+            "ok": true,
+            "messages": [{
+                "type": "message",
+                "user": "U111",
+                "text": "hello <@U222> cc <@U404>",
+                "ts": "1234567890.123456"
+            }],
+            "response_metadata": {"next_cursor": ""}
+        }));
+    });
+    let resolved_mock = server.mock(|when, then| {
+        when.method(GET)
+            .path("/users.info")
+            .query_param("user", "U111");
+        then.status(200).json_body(json!({
+            "ok": true,
+            "user": {
+                "id": "U111",
+                "name": "alice",
+                "profile": {"display_name": "Alice", "real_name": "Alice A"},
+                "deleted": false,
+                "is_bot": false
+            }
+        }));
+    });
+    let mentioned_mock = server.mock(|when, then| {
+        when.method(GET)
+            .path("/users.info")
+            .query_param("user", "U222");
+        then.status(200).json_body(json!({
+            "ok": true,
+            "user": {
+                "id": "U222",
+                "name": "bob",
+                "profile": {"display_name": "Bob", "real_name": "Bob B"},
+                "deleted": false,
+                "is_bot": false
+            }
+        }));
+    });
+    let unresolved_mock = server.mock(|when, then| {
+        when.method(GET)
+            .path("/users.info")
+            .query_param("user", "U404");
+        then.status(200).json_body(json!({
+            "ok": false,
+            "error": "user_not_found"
+        }));
+    });
+
+    let client = ApiClient::new_with_base_url("test-token".to_string(), server.base_url());
+    let output = build_thread_get_output(
+        &client,
+        "C123456".to_string(),
+        "1234567890.123456".to_string(),
+        None,
+        None,
+        false,
+        "default".to_string(),
+        None,
+    )
+    .await
+    .expect("default CLI output should survive users.info failures");
+
+    std::env::remove_var("SLACK_RS_CONFIG_PATH");
+    replies_mock.assert();
+    resolved_mock.assert();
+    mentioned_mock.assert();
+    unresolved_mock.assert();
+
+    assert_eq!(
+        output["response"]["resolved_users"]["U111"]["name"],
+        "alice"
+    );
+    assert_eq!(output["response"]["resolved_users"]["U222"]["name"], "bob");
+    assert!(output["response"]["resolved_users"].get("U404").is_none());
+    assert_eq!(output["response"]["unresolved_user_ids"], json!(["U404"]));
+    assert!(output["response"]["messages"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .all(|message| message.get("users").is_none()));
+    assert_eq!(output["meta"]["method"], "conversations.replies");
+    assert_eq!(output["meta"]["command"], "thread get");
+}
+
+#[tokio::test]
+#[serial_test::serial]
+async fn test_thread_get_cli_output_builder_raw_skips_wrapper_resolution() {
+    std::env::remove_var("SLACK_RS_CONFIG_PATH");
+    let server = MockServer::start();
+    let replies_mock = server.mock(|when, then| {
+        when.method(GET)
+            .path("/conversations.replies")
+            .query_param("channel", "C123456")
+            .query_param("ts", "1234567890.123456")
+            .query_param("limit", "100");
+        then.status(200).json_body(json!({
+            "ok": true,
+            "messages": [{
+                "type": "message",
+                "user": "U111",
+                "text": "hello <@U222>",
+                "ts": "1234567890.123456"
+            }],
+            "response_metadata": {"next_cursor": ""}
+        }));
+    });
+    let users_info_mock = server.mock(|when, then| {
+        when.method(GET).path("/users.info");
+        then.status(500)
+            .json_body(json!({"ok": false, "error": "should_not_be_called"}));
+    });
+
+    let client = ApiClient::new_with_base_url("test-token".to_string(), server.base_url());
+    let output = build_thread_get_output(
+        &client,
+        "C123456".to_string(),
+        "1234567890.123456".to_string(),
+        None,
+        None,
+        true,
+        "default".to_string(),
+        None,
+    )
+    .await
+    .expect("raw CLI output should not need profile config or user enrichment");
+
+    replies_mock.assert();
+    users_info_mock.assert_calls(0);
+    assert!(output.get("response").is_none());
+    assert!(output.get("resolved_users").is_none());
+    assert!(output.get("unresolved_user_ids").is_none());
+    assert!(output["messages"]
         .as_array()
         .unwrap()
         .iter()

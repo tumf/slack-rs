@@ -903,6 +903,55 @@ pub async fn add_thread_resolution_metadata(
     Ok(())
 }
 
+/// Build `thread get` JSON output using the same raw/default branching as the CLI command.
+///
+/// Tests inject a mock-backed [`ApiClient`] here so the command-output path can be verified
+/// without relying on global token stores or process stdout capture.
+#[allow(clippy::too_many_arguments)]
+pub async fn build_thread_get_output(
+    client: &ApiClient,
+    channel: String,
+    thread_ts: String,
+    limit: Option<u32>,
+    inclusive: Option<bool>,
+    raw: bool,
+    profile_name: String,
+    token_type: Option<TokenType>,
+) -> Result<Value, String> {
+    let mut response = commands::thread_get(client, channel, thread_ts, limit, inclusive)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    crate::api::display_wrapper_error_guidance(&response);
+
+    if raw {
+        return serde_json::to_value(&response).map_err(|e| e.to_string());
+    }
+
+    let messages = response
+        .data
+        .get("messages")
+        .and_then(|messages| messages.as_array())
+        .cloned()
+        .unwrap_or_default();
+    let workspace_cache = resolve_workspace_cache(&profile_name);
+
+    add_thread_resolution_metadata(client, &mut response, &messages, workspace_cache.as_ref())
+        .await
+        .map_err(|e| e.to_string())?;
+
+    let response_value = serde_json::to_value(&response).map_err(|e| e.to_string())?;
+    let wrapped = wrap_with_envelope_and_token_type(
+        response_value,
+        "conversations.replies",
+        "thread get",
+        Some(profile_name),
+        token_type,
+    )
+    .await?;
+    serde_json::to_value(wrapped).map_err(|e| e.to_string())
+}
+
 pub async fn run_thread_get(args: &[String]) -> Result<(), String> {
     // Check for --help flag before API call
     if has_flag(args, "--help") || has_flag(args, "-h") {
@@ -918,7 +967,11 @@ pub async fn run_thread_get(args: &[String]) -> Result<(), String> {
     let channel = args[3].clone();
     let thread_ts = args[4].clone();
     let limit = get_option(args, "--limit=").and_then(|s| s.parse().ok());
-    let inclusive = has_flag(args, "--inclusive");
+    let inclusive = if has_flag(args, "--inclusive") {
+        Some(true)
+    } else {
+        None
+    };
     let profile_name = resolve_profile_name(args);
     let token_type = parse_token_type(args)?;
     let raw = should_output_raw(args);
@@ -966,49 +1019,21 @@ pub async fn run_thread_get(args: &[String]) -> Result<(), String> {
     );
 
     let client = get_api_client_with_token_type(Some(profile_name.clone()), token_type).await?;
-    let inclusive_opt = if inclusive { Some(true) } else { None };
-    let mut response = commands::thread_get(&client, channel, thread_ts, limit, inclusive_opt)
-        .await
-        .map_err(|e| e.to_string())?;
+    let output = build_thread_get_output(
+        &client,
+        channel,
+        thread_ts,
+        limit,
+        inclusive,
+        raw,
+        profile_name,
+        token_type,
+    )
+    .await?;
 
-    // Log error code if present
-    debug::log_error_code(
-        debug_level,
-        &serde_json::to_value(&response).unwrap_or_default(),
-    );
+    debug::log_error_code(debug_level, &output);
 
-    // Display error guidance if response contains a known error
-    crate::api::display_wrapper_error_guidance(&response);
-
-    // Output with or without envelope
-    let output = if raw {
-        serde_json::to_string_pretty(&response).unwrap()
-    } else {
-        let messages = response
-            .data
-            .get("messages")
-            .and_then(|messages| messages.as_array())
-            .cloned()
-            .unwrap_or_default();
-        let workspace_cache = resolve_workspace_cache(&profile_name);
-
-        add_thread_resolution_metadata(&client, &mut response, &messages, workspace_cache.as_ref())
-            .await
-            .map_err(|e| e.to_string())?;
-
-        let response_value = serde_json::to_value(&response).map_err(|e| e.to_string())?;
-        let wrapped = wrap_with_envelope_and_token_type(
-            response_value,
-            "conversations.replies",
-            "thread get",
-            Some(profile_name),
-            token_type,
-        )
-        .await?;
-        serde_json::to_string_pretty(&wrapped).unwrap()
-    };
-
-    println!("{}", output);
+    println!("{}", serde_json::to_string_pretty(&output).unwrap());
     Ok(())
 }
 
