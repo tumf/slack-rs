@@ -2002,9 +2002,9 @@ pub fn print_thread_usage(prog: &str) {
     println!("      --raw               - Output raw Slack API response without envelope");
     println!("      --profile=NAME      - Profile to use (default: 'default')");
     println!("      --token-type=TYPE   - Token type to use (bot or user)");
-    println!("    Default JSON wraps the Slack response and adds response.data.resolved_users at thread scope");
+    println!("    Default JSON wraps the Slack response and adds response.resolved_users at thread scope");
     println!("    resolved_users is keyed by user ID and includes cache/users.info hydrated profiles only");
-    println!("    Unresolved IDs may appear separately in response.data.unresolved_user_ids");
+    println!("    Unresolved IDs may appear separately in response.unresolved_user_ids");
     println!(
         "    --raw returns the Slack-native conversations.replies shape without wrapper metadata"
     );

@@ -16,7 +16,7 @@ references:
 
 ## Premise / Context
 
-- The latest merge `fix-thread-resolved-users` moved `thread get` user metadata from per-message `users` arrays to response-level `response.data.resolved_users`.
+- The latest merge `fix-thread-resolved-users` moved `thread get` user metadata from per-message `users` arrays to response-level `response.resolved_users`.
 - Existing canonical `thread-command` spec requires unresolved IDs to avoid fake hydrated profiles and be distinguishable, optionally through `unresolved_user_ids`.
 - Code review found that `resolve_thread_users` currently propagates `users.info` errors, while `ApiClient::call_method` converts Slack `ok:false` into `Err(ApiError::SlackError)`.
 - As a result, a cache miss plus `users.info` failure can make default `thread get` fail instead of returning thread messages with unresolved IDs recorded.
@@ -45,9 +45,9 @@ The current implementation path can still fail after successful thread retrieval
 ## Acceptance Criteria
 
 - When `conversations.replies` succeeds but one or more referenced user IDs cannot be resolved from cache or `users.info`, default `thread get` still exits successfully and returns the thread messages.
-- Default `thread get` output includes hydrated profiles only in `response.data.resolved_users`, keyed by user ID, for users that were actually resolved.
-- Default `thread get` output includes unresolved IDs separately in `response.data.unresolved_user_ids` when user resolution fails or returns no usable user object.
-- Default `thread get` output never places ID-only fake hydrated profiles in `response.data.resolved_users`.
+- Default `thread get` output includes hydrated profiles only in `response.resolved_users`, keyed by user ID, for users that were actually resolved.
+- Default `thread get` output includes unresolved IDs separately in `response.unresolved_user_ids` when user resolution fails or returns no usable user object.
+- Default `thread get` output never places ID-only fake hydrated profiles in `response.resolved_users`.
 - Default `thread get` output does not add CLI-owned `users` arrays to individual Slack message objects.
 - `thread get --raw` returns the Slack-native aggregated response and does not include wrapper-owned `resolved_users` or `unresolved_user_ids`.
 - Tests exercise the CLI output/envelope path, not only the lower-level `thread_get` helper.
