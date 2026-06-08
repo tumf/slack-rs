@@ -384,7 +384,7 @@ pub fn get_command_definitions() -> Vec<CommandDef> {
         // thread get
         CommandDef {
             name: "thread get".to_string(),
-            description: "Get thread messages (conversation replies)".to_string(),
+            description: "Get thread messages. Default JSON adds response.data.resolved_users keyed by user ID. --raw returns Slack-native shape without wrapper metadata.".to_string(),
             usage: "slack-rs thread get <channel> <thread_ts> [flags]".to_string(),
             flags: vec![
                 FlagDef {

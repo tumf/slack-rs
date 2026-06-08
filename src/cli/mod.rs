@@ -956,20 +956,33 @@ pub async fn run_thread_get(args: &[String]) -> Result<(), String> {
     // Display error guidance if response contains a known error
     crate::api::display_wrapper_error_guidance(&response);
 
-    // Enrich messages with user info from workspace cache (graceful: no cache → ids only)
-    let workspace_cache = resolve_workspace_cache(&profile_name);
-    if let Some(messages) = response.data.get_mut("messages") {
-        if let Some(msgs) = messages.as_array_mut() {
-            for msg in msgs {
-                commands::conv::enrich_message_with_users(msg, workspace_cache.as_ref());
-            }
-        }
-    }
-
     // Output with or without envelope
     let output = if raw {
         serde_json::to_string_pretty(&response).unwrap()
     } else {
+        let messages = response
+            .data
+            .get("messages")
+            .and_then(|messages| messages.as_array())
+            .cloned()
+            .unwrap_or_default();
+        let workspace_cache = resolve_workspace_cache(&profile_name);
+        let (resolved_users, unresolved_user_ids) =
+            commands::conv::resolve_thread_users(&client, &messages, workspace_cache.as_ref())
+                .await
+                .map_err(|e| e.to_string())?;
+
+        response.data.insert(
+            "resolved_users".to_string(),
+            serde_json::to_value(resolved_users).map_err(|e| e.to_string())?,
+        );
+        if !unresolved_user_ids.is_empty() {
+            response.data.insert(
+                "unresolved_user_ids".to_string(),
+                serde_json::to_value(unresolved_user_ids).map_err(|e| e.to_string())?,
+            );
+        }
+
         let response_value = serde_json::to_value(&response).map_err(|e| e.to_string())?;
         let wrapped = wrap_with_envelope_and_token_type(
             response_value,
@@ -1951,6 +1964,12 @@ pub fn print_thread_usage(prog: &str) {
     println!("      --raw               - Output raw Slack API response without envelope");
     println!("      --profile=NAME      - Profile to use (default: 'default')");
     println!("      --token-type=TYPE   - Token type to use (bot or user)");
+    println!("    Default JSON wraps the Slack response and adds response.data.resolved_users at thread scope");
+    println!("    resolved_users is keyed by user ID and includes cache/users.info hydrated profiles only");
+    println!("    Unresolved IDs may appear separately in response.data.unresolved_user_ids");
+    println!(
+        "    --raw returns the Slack-native conversations.replies shape without wrapper metadata"
+    );
     println!("    Note: Automatically follows pagination to retrieve all thread messages");
 }
 
