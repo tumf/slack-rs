@@ -339,7 +339,7 @@ async fn test_thread_user_resolution_uses_response_scope_without_message_users()
     assert_eq!(resolved["U222"]["name"], "bob");
     assert_eq!(resolved["U333"]["name"], "carol");
     assert_eq!(resolved["U444"]["name"], "dave");
-    assert!(response.data.get("unresolved_user_ids").is_none());
+    assert!(!response.data.contains_key("unresolved_user_ids"));
     assert!(response
         .data
         .get("messages")
@@ -378,8 +378,8 @@ async fn test_thread_get_raw_shape_has_no_wrapper_resolution_metadata() {
     .unwrap();
 
     mock.assert();
-    assert!(response.data.get("resolved_users").is_none());
-    assert!(response.data.get("unresolved_user_ids").is_none());
+    assert!(!response.data.contains_key("resolved_users"));
+    assert!(!response.data.contains_key("unresolved_user_ids"));
     assert!(response
         .data
         .get("messages")
@@ -478,7 +478,7 @@ async fn test_thread_get_default_cli_metadata_keeps_messages_slack_native() {
     let resolved = response.data.get("resolved_users").unwrap();
     assert_eq!(resolved["U111"]["name"], "alice");
     assert_eq!(resolved["U222"]["name"], "bob");
-    assert!(response.data.get("unresolved_user_ids").is_none());
+    assert!(!response.data.contains_key("unresolved_user_ids"));
     assert!(response
         .data
         .get("messages")
