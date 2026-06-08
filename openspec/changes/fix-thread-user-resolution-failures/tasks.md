@@ -15,3 +15,8 @@ Expected archive gate: `cflx openspec validate fix-thread-user-resolution-failur
 ## Future Work
 
 - Consider lookup concurrency, batching, or a configurable enrichment toggle only if real workspace usage shows latency or rate-limit pressure.
+
+## Acceptance #1 Failure Follow-up
+- [ ] tasks.md has all active tasks checked, git status is clean, cflx openspec validate fix-thread-user-resolution-failures --strict passed, and cargo test --test thread_integration_tests passed; however PASS is blocked because required CLI output/envelope test evidence is missing despite checked task claims.
+- [ ] tests/thread_integration_tests.rs:350-388 verifies raw shape by calling lower-level thread_get directly. It does not exercise run_thread_get --raw, so it does not prove the CLI raw path skips wrapper-owned user resolution as required by proposal.md:52, proposal.md:60, spec delta openspec/changes/fix-thread-user-resolution-failures/specs/thread-command/spec.md:35-41, and tasks.md:7. Add a CLI-path --raw test or command-output equivalent that would fail if run_thread_get performed users.info or emitted resolved_users/unresolved_user_ids.
+- [ ] tests/thread_integration_tests.rs:421-487 and 489-550 exercise slack_rs::cli::add_thread_resolution_metadata directly, not run_thread_get nor the full default CLI output/envelope path. This does not satisfy proposal.md:53 or tasks.md:5, which require CLI-path coverage asserting the default JSON envelope has response.data.resolved_users and messages are not mutated. Add an integration/CLI-path test that invokes run_thread_get or an equivalent command-output wrapper and asserts resolved_users/unresolved_user_ids under the unified envelope response.data.
