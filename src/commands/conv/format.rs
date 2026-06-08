@@ -430,8 +430,7 @@ pub async fn resolve_thread_users(
                     unresolved_user_ids.push(id);
                 }
             }
-            Ok(_) => unresolved_user_ids.push(id),
-            Err(error) => return Err(error),
+            Ok(_) | Err(_) => unresolved_user_ids.push(id),
         }
     }
 
