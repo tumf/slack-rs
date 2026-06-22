@@ -4,3 +4,11 @@
 .cflx.jsonc
 tokens.json
 .config/slack-rs/tokens.json
+
+.claude/
+.codegraph/
+.mcp.json
+opencode.jsonc
+
+.review-gauntlet/*
+!.review-gauntlet/checkpoints/
