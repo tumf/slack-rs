@@ -1,0 +1,1150 @@
+{
+  "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+  "events": [
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 08:28:01",
+      "event_id": 1,
+      "finding_id": "RGF-0001",
+      "from_state": "open",
+      "metadata": {},
+      "reason": "\u5b9f\u30d5\u30a1\u30a4\u30eb\u3067 coverage.status.project \u3068 patch \u304c off \u306b\u8a2d\u5b9a\u3055\u308c\u3066\u304a\u308a\u3001Codecov \u306e\u30ab\u30d0\u30ec\u30c3\u30b8 status check \u304c\u54c1\u8cea\u30b2\u30fc\u30c8\u3068\u3057\u3066\u6a5f\u80fd\u3057\u306a\u3044\u305f\u3081\u5b9f\u554f\u984c\u3002",
+      "to_state": "confirmed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 08:29:33",
+      "event_id": 2,
+      "finding_id": "RGF-0004",
+      "from_state": "open",
+      "metadata": {},
+      "reason": "The workflow fetches the prek installer from the moving GitHub latest release URL and caches it under a latest key, so the installed binary can change without a workflow revision change.",
+      "to_state": "confirmed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 08:29:33",
+      "event_id": 3,
+      "finding_id": "RGF-0005",
+      "from_state": "open",
+      "metadata": {},
+      "reason": "The workflow selects Rust with dtolnay/rust-toolchain@stable, so CI behavior can change as the stable channel advances without a workflow revision change.",
+      "to_state": "confirmed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 08:30:55",
+      "event_id": 4,
+      "finding_id": "RGF-0002",
+      "from_state": "open",
+      "metadata": {},
+      "reason": "Release matrix uses mutable GitHub-hosted runner labels (ubuntu-latest, macos-latest, windows-latest) for tag builds, so the OS image can change over time for the same release workflow.",
+      "to_state": "confirmed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 08:30:55",
+      "event_id": 5,
+      "finding_id": "RGF-0003",
+      "from_state": "open",
+      "metadata": {},
+      "reason": "Release workflow installs Rust via dtolnay/rust-toolchain@stable, so the compiler version follows the mutable stable channel rather than a pinned toolchain for reproducible tag builds.",
+      "to_state": "confirmed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 08:32:15",
+      "event_id": 6,
+      "finding_id": "RGF-0006",
+      "from_state": "open",
+      "metadata": {},
+      "reason": "Remote third-party hook repo uses rev v4.6.0, a mutable tag rather than an immutable commit SHA; this is a real CI reproducibility issue.",
+      "to_state": "confirmed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 08:33:36",
+      "event_id": 7,
+      "finding_id": "RGF-0007",
+      "from_state": "open",
+      "metadata": {},
+      "reason": "Real issue: .wt/setup executes a mutable latest remote installer via curl piped directly to sh, so the executed script is not pinned or verified.",
+      "to_state": "confirmed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 08:33:36",
+      "event_id": 8,
+      "finding_id": "RGF-0008",
+      "from_state": "open",
+      "metadata": {},
+      "reason": "Real issue: .wt/setup downloads the latest GitHub installer without pinning a version or verifying an expected digest/signature.",
+      "to_state": "confirmed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 08:35:13",
+      "event_id": 9,
+      "finding_id": "RGF-0009",
+      "from_state": "open",
+      "metadata": {},
+      "reason": "CONTRIBUTING.md lists src/{api,auth,cli,commands,oauth,profile} plus main/lib, but current src also contains debug.rs, idempotency/, and skills/.",
+      "to_state": "confirmed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 08:35:13",
+      "event_id": 10,
+      "finding_id": "RGF-0010",
+      "from_state": "open",
+      "metadata": {},
+      "reason": "CONTRIBUTING.md documents cargo tarpaulin --timeout 120, while CI runs cargo tarpaulin with --timeout 300 --out xml in .github/workflows/ci.yml.",
+      "to_state": "confirmed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 08:36:28",
+      "event_id": 11,
+      "finding_id": "RGF-0011",
+      "from_state": "open",
+      "metadata": {},
+      "reason": "Formula/slack_rs.rb points to v0.1.67 while Cargo.toml declares package version 0.1.71, so the Homebrew formula is stale.",
+      "to_state": "confirmed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 08:38:50",
+      "event_id": 12,
+      "finding_id": "RGF-0012",
+      "from_state": "open",
+      "metadata": {},
+      "reason": "Makefile publish-tag reads arbitrary tag text and expands it unquoted in git checkout, allowing word splitting/globbing/option-like input to alter checkout arguments.",
+      "to_state": "confirmed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 08:38:50",
+      "event_id": 13,
+      "finding_id": "RGF-0013",
+      "from_state": "open",
+      "metadata": {},
+      "reason": "Makefile check runs cargo fmt and plain cargo clippy, while CI runs prek with fmt --check, clippy --all-targets --all-features, and additional hooks, so local check is not CI-reproducible.",
+      "to_state": "confirmed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 08:40:55",
+      "event_id": 14,
+      "finding_id": "RGF-0014",
+      "from_state": "open",
+      "metadata": {},
+      "reason": "README documents token storage as ~/.config/slack-rs/tokens.json, but FileTokenStore::default_path uses SLACK_RS_TOKENS_PATH, XDG_DATA_HOME/slack-rs/tokens.json, or ~/.local/share/slack-rs/tokens.json.",
+      "to_state": "confirmed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 08:40:55",
+      "event_id": 15,
+      "finding_id": "RGF-0015",
+      "from_state": "open",
+      "metadata": {},
+      "reason": "README documents file upload <channel> <path>, but run_file_upload parses file upload <path> and optional --channel/--channels flags.",
+      "to_state": "confirmed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 08:42:41",
+      "event_id": 16,
+      "finding_id": "RGF-0016",
+      "from_state": "open",
+      "metadata": {},
+      "reason": "skills/slack-rs/README.md recommends installing from external tumf/skills, but this repository documents and implements embedded skill installation via slack-rs install-skills in the project README and Source::SelfEmbedded; the README command is inaccurate for this repo.",
+      "to_state": "confirmed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 08:44:15",
+      "event_id": 17,
+      "finding_id": "RGF-0017",
+      "from_state": "open",
+      "metadata": {},
+      "reason": "Confirmed: skills/slack-rs/SKILL.md export example omitted required --yes; handle_export_command exits without it.",
+      "to_state": "confirmed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 08:46:37",
+      "event_id": 18,
+      "finding_id": "RGF-0018",
+      "from_state": "open",
+      "metadata": {
+        "dismiss_reason": "Dismissed: current tunnel login path uses login_with_credentials_extended, which defaults missing bot/user scopes via oauth::bot_all_scopes and oauth::user_all_scopes before calling auth; the non-interactive missing-scope validation applies only to the standard non-tunnel login path."
+      },
+      "reason": "Dismissed: current tunnel login path uses login_with_credentials_extended, which defaults missing bot/user scopes via oauth::bot_all_scopes and oauth::user_all_scopes before calling auth; the non-interactive missing-scope validation applies only to the standard non-tunnel login path.",
+      "to_state": "dismissed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 08:48:03",
+      "event_id": 19,
+      "finding_id": "RGF-0021",
+      "from_state": "open",
+      "metadata": {
+        "owner": "opencode"
+      },
+      "reason": "Confirmed docs accuracy issue: skills/slack-rs/references/setup.md line 54 is in the config oauth set section and implies that config oauth set supports --bot-scopes/--user-scopes, but src/commands/config.rs OAuthSetParams only accepts a single --scopes value for that command; bot/user scope flags belong to auth login.",
+      "to_state": "confirmed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 08:48:03",
+      "event_id": 20,
+      "finding_id": "RGF-0022",
+      "from_state": "open",
+      "metadata": {
+        "owner": "opencode"
+      },
+      "reason": "Confirmed docs accuracy issue: skills/slack-rs/references/setup.md lines 82-85 state OAuth config and tokens are stored under ~/.config/slack-rs, but current storage code keeps profile metadata in ~/.config/slack-rs/profiles.json and file tokens/client secrets in ~/.local/share/slack-rs/tokens.json by default, with XDG_DATA_HOME or SLACK_RS_TOKENS_PATH overrides.",
+      "to_state": "confirmed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 08:49:26",
+      "event_id": 21,
+      "finding_id": "RGF-0020",
+      "from_state": "open",
+      "metadata": {},
+      "reason": "ApiCallArgs::parse increments past --token-type and returns Ok with token_type None when no following value exists, silently accepting a missing required flag value.",
+      "to_state": "confirmed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 08:49:26",
+      "event_id": 22,
+      "finding_id": "RGF-0019",
+      "from_state": "open",
+      "metadata": {},
+      "reason": "Module docs list only --json and --get, but ApiCallArgs::parse also handles --raw, --profile, and --token-type, so the documented supported flags are incomplete.",
+      "to_state": "confirmed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 08:51:03",
+      "event_id": 23,
+      "finding_id": "RGF-0023",
+      "from_state": "open",
+      "metadata": {},
+      "reason": "Confirmed in src/api/client.rs:301-315: the documented jitter is not applied because the same jitter / 2 is subtracted and added, so calculate_backoff returns the capped exponential backoff unchanged.",
+      "to_state": "confirmed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 08:51:03",
+      "event_id": 24,
+      "finding_id": "RGF-0024",
+      "from_state": "open",
+      "metadata": {},
+      "reason": "Confirmed in src/api/client.rs:310-315: the jitter arithmetic cancels itself out by subtracting and adding the same jitter / 2 value, so the CLI retry delay is deterministic instead of jittered.",
+      "to_state": "confirmed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 08:52:48",
+      "event_id": 25,
+      "finding_id": "RGF-0025",
+      "from_state": "open",
+      "metadata": {},
+      "reason": "Confirmed: src/api/guidance.rs prints slack auth login, while Cargo.toml declares [[bin]] name = slack-rs, so the remediation command is not the installed CLI.",
+      "to_state": "confirmed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 08:52:48",
+      "event_id": 26,
+      "finding_id": "RGF-0026",
+      "from_state": "open",
+      "metadata": {},
+      "reason": "Confirmed: invalid_auth guidance uses slack auth login, but Cargo.toml declares the executable as slack-rs.",
+      "to_state": "confirmed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 08:52:49",
+      "event_id": 27,
+      "finding_id": "RGF-0027",
+      "from_state": "open",
+      "metadata": {},
+      "reason": "Confirmed: token_revoked guidance uses slack auth login, but the crate binary is slack-rs.",
+      "to_state": "confirmed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 08:52:49",
+      "event_id": 28,
+      "finding_id": "RGF-0028",
+      "from_state": "open",
+      "metadata": {},
+      "reason": "Confirmed: token_expired guidance uses slack auth login, but the crate binary is slack-rs.",
+      "to_state": "confirmed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 08:52:49",
+      "event_id": 29,
+      "finding_id": "RGF-0029",
+      "from_state": "open",
+      "metadata": {},
+      "reason": "Confirmed: not_authed guidance uses slack auth login, but the crate binary is slack-rs.",
+      "to_state": "confirmed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 08:52:49",
+      "event_id": 30,
+      "finding_id": "RGF-0030",
+      "from_state": "open",
+      "metadata": {},
+      "reason": "Confirmed: account_inactive guidance uses slack auth login, but the crate binary is slack-rs.",
+      "to_state": "confirmed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 08:52:49",
+      "event_id": 31,
+      "finding_id": "RGF-0031",
+      "from_state": "open",
+      "metadata": {},
+      "reason": "Confirmed: docs and Cargo.toml identify the CLI as slack-rs, but this guidance text says slack auth login.",
+      "to_state": "confirmed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 08:52:49",
+      "event_id": 32,
+      "finding_id": "RGF-0032",
+      "from_state": "open",
+      "metadata": {},
+      "reason": "Confirmed: docs and Cargo.toml identify the CLI as slack-rs, but invalid_auth guidance says slack auth login.",
+      "to_state": "confirmed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 08:52:49",
+      "event_id": 33,
+      "finding_id": "RGF-0033",
+      "from_state": "open",
+      "metadata": {},
+      "reason": "Confirmed: docs and Cargo.toml identify the CLI as slack-rs, but not_authed guidance says slack auth login.",
+      "to_state": "confirmed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 08:54:00",
+      "event_id": 34,
+      "finding_id": "RGF-0034",
+      "from_state": "open",
+      "metadata": {},
+      "reason": "Module documentation lists wrapper commands as functionality of src/api/mod.rs, but the module only declares API-focused submodules and re-exports types/guidance; wrapper command implementations live outside this file.",
+      "to_state": "confirmed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 08:55:45",
+      "event_id": 35,
+      "finding_id": "RGF-0035",
+      "from_state": "open",
+      "metadata": {},
+      "reason": "Module docs describe OSC52 as the first fallback entry, but copy_to_clipboard gates it behind should_try_osc52(), so arboard is the first attempted method outside SSH TTY contexts.",
+      "to_state": "confirmed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 08:55:45",
+      "event_id": 36,
+      "finding_id": "RGF-0038",
+      "from_state": "open",
+      "metadata": {
+        "dismiss_reason": "command_exists uses Command::output().is_ok(), which ignores the helper exit status; an executable helper is treated as present even if --version or -v is unsupported and exits non-zero, so the claimed false-negative behavior does not occur."
+      },
+      "reason": "command_exists uses Command::output().is_ok(), which ignores the helper exit status; an executable helper is treated as present even if --version or -v is unsupported and exits non-zero, so the claimed false-negative behavior does not occur.",
+      "to_state": "dismissed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 08:57:13",
+      "event_id": 37,
+      "finding_id": "RGF-0036",
+      "from_state": "open",
+      "metadata": {},
+      "reason": "Confirmed: Drop writes lifecycle messages with println! on normal destruction, which can pollute stdout for CLI users parsing command output.",
+      "to_state": "confirmed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 08:57:13",
+      "event_id": 38,
+      "finding_id": "RGF-0037",
+      "from_state": "open",
+      "metadata": {},
+      "reason": "Confirmed: start spawns cloudflared and, if recv_timeout fails before a URL is received, returns an error without killing or waiting on the child; dropping std::process::Child does not terminate the process.",
+      "to_state": "confirmed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 08:57:13",
+      "event_id": 39,
+      "finding_id": "RGF-0039",
+      "from_state": "open",
+      "metadata": {},
+      "reason": "Confirmed: start documentation describes returning a tunnel instance but does not document the important lifecycle side effect that the instance owns a child process which is cleaned up on drop.",
+      "to_state": "confirmed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 08:58:43",
+      "event_id": 40,
+      "finding_id": "RGF-0040",
+      "from_state": "open",
+      "metadata": {},
+      "reason": "Confirmed in src/auth/commands.rs:950-969: logout is documented as removing authentication, but it deletes only the bot-token key before removing the profile, leaving other OAuth credentials such as user-token/client-secret entries in token storage.",
+      "to_state": "confirmed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 08:58:43",
+      "event_id": 41,
+      "finding_id": "RGF-0041",
+      "from_state": "open",
+      "metadata": {},
+      "reason": "Confirmed in src/auth/commands.rs:965-969 and src/auth/commands.rs:568-574: login stores user tokens at team_id:user_id:user, while logout deletes only make_token_key(team_id,user_id), so OAuth user-token credentials remain after auth logout.",
+      "to_state": "confirmed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 08:58:43",
+      "event_id": 42,
+      "finding_id": "RGF-0042",
+      "from_state": "open",
+      "metadata": {},
+      "reason": "Confirmed in src/auth/commands.rs:1090-1095 and src/auth/commands.rs:1119-1172: the extended login docs claim cloudflared/ngrok tunnel support, but the function only handles cloudflared when requested and otherwise uses localhost; no ngrok branch is implemented.",
+      "to_state": "confirmed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 09:00:02",
+      "event_id": 43,
+      "finding_id": "RGF-0043",
+      "from_state": "open",
+      "metadata": {},
+      "reason": "src/auth/crypto.rs:57-88 exposes KdfParams for Argon2id but derive_key constructs Argon2::default(), so memory_cost/time_cost/parallelism are ignored.",
+      "to_state": "confirmed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 09:00:02",
+      "event_id": 44,
+      "finding_id": "RGF-0044",
+      "from_state": "open",
+      "metadata": {},
+      "reason": "src/auth/crypto.rs:30-46 documents and exposes KdfParams fields as KDF parameters, but derive_key does not apply those fields, making the API/docs contract inaccurate.",
+      "to_state": "confirmed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 09:01:39",
+      "event_id": 45,
+      "finding_id": "RGF-0045",
+      "from_state": "open",
+      "metadata": {},
+      "reason": "Confirmed: write_secure_file uses fs::write before chmod, so a newly-created Unix export file can exist with umask-derived permissions before being tightened to 0600.",
+      "to_state": "confirmed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 09:01:39",
+      "event_id": 46,
+      "finding_id": "RGF-0046",
+      "from_state": "open",
+      "metadata": {},
+      "reason": "Confirmed: force import removes the conflicting profile from config but does not delete token-store entries or profile-scoped OAuth client secret for the removed profile.",
+      "to_state": "confirmed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 09:01:39",
+      "event_id": 47,
+      "finding_id": "RGF-0047",
+      "from_state": "open",
+      "metadata": {},
+      "reason": "Confirmed: import reconstructs Profile with redirect_uri, scopes, bot_scopes, user_scopes, and default_token_type set to None because ExportProfile does not carry those fields.",
+      "to_state": "confirmed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 09:03:08",
+      "event_id": 48,
+      "finding_id": "RGF-0048",
+      "from_state": "open",
+      "metadata": {},
+      "reason": "KDF numeric fields are parsed as u64 and converted with as u32, so values above u32::MAX are silently truncated instead of rejected.",
+      "to_state": "confirmed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 09:04:32",
+      "event_id": 49,
+      "finding_id": "RGF-0049",
+      "from_state": "open",
+      "metadata": {},
+      "reason": "Comment claims locale-based Japanese default, but implementation chooses Japanese only when LANG starts with ja and otherwise defaults to English.",
+      "to_state": "confirmed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 09:08:29",
+      "event_id": 50,
+      "finding_id": "RGF-0050",
+      "from_state": "open",
+      "metadata": {},
+      "reason": "generate_manifest exposes Result<String, String> while auth/profile modules use typed thiserror errors, forcing callers such as generate_and_save_manifest to rewrap opaque strings.",
+      "to_state": "confirmed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 09:08:29",
+      "event_id": 51,
+      "finding_id": "RGF-0052",
+      "from_state": "open",
+      "metadata": {},
+      "reason": "profile_name is CLI/user-provided and is inserted into Slack display fields without manifest-specific validation or sanitization, allowing generated YAML that can be written successfully but rejected by Slack.",
+      "to_state": "confirmed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 09:08:29",
+      "event_id": 52,
+      "finding_id": "RGF-0054",
+      "from_state": "open",
+      "metadata": {},
+      "reason": "The test named ngrok passes a localhost callback and only asserts generic redirect/scope serialization, so it does not document or verify ngrok-specific behavior.",
+      "to_state": "confirmed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 09:08:29",
+      "event_id": 53,
+      "finding_id": "RGF-0051",
+      "from_state": "open",
+      "metadata": {},
+      "reason": "The check validates YAML presentation and first-line ordering instead of manifest semantics, so a valid parseable document marker or serializer formatting change would be rejected.",
+      "to_state": "confirmed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 09:08:29",
+      "event_id": 54,
+      "finding_id": "RGF-0053",
+      "from_state": "open",
+      "metadata": {},
+      "reason": "The test named cloudflared passes a localhost callback and only asserts generic redirect/scope serialization, so it does not document or verify cloudflared-specific behavior.",
+      "to_state": "confirmed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 09:09:38",
+      "event_id": 55,
+      "finding_id": "RGF-0055",
+      "from_state": "open",
+      "metadata": {},
+      "reason": "Confirmed in src/auth/ngrok.rs:143-149: the public API/docs describe extracting a public ngrok URL generically, but the extractor only matches https://*.ngrok-free.app, excluding other valid ngrok public domains.",
+      "to_state": "confirmed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 09:09:38",
+      "event_id": 56,
+      "finding_id": "RGF-0056",
+      "from_state": "open",
+      "metadata": {},
+      "reason": "Confirmed in src/auth/ngrok.rs:86-104: reader threads break after URL extraction and drop the pipe readers, so ngrok stdout/stderr are no longer drained while the tunnel is expected to keep running.",
+      "to_state": "confirmed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 09:09:38",
+      "event_id": 57,
+      "finding_id": "RGF-0057",
+      "from_state": "open",
+      "metadata": {},
+      "reason": "Confirmed in src/auth/ngrok.rs:106-115: on recv_timeout error, start returns without killing or waiting for the spawned Child; dropping Child does not terminate the ngrok process.",
+      "to_state": "confirmed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 09:11:42",
+      "event_id": 58,
+      "finding_id": "RGF-0058",
+      "from_state": "open",
+      "metadata": {},
+      "reason": "Confirmed: src/cli/handlers.rs:463 tells users to run slackcli auth login, but Cargo.toml installs the binary as slack-rs and other CLI help uses slack-rs; this guidance is inaccurate.",
+      "to_state": "confirmed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 09:11:42",
+      "event_id": 59,
+      "finding_id": "RGF-0060",
+      "from_state": "open",
+      "metadata": {},
+      "reason": "Confirmed: parse_login_args preserves optional --cloudflared/--ngrok paths in TunnelMode, but run_auth_login only passes is_cloudflared() into login_with_credentials_extended; the selected path is dropped before tunnel startup.",
+      "to_state": "confirmed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 09:12:57",
+      "event_id": 60,
+      "finding_id": "RGF-0061",
+      "from_state": "open",
+      "metadata": {},
+      "reason": "Confirmed: src/cli/help.rs:40 documents --yes as accepting conflicts, while import_profiles uses yes only to confirm --force overwrites; non-force conflicts are skipped.",
+      "to_state": "confirmed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 09:12:57",
+      "event_id": 61,
+      "finding_id": "RGF-0059",
+      "from_state": "open",
+      "metadata": {},
+      "reason": "Confirmed: src/cli/help.rs:40 says --yes automatically accepts conflicts, but import_profiles only requires yes when force is set for overwrite confirmation and conflicts are skipped without --force.",
+      "to_state": "confirmed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 09:14:55",
+      "event_id": 62,
+      "finding_id": "RGF-0062",
+      "from_state": "open",
+      "metadata": {},
+      "reason": "Confirmed: src/cli/handlers.rs parse_login_args accepts --cloudflared and --ngrok, and src/main.rs text help documents them, but src/cli/introspection.rs auth login flags list omits both.",
+      "to_state": "confirmed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 09:14:55",
+      "event_id": 63,
+      "finding_id": "RGF-0063",
+      "from_state": "open",
+      "metadata": {},
+      "reason": "Confirmed: src/cli/mod.rs run_conv_list parses --include-private, --all, --sort, --sort-dir, and --token-type, while src/cli/introspection.rs conv list metadata omits them.",
+      "to_state": "confirmed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 09:14:55",
+      "event_id": 64,
+      "finding_id": "RGF-0064",
+      "from_state": "open",
+      "metadata": {},
+      "reason": "Confirmed: src/main.rs routes the implemented doctor command with --json support, but src/cli/introspection.rs get_command_definitions does not include a doctor CommandDef.",
+      "to_state": "confirmed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 09:14:55",
+      "event_id": 65,
+      "finding_id": "RGF-0065",
+      "from_state": "open",
+      "metadata": {},
+      "reason": "Confirmed: duplicate cli-contract issue for conv list metadata; implemented flags --include-private, --all, --token-type, --sort, and --sort-dir are omitted from the machine-readable command definition.",
+      "to_state": "confirmed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 09:16:30",
+      "event_id": 66,
+      "finding_id": "RGF-0067",
+      "from_state": "open",
+      "metadata": {},
+      "reason": "run_conv_select parses --limit and --token-type, but conv select usage omits both supported options",
+      "to_state": "confirmed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 09:16:30",
+      "event_id": 67,
+      "finding_id": "RGF-0068",
+      "from_state": "open",
+      "metadata": {},
+      "reason": "run_conv_history supports --raw in both modes and --token-type in interactive mode, but conv history usage omits those supported options",
+      "to_state": "confirmed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 09:18:03",
+      "event_id": 68,
+      "finding_id": "RGF-0066",
+      "from_state": "open",
+      "metadata": {},
+      "reason": "Documented oauth_show output says '(saved in file store)', but implementation prints '(saved in token store)' in src/commands/config.rs.",
+      "to_state": "confirmed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 09:19:19",
+      "event_id": 69,
+      "finding_id": "RGF-0069",
+      "from_state": "open",
+      "metadata": {},
+      "reason": "Confirmed: conv_list updates cursor from response_metadata.next_cursor and loops until None without tracking seen cursors or enforcing a page bound, so a repeated non-empty cursor can cause unbounded pagination requests.",
+      "to_state": "confirmed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 09:19:19",
+      "event_id": 70,
+      "finding_id": "RGF-0070",
+      "from_state": "open",
+      "metadata": {},
+      "reason": "Confirmed: conv_list documentation says Ok(ApiResponse) for aggregated results, but client.call_method propagates Slack ok=false responses as ApiError, so the return docs understate Slack API error behavior.",
+      "to_state": "confirmed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 09:21:27",
+      "event_id": 71,
+      "finding_id": "RGF-0071",
+      "from_state": "open",
+      "metadata": {},
+      "reason": "Confirmed: glob_match performs case-insensitive substring matching only when the pattern has no '*', but wildcard paths compare starts_with/ends_with/find against the original text and pattern. This makes name:test match TEST-channel while name:test* does not, despite the same user-facing name filter contract and wildcard glob behavior.",
+      "to_state": "confirmed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 09:22:47",
+      "event_id": 72,
+      "finding_id": "RGF-0072",
+      "from_state": "open",
+      "metadata": {},
+      "reason": "Real issue: format_response handles jsonl/table/tsv by reading channels only and returns Ok(empty) when Slack API response has ok=false with no channels; run_conv_list/run_conv_search propagate format_response errors, so this should be an error instead of silent successful empty output.",
+      "to_state": "confirmed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 09:23:54",
+      "event_id": 73,
+      "finding_id": "RGF-0074",
+      "from_state": "open",
+      "metadata": {},
+      "reason": "Interactive selection prompts in src/commands/conv/select.rs are emitted with println! to stdout at lines 65-69, which can contaminate command stdout intended for machine-readable CLI output.",
+      "to_state": "confirmed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 09:25:26",
+      "event_id": 74,
+      "finding_id": "RGF-0073",
+      "from_state": "open",
+      "metadata": {
+        "dismiss_reason": "Finding content reports no issue; sort key and direction parsing in src/commands/conv/sort.rs returns explicit valid-value errors, so there is no cli-contract defect to fix."
+      },
+      "reason": "Finding content reports no issue; sort key and direction parsing in src/commands/conv/sort.rs returns explicit valid-value errors, so there is no cli-contract defect to fix.",
+      "to_state": "dismissed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 09:26:42",
+      "event_id": 75,
+      "finding_id": "RGF-0075",
+      "from_state": "open",
+      "metadata": {},
+      "reason": "Confirmed: src/commands/doctor.rs builds the user token key as team_id:user_id_user, while the credential save path and callers use team_id:user_id:user for user tokens.",
+      "to_state": "confirmed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 09:26:42",
+      "event_id": 76,
+      "finding_id": "RGF-0077",
+      "from_state": "open",
+      "metadata": {},
+      "reason": "Confirmed: doctor reports user token availability using team_id:user_id_user, which differs from the OAuth/profile credential save key team_id:user_id:user.",
+      "to_state": "confirmed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 09:28:53",
+      "event_id": 77,
+      "finding_id": "RGF-0079",
+      "from_state": "open",
+      "metadata": {},
+      "reason": "src/commands/file.rs documents comma-separated channel IDs at line 40, but file_upload inserts the provided string unchanged as singular channel_id at lines 156-158.",
+      "to_state": "confirmed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 09:28:53",
+      "event_id": 78,
+      "finding_id": "RGF-0076",
+      "from_state": "open",
+      "metadata": {},
+      "reason": "src/commands/file.rs writes downloaded bytes directly to stdout for --out - at lines 407-416, so command-layer stdout is mixed with payload output rather than owned solely by the CLI wrapper.",
+      "to_state": "confirmed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 09:30:01",
+      "event_id": 79,
+      "finding_id": "RGF-0078",
+      "from_state": "open",
+      "metadata": {},
+      "reason": "Confirmed: src/commands/guards.rs interactive confirmation calls unwrap() on stdout flush and stdin read_line, so I/O errors panic instead of returning ApiError.",
+      "to_state": "confirmed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 09:31:03",
+      "event_id": 80,
+      "finding_id": "RGF-0080",
+      "from_state": "open",
+      "metadata": {},
+      "reason": "Module docs mention file upload but omit the re-exported file_download command; documentation is out of date.",
+      "to_state": "confirmed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 09:32:19",
+      "event_id": 81,
+      "finding_id": "RGF-0082",
+      "from_state": "open",
+      "metadata": {},
+      "reason": "The msg post non-interactive retry hint embeds user-provided message text inside double quotes without shell escaping, so quotes, command substitutions, dollars, or backticks can produce an unsafe or invalid copy-paste command.",
+      "to_state": "confirmed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 09:32:20",
+      "event_id": 82,
+      "finding_id": "RGF-0083",
+      "from_state": "open",
+      "metadata": {},
+      "reason": "The msg update non-interactive retry hint uses the literal placeholder \"new text\" instead of the requested message text, so the retry command does not faithfully reproduce the failed operation.",
+      "to_state": "confirmed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 09:33:37",
+      "event_id": 83,
+      "finding_id": "RGF-0081",
+      "from_state": "open",
+      "metadata": {
+        "dismiss_reason": "Finding content states no issues were found for this cli-contract review cell; metadata also records no actionable issue in src/commands/react.rs, so there is no defect to confirm."
+      },
+      "reason": "Finding content states no issues were found for this cli-contract review cell; metadata also records no actionable issue in src/commands/react.rs, so there is no defect to confirm.",
+      "to_state": "dismissed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 09:34:45",
+      "event_id": 84,
+      "finding_id": "RGF-0084",
+      "from_state": "open",
+      "metadata": {},
+      "reason": "Test performs a live Slack API call with a fake token and only asserts failure, so it depends on network/external service behavior instead of a deterministic mock.",
+      "to_state": "confirmed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 09:36:56",
+      "event_id": 85,
+      "finding_id": "RGF-0085",
+      "from_state": "open",
+      "metadata": {},
+      "reason": "src/commands/thread.rs only forwards Slack's inclusive parameter and does not set oldest/latest; archived design notes say inclusive has no effect without those bounds, so the doc comment claiming parent-message inclusion is misleading.",
+      "to_state": "confirmed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 09:36:56",
+      "event_id": 86,
+      "finding_id": "RGF-0086",
+      "from_state": "open",
+      "metadata": {},
+      "reason": "src/commands/thread.rs documents duplicate cursor detection but maintains no seen-cursor set; a repeated non-empty next_cursor will loop until MAX_PAGES, so the documented CLI pagination guard is not implemented.",
+      "to_state": "confirmed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 09:38:05",
+      "event_id": 87,
+      "finding_id": "RGF-0087",
+      "from_state": "open",
+      "metadata": {},
+      "reason": "users_info test constructs ApiClient::with_token, which uses the default Slack API base URL, so calling users_info sends a real users.info request with a dummy token.",
+      "to_state": "confirmed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 09:39:13",
+      "event_id": 88,
+      "finding_id": "RGF-0088",
+      "from_state": "open",
+      "metadata": {},
+      "reason": "Mention regex only matches Slack user IDs beginning with U; Slack mentions may use other valid user ID prefixes, so those mentions remain unresolved.",
+      "to_state": "confirmed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 09:40:44",
+      "event_id": 89,
+      "finding_id": "RGF-0089",
+      "from_state": "open",
+      "metadata": {},
+      "reason": "save writes the live store file directly with fs::write, so interruption can leave a truncated or partially written JSON file",
+      "to_state": "confirmed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 09:40:44",
+      "event_id": 90,
+      "finding_id": "RGF-0090",
+      "from_state": "open",
+      "metadata": {},
+      "reason": "check returns Ok(None) for expired entries because get filters expired entries, but the return docs only mention missing entries",
+      "to_state": "confirmed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 09:42:18",
+      "event_id": 91,
+      "finding_id": "RGF-0091",
+      "from_state": "open",
+      "metadata": {},
+      "reason": "ScopedKey Display uses raw slash-separated components as the persistent HashMap key, so user/API-controlled components containing '/' can produce ambiguous identical serialized keys across different scopes.",
+      "to_state": "confirmed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 09:43:53",
+      "event_id": 92,
+      "finding_id": "RGF-0094",
+      "from_state": "open",
+      "metadata": {
+        "dismiss_reason": "Dismissed: check_write_allowed defaults to allow writes when SLACKCLI_ALLOW_WRITE is unset in src/commands/guards.rs:19-28, matching src/main.rs:603."
+      },
+      "reason": "Dismissed: check_write_allowed defaults to allow writes when SLACKCLI_ALLOW_WRITE is unset in src/commands/guards.rs:19-28, matching src/main.rs:603.",
+      "to_state": "dismissed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 09:43:53",
+      "event_id": 93,
+      "finding_id": "RGF-0092",
+      "from_state": "open",
+      "metadata": {},
+      "reason": "Top-level unknown command falls through to print_usage without exiting non-zero in src/main.rs:198-200, so the CLI returns success for unrecognized commands.",
+      "to_state": "confirmed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 09:43:53",
+      "event_id": 94,
+      "finding_id": "RGF-0093",
+      "from_state": "open",
+      "metadata": {
+        "dismiss_reason": "Dismissed: run_file_upload parses --idempotency-key via get_option at src/cli/mod.rs:1769 and applies idempotency handling at src/cli/mod.rs:1774-1866; the src/main.rs help text is accurate."
+      },
+      "reason": "Dismissed: run_file_upload parses --idempotency-key via get_option at src/cli/mod.rs:1769 and applies idempotency handling at src/cli/mod.rs:1774-1866; the src/main.rs help text is accurate.",
+      "to_state": "dismissed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 09:43:53",
+      "event_id": 95,
+      "finding_id": "RGF-0095",
+      "from_state": "open",
+      "metadata": {
+        "dismiss_reason": "Dismissed: run_file_upload parses --idempotency-key via get_option at src/cli/mod.rs:1769 and wraps idempotency metadata at src/cli/mod.rs:1858-1866, so short usage in src/main.rs:658 is accurate."
+      },
+      "reason": "Dismissed: run_file_upload parses --idempotency-key via get_option at src/cli/mod.rs:1769 and wraps idempotency metadata at src/cli/mod.rs:1858-1866, so short usage in src/main.rs:658 is accurate.",
+      "to_state": "dismissed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 09:45:33",
+      "event_id": 96,
+      "finding_id": "RGF-0096",
+      "from_state": "open",
+      "metadata": {
+        "dismiss_reason": "Dismissed: rand 0.8 thread_rng returns ThreadRng, a cryptographically secure RNG reseeded from OS entropy and implementing CryptoRng; gen_range produces uniform indices, so this is not a real PKCE/state nonce weakness."
+      },
+      "reason": "Dismissed: rand 0.8 thread_rng returns ThreadRng, a cryptographically secure RNG reseeded from OS entropy and implementing CryptoRng; gen_range produces uniform indices, so this is not a real PKCE/state nonce weakness.",
+      "to_state": "dismissed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 09:46:38",
+      "event_id": 97,
+      "finding_id": "RGF-0097",
+      "from_state": "open",
+      "metadata": {},
+      "reason": "Doctest default-port example depends on caller environment having no SLACK_OAUTH_PORT set; if set, the assertion expects 8765 but resolve_callback_port returns the environment port.",
+      "to_state": "confirmed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 09:48:21",
+      "event_id": 98,
+      "finding_id": "RGF-0098",
+      "from_state": "open",
+      "metadata": {},
+      "reason": "expand_bot_scopes expands all/bot:all via legacy bot_scopes() instead of the documented comprehensive bot_all_scopes(), diverging from expand_scopes_with_context.",
+      "to_state": "confirmed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 09:48:21",
+      "event_id": 99,
+      "finding_id": "RGF-0099",
+      "from_state": "open",
+      "metadata": {},
+      "reason": "expand_user_scopes expands all/user:all via legacy user_scopes() and bot:all via bot_scopes(), diverging from the comprehensive user_all_scopes()/bot_all_scopes() presets used by context-aware expansion.",
+      "to_state": "confirmed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 09:48:21",
+      "event_id": 100,
+      "finding_id": "RGF-0100",
+      "from_state": "open",
+      "metadata": {},
+      "reason": "bot_all_scopes documentation identifies channels:write as user-only while the legacy bot_scopes preset still includes channels:write, creating inconsistent scope contract guidance in this file.",
+      "to_state": "confirmed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 09:49:58",
+      "event_id": 101,
+      "finding_id": "RGF-0101",
+      "from_state": "open",
+      "metadata": {},
+      "reason": "Doc comment still says the callback port is typically 3000, but login resolves the runtime port via resolve_callback_port() with DEFAULT_OAUTH_PORT 8765 / SLACK_OAUTH_PORT override.",
+      "to_state": "confirmed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 09:49:59",
+      "event_id": 102,
+      "finding_id": "RGF-0102",
+      "from_state": "open",
+      "metadata": {},
+      "reason": "parse_query_string splits query pairs with split('='), so values containing literal '=' are truncated instead of preserving everything after the first separator.",
+      "to_state": "confirmed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 09:49:59",
+      "event_id": 103,
+      "finding_id": "RGF-0103",
+      "from_state": "open",
+      "metadata": {},
+      "reason": "The local percent decoder converts each decoded byte directly to char, which corrupts percent-encoded UTF-8 sequences instead of decoding byte sequences as UTF-8.",
+      "to_state": "confirmed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 09:51:16",
+      "event_id": 104,
+      "finding_id": "RGF-0104",
+      "from_state": "open",
+      "metadata": {},
+      "reason": "src/profile/mod.rs documents token storage as OS keyring, but src/profile/token_store.rs exports create_token_store() as FileTokenStore and FileTokenStore stores tokens in a JSON file under the data directory.",
+      "to_state": "confirmed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 09:53:04",
+      "event_id": 105,
+      "finding_id": "RGF-0105",
+      "from_state": "open",
+      "metadata": {
+        "dismiss_reason": "The helper documents the normal path as rename/move and only says the old file is kept when rename fails and the copy fallback runs; successful fs::rename removing the legacy file is consistent with that documentation."
+      },
+      "reason": "The helper documents the normal path as rename/move and only says the old file is kept when rename fails and the copy fallback runs; successful fs::rename removing the legacy file is consistent with that documentation.",
+      "to_state": "dismissed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 09:54:33",
+      "event_id": 106,
+      "finding_id": "RGF-0106",
+      "from_state": "open",
+      "metadata": {},
+      "reason": "FileTokenStore::set updates the in-memory token map before save_tokens persists the file, so a persistence error leaves this store instance reporting the new token even though the on-disk store was not updated.",
+      "to_state": "confirmed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 09:54:33",
+      "event_id": 107,
+      "finding_id": "RGF-0107",
+      "from_state": "open",
+      "metadata": {},
+      "reason": "FileTokenStore::delete removes the token from the in-memory map before save_tokens persists the deletion, so a persistence error leaves this store instance without the token even though the on-disk store still contains it.",
+      "to_state": "confirmed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 09:54:33",
+      "event_id": 108,
+      "finding_id": "RGF-0108",
+      "from_state": "open",
+      "metadata": {},
+      "reason": "FileTokenStore::new uses default_path, which honors SLACK_RS_TOKENS_PATH and absolute XDG_DATA_HOME before falling back to ~/.local/share/slack-rs/tokens.json, so the documentation's always-default-path wording is inaccurate.",
+      "to_state": "confirmed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 09:55:47",
+      "event_id": 109,
+      "finding_id": "RGF-0109",
+      "from_state": "open",
+      "metadata": {},
+      "reason": "Real CLI contract issue: TokenType::from_str lowercases input but does not trim surrounding whitespace, so values like ' bot' or 'user\\n' are rejected despite being common CLI/config input normalization cases.",
+      "to_state": "confirmed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 09:57:31",
+      "event_id": 110,
+      "finding_id": "RGF-0110",
+      "from_state": "open",
+      "metadata": {},
+      "reason": "ProfilesConfig stores profiles in a HashMap and list_names returns self.profiles.keys().cloned().collect(), so callers such as slack auth list receive HashMap iteration order rather than a deterministic order.",
+      "to_state": "confirmed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 09:58:54",
+      "event_id": 111,
+      "finding_id": "RGF-0111",
+      "from_state": "open",
+      "metadata": {
+        "dismiss_reason": "The doc comment states local installs go to ./.agents when global=false, and this implementation resolves that as current_dir().join(\".agents\"). In CLI usage ./.agents is necessarily relative to the process current directory, so the comment is accurate for this file's behavior."
+      },
+      "reason": "The doc comment states local installs go to ./.agents when global=false, and this implementation resolves that as current_dir().join(\".agents\"). In CLI usage ./.agents is necessarily relative to the process current directory, so the comment is accurate for this file's behavior.",
+      "to_state": "dismissed"
+    },
+    {
+      "checkpoint_id": "RGC-423a908c9173-RGS-d7d1a8919a6e",
+      "created_at": "2026-06-22 09:58:54",
+      "event_id": 112,
+      "finding_id": "RGF-0112",
+      "from_state": "open",
+      "metadata": {},
+      "reason": "deploy_embedded_skill writes embedded files directly into target_dir without removing or validating an existing target. If target_dir is an existing symlink to a source skill directory, fs::write(target_dir.join(rel_path), data) follows the symlink and overwrites the linked source files.",
+      "to_state": "confirmed"
+    }
+  ],
+  "schema_version": 1
+}
