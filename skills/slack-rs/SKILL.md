@@ -197,7 +197,7 @@ Export/import profiles using encrypted files (treat as secrets):
 
 ```bash
 # Prompt for passphrase (recommended)
-slack-rs auth export --all --out all-profiles.enc --passphrase-prompt
+slack-rs auth export --all --out all-profiles.enc --passphrase-prompt --yes
 slack-rs auth import --all --in all-profiles.enc --passphrase-prompt
 ```
 
